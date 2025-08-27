@@ -81,19 +81,28 @@ class VLCMediaPlayer:
     def _init_vlc(self):
         """VLC-Instanz initialisieren"""
         try:
-            # VLC-Optionen für optimale Performance
-            vlc_args = [
-                '--intf', 'dummy',           # Kein VLC-Interface
-                '--no-video-title-show',     # Keine Titel einblenden
-                '--no-osd',                  # Kein On-Screen-Display
-                '--quiet',                   # Weniger Ausgaben
-                '--no-audio-display',        # Keine Audio-Visualisierung
-                '--image-duration', '30'     # Bilder 30 Sekunden anzeigen
-                # Fullscreen entfernt - wird später gesetzt
-            ]
+            # VLC-Optionen wie in der funktionierenden media_player.py
+            print("[VLC-MediaPlayer] Initialisiere VLC mit bewährten Parametern...")
             
-            self.vlc_instance = vlc.Instance(vlc_args)
+            # Exakt die gleichen Parameter wie in der funktionierenden Version
+            self.vlc_instance = vlc.Instance(
+                '--no-video-title-show',
+                '--no-osd', 
+                '--quiet'
+            )
+            
+            if self.vlc_instance is None:
+                print("[VLC-MediaPlayer] VLC-Instance mit Parametern fehlgeschlagen - versuche ohne Parameter")
+                self.vlc_instance = vlc.Instance()
+            
+            if self.vlc_instance is None:
+                raise Exception("VLC-Instance konnte nicht erstellt werden")
+            
+            print("[VLC-MediaPlayer] VLC-Instance erfolgreich erstellt")
             self.vlc_player = self.vlc_instance.media_player_new()
+            
+            if self.vlc_player is None:
+                raise Exception("VLC Media Player konnte nicht erstellt werden")
             
             # VLC an unser video_frame binden
             self.media_window.update()  # GUI aktualisieren für korrekte IDs
@@ -105,10 +114,18 @@ class VLCMediaPlayer:
             print(f"[VLC-MediaPlayer] VLC erfolgreich initialisiert und an Frame gebunden (ID: {self.video_frame.winfo_id()})")
             
             # Test-Ausgabe für VLC-Funktionalität
-            print(f"[VLC-MediaPlayer] VLC-Version: {vlc.libvlc_get_version().decode()}")
+            try:
+                vlc_version = vlc.libvlc_get_version().decode()
+                print(f"[VLC-MediaPlayer] VLC-Version: {vlc_version}")
+            except:
+                print("[VLC-MediaPlayer] VLC-Version konnte nicht ermittelt werden")
             
         except Exception as e:
             print(f"[VLC-MediaPlayer] VLC-Initialisierung fehlgeschlagen: {e}")
+            print("[VLC-MediaPlayer] Mögliche Lösungen:")
+            print("  1. sudo apt install vlc vlc-bin vlc-plugin-base")
+            print("  2. pip3 install python-vlc")
+            print("  3. VLC-Installation prüfen: vlc --version")
             import traceback
             traceback.print_exc()
             global VLC_AVAILABLE
