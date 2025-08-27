@@ -48,6 +48,9 @@ class VLCMediaStationGUI:
         self.setup_gui()
         self.scan_media_files()
         
+        # Entry-Felder mit aktuellen Werten synchronisieren
+        self.sync_entry_fields()
+        
         # Sensor-Modus initial setzen
         self.update_sensor_mode()
         
@@ -673,6 +676,37 @@ class VLCMediaStationGUI:
             print("[VLC-GUI] GUI wieder sichtbar")
         except Exception as e:
             print(f"[VLC-GUI] GUI-Show-Fehler: {e}")
+    
+    def sync_entry_fields(self):
+        """Entry-Felder mit aktuellen Werten synchronisieren"""
+        try:
+            # Sensor-Einstellungen - verwende aktuelle Sensor-Thread-Werte falls vorhanden
+            if hasattr(self.sensor_thread, 'min_distance'):
+                self.min_dist_var.set(str(self.sensor_thread.min_distance))
+            else:
+                self.min_dist_var.set(str(DEFAULT_MIN_DIST))
+            
+            if hasattr(self.sensor_thread, 'max_distance'):
+                self.max_dist_var.set(str(self.sensor_thread.max_distance))
+            else:
+                self.max_dist_var.set(str(DEFAULT_MAX_DIST))
+            
+            if hasattr(self.sensor_thread, 'interval'):
+                self.interval_var.set(str(int(self.sensor_thread.interval * 1000)))
+            else:
+                self.interval_var.set(str(int(DEFAULT_INTERVAL * 1000)))
+            
+            # Media-Timing - verwende aktuelle Werte
+            self.image_interval_var.set(str(self.current_image_display_time))
+            self.audio_fade_var.set(str(int(self.current_audio_fade_time * 1000)))
+            self.min_video_var.set(str(self.current_min_video_time))
+            self.min_image_var.set(str(self.current_min_image_time))
+            self.min_audio_var.set(str(self.current_min_audio_time))
+            
+            print("[VLC-GUI] Entry-Felder mit aktuellen Werten synchronisiert")
+            
+        except Exception as e:
+            print(f"[VLC-GUI] Fehler beim Synchronisieren der Entry-Felder: {e}")
     
     def update_sensor_mode(self):
         """Sensor-Modus aktualisieren"""
