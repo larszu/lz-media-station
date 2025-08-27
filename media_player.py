@@ -1,5 +1,6 @@
 """
 Media-Player mit separatem Vollbild-Fenster für Video/Bild-Anzeige
+Unterstützt VLC, externe Player und tkinter Fallback
 """
 import os
 import threading
