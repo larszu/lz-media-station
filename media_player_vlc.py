@@ -18,6 +18,10 @@ except ImportError:
     VLC_AVAILABLE = False
     print("[VLC-MediaPlayer] VLC nicht verfügbar!")
 
+# Singleton-Pattern für VLC-Instanz um mehrfache Initialisierung zu vermeiden
+_vlc_instance_singleton = None
+_vlc_player_singleton = None
+
 class VLCMediaPlayer:
     def __init__(self):
         self.current_mode = "black"  # "black", "playing", "paused"
@@ -29,18 +33,29 @@ class VLCMediaPlayer:
         self.media_window = None
         self.media_label = None
         
+        # Instanz-Kontrolle
+        self.is_initializing = False
+        self.initialization_complete = False
+        
         # Timing für Mindestlaufzeiten
         self.media_start_time = 0
         self.min_display_time = 3.0  # Standard: 3 Sekunden
         
         # Media-Fenster erstellen
-        self._init_media_window()
-        
-        # VLC initialisieren
-        if VLC_AVAILABLE:
-            self._init_vlc()
+        if not self.is_initializing:
+            self.is_initializing = True
+            self._init_media_window()
+            
+            # VLC initialisieren
+            if VLC_AVAILABLE:
+                self._init_vlc()
+            else:
+                print("[VLC-MediaPlayer] VLC fehlt - nur schwarzes Bild möglich")
+            
+            self.initialization_complete = True
+            self.is_initializing = False
         else:
-            print("[VLC-MediaPlayer] VLC fehlt - nur schwarzes Bild möglich")
+            print("[VLC-MediaPlayer] Initialisierung bereits im Gange - überspringe")
     
     def _init_media_window(self):
         """Separates Media-Fenster erstellen"""
@@ -79,30 +94,43 @@ class VLCMediaPlayer:
             print(f"[VLC-MediaPlayer] Fehler beim Media-Fenster: {e}")
     
     def _init_vlc(self):
-        """VLC-Instanz initialisieren"""
+        """VLC-Instanz initialisieren mit Singleton-Pattern"""
+        global _vlc_instance_singleton, _vlc_player_singleton
+        
         try:
-            # VLC-Optionen wie in der funktionierenden media_player.py
-            print("[VLC-MediaPlayer] Initialisiere VLC mit bewährten Parametern...")
-            
-            # Exakt die gleichen Parameter wie in der funktionierenden Version
-            self.vlc_instance = vlc.Instance(
-                '--no-video-title-show',
-                '--no-osd', 
-                '--quiet'
-            )
-            
-            if self.vlc_instance is None:
-                print("[VLC-MediaPlayer] VLC-Instance mit Parametern fehlgeschlagen - versuche ohne Parameter")
-                self.vlc_instance = vlc.Instance()
-            
-            if self.vlc_instance is None:
-                raise Exception("VLC-Instance konnte nicht erstellt werden")
-            
-            print("[VLC-MediaPlayer] VLC-Instance erfolgreich erstellt")
-            self.vlc_player = self.vlc_instance.media_player_new()
-            
-            if self.vlc_player is None:
-                raise Exception("VLC Media Player konnte nicht erstellt werden")
+            # Prüfe ob bereits eine VLC-Instanz existiert
+            if _vlc_instance_singleton is not None and _vlc_player_singleton is not None:
+                print("[VLC-MediaPlayer] Verwende bestehende VLC-Instanz (Singleton)")
+                self.vlc_instance = _vlc_instance_singleton
+                self.vlc_player = _vlc_player_singleton
+            else:
+                # VLC-Optionen wie in der funktionierenden media_player.py
+                print("[VLC-MediaPlayer] Erstelle neue VLC-Instanz mit bewährten Parametern...")
+                
+                # Exakt die gleichen Parameter wie in der funktionierenden Version
+                self.vlc_instance = vlc.Instance(
+                    '--no-video-title-show',
+                    '--no-osd', 
+                    '--quiet'
+                )
+                
+                if self.vlc_instance is None:
+                    print("[VLC-MediaPlayer] VLC-Instance mit Parametern fehlgeschlagen - versuche ohne Parameter")
+                    self.vlc_instance = vlc.Instance()
+                
+                if self.vlc_instance is None:
+                    raise Exception("VLC-Instance konnte nicht erstellt werden")
+                
+                print("[VLC-MediaPlayer] VLC-Instance erfolgreich erstellt")
+                self.vlc_player = self.vlc_instance.media_player_new()
+                
+                if self.vlc_player is None:
+                    raise Exception("VLC Media Player konnte nicht erstellt werden")
+                
+                # Als Singleton speichern
+                _vlc_instance_singleton = self.vlc_instance
+                _vlc_player_singleton = self.vlc_player
+                print("[VLC-MediaPlayer] VLC-Instanz als Singleton gespeichert")
             
             # VLC an unser video_frame binden
             self.media_window.update()  # GUI aktualisieren für korrekte IDs
@@ -156,11 +184,25 @@ class VLCMediaPlayer:
         """Medienliste abspielen (Videos, Bilder, Audio gemischt)"""
         print(f"[VLC-MediaPlayer] play_media_list aufgerufen mit {len(media_files) if media_files else 0} Dateien")
         print(f"[VLC-MediaPlayer] VLC verfügbar: {VLC_AVAILABLE}")
+        print(f"[VLC-MediaPlayer] Aktueller Status - is_playing: {self.is_playing}")
+        
+        # Instanz-Kontrolle: Stoppe laufende Wiedergabe zuerst
+        if self.is_playing:
+            print("[VLC-MediaPlayer] Stoppe aktuelle Wiedergabe vor Start einer neuen")
+            self.stop()
+            time.sleep(0.2)  # Kurz warten bis VLC gestoppt ist
         
         if not VLC_AVAILABLE:
             print("[VLC-MediaPlayer] VLC nicht verfügbar - zeige schwarzes Bild")
             self.show_black()
             return False
+        
+        if not self.initialization_complete:
+            print("[VLC-MediaPlayer] Initialisierung noch nicht abgeschlossen - warte")
+            time.sleep(0.5)
+            if not self.initialization_complete:
+                print("[VLC-MediaPlayer] Initialisierung fehlgeschlagen")
+                return False
         
         if not media_files:
             print("[VLC-MediaPlayer] Keine Media-Dateien - zeige schwarzes Bild")
@@ -189,8 +231,21 @@ class VLCMediaPlayer:
     
     def play_single_media(self, media_file):
         """Einzelne Mediendatei abspielen"""
+        print(f"[VLC-MediaPlayer] play_single_media aufgerufen: {os.path.basename(media_file) if media_file else 'None'}")
+        
+        # Instanz-Kontrolle: Stoppe laufende Wiedergabe zuerst
+        if self.is_playing:
+            print("[VLC-MediaPlayer] Stoppe aktuelle Wiedergabe vor Einzelmedium")
+            self.stop()
+            time.sleep(0.1)
+        
         if not VLC_AVAILABLE or not os.path.exists(media_file):
+            print(f"[VLC-MediaPlayer] VLC nicht verfügbar oder Datei nicht gefunden: {media_file}")
             self.show_black()
+            return False
+        
+        if not self.initialization_complete:
+            print("[VLC-MediaPlayer] Initialisierung nicht abgeschlossen - überspringe Einzelmedium")
             return False
         
         try:
@@ -205,16 +260,38 @@ class VLCMediaPlayer:
     def _play_current_media(self):
         """Aktuelles Media aus Playlist abspielen"""
         if not self.current_playlist or self.current_index >= len(self.current_playlist):
+            print("[VLC-MediaPlayer] Keine gültige Playlist oder Index außerhalb Bereich")
             self.show_black()
             return False
+        
+        # Instanz-Kontrolle: Prüfe ob VLC-Player bereit ist
+        if not self.vlc_player:
+            print("[VLC-MediaPlayer] VLC-Player nicht initialisiert")
+            return False
+        
+        # Stoppe aktuelle Wiedergabe sicher
+        if self.is_playing:
+            try:
+                print("[VLC-MediaPlayer] Stoppe aktuelle Wiedergabe vor neuem Medium")
+                self.vlc_player.stop()
+                time.sleep(0.1)  # Kurz warten
+                self.is_playing = False
+            except Exception as e:
+                print(f"[VLC-MediaPlayer] Fehler beim Stoppen: {e}")
         
         try:
             media_file = self.current_playlist[self.current_index]
             media_name = os.path.basename(media_file)
             media_ext = os.path.splitext(media_file)[1].lower()
             
+            print(f"[VLC-MediaPlayer] Versuche abzuspielen: {media_name}")
+            
             # VLC-Media erstellen und abspielen
             media = self.vlc_instance.media_new(media_file)
+            if media is None:
+                print(f"[VLC-MediaPlayer] Media-Objekt konnte nicht erstellt werden für: {media_name}")
+                return False
+            
             self.vlc_player.set_media(media)
             
             # Spezielle Optionen für Bildtypen
@@ -292,14 +369,29 @@ class VLCMediaPlayer:
     def stop(self):
         """Wiedergabe stoppen"""
         try:
+            print("[VLC-MediaPlayer] Stoppe Wiedergabe...")
+            
             if self.vlc_player and self.is_playing:
+                # VLC-Player stoppen
                 self.vlc_player.stop()
+                
+                # Warten bis VLC wirklich gestoppt ist
+                max_wait = 20  # 2 Sekunden max warten
+                while max_wait > 0 and self.vlc_player.get_state() != vlc.State.Stopped:
+                    time.sleep(0.1)
+                    max_wait -= 1
+                
                 self.is_playing = False
                 self.current_mode = "black"
-                print("[VLC-MediaPlayer] Wiedergabe gestoppt")
+                print("[VLC-MediaPlayer] Wiedergabe erfolgreich gestoppt")
+            else:
+                print("[VLC-MediaPlayer] Keine aktive Wiedergabe zum Stoppen")
             
         except Exception as e:
             print(f"[VLC-MediaPlayer] Fehler beim Stoppen: {e}")
+            # Sicherheitshalber Status zurücksetzen
+            self.is_playing = False
+            self.current_mode = "black"
     
     def pause(self):
         """Wiedergabe pausieren/fortsetzen"""
@@ -383,20 +475,43 @@ class VLCMediaPlayer:
             print(f"[VLC-MediaPlayer] Fehler beim Vollbild-Wechsel: {e}")
     
     def cleanup(self):
-        """Ressourcen freigeben"""
+        """Ressourcen freigeben - aber Singleton beibehalten"""
         try:
+            print("[VLC-MediaPlayer] Cleanup - stoppe nur Wiedergabe, behalte VLC-Instanz")
             self.stop()
-            if self.vlc_player:
-                self.vlc_player.release()
-            if self.vlc_instance:
-                self.vlc_instance.release()
+            
+            # Media-Window schließen, aber VLC-Player behalten für andere Instanzen
             if self.media_window:
                 self.media_window.destroy()
+                self.media_window = None
             
-            print("[VLC-MediaPlayer] Cleanup abgeschlossen")
+            # VLC-Player und Instance NICHT freigeben - sie werden von anderen verwendet
+            print("[VLC-MediaPlayer] Cleanup abgeschlossen (VLC-Instanz beibehalten)")
             
         except Exception as e:
             print(f"[VLC-MediaPlayer] Fehler beim Cleanup: {e}")
+    
+    @staticmethod
+    def cleanup_singleton():
+        """Komplett-Cleanup der Singleton-Instanz - nur beim Programm-Ende aufrufen"""
+        global _vlc_instance_singleton, _vlc_player_singleton
+        
+        try:
+            print("[VLC-MediaPlayer] Singleton Cleanup...")
+            
+            if _vlc_player_singleton:
+                _vlc_player_singleton.stop()
+                _vlc_player_singleton.release()
+                _vlc_player_singleton = None
+                
+            if _vlc_instance_singleton:
+                _vlc_instance_singleton.release()
+                _vlc_instance_singleton = None
+            
+            print("[VLC-MediaPlayer] Singleton Cleanup abgeschlossen")
+            
+        except Exception as e:
+            print(f"[VLC-MediaPlayer] Fehler beim Singleton Cleanup: {e}")
 
 # Kompatibilitäts-Alias für bestehenden Code
 MediaPlayer = VLCMediaPlayer
