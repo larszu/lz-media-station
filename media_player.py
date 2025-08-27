@@ -15,6 +15,8 @@ except ImportError:
 
 class MediaPlayer:
     def __init__(self):
+        global VLC_AVAILABLE
+        
         self.current_mode = "black"  # "black", "video", "image"
         self.current_file = None
         self.vlc_instance = None
