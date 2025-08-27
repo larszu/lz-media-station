@@ -19,17 +19,30 @@ if __name__ == "__main__":
     # Dummy-Konfiguration laden
     from config import DEFAULT_INTERVAL
 
-    print("Starte Raspberry Pi Media Station...")
-    print("Drücke ESC in der GUI zum Beenden (Test-Modus)")
+    # Kiosk-Modus über Kommandozeilen-Argument steuern
+    import sys
+    kiosk_mode = "--kiosk" in sys.argv
+    use_real_sensor = "--real-sensor" in sys.argv
+
+    if kiosk_mode:
+        print("Starte Raspberry Pi Media Station - KIOSK MODUS")
+    else:
+        print("Starte Raspberry Pi Media Station - TEST MODUS")
+        print("Für Kiosk-Modus: python3 main.py --kiosk")
+    
+    print("Drücke ESC in der GUI zum Beenden")
     print("Oder Ctrl+C im Terminal")
 
-    # Sensor-Thread starten (use_dummy=False für echten HC-SR04)
-    sensor_thread = SensorThread(interval=DEFAULT_INTERVAL, use_dummy=False)
+    # Sensor-Thread starten
+    sensor_thread = SensorThread(
+        interval=DEFAULT_INTERVAL, 
+        use_dummy=not use_real_sensor
+    )
     sensor_thread.start()
 
     try:
         # GUI starten
-        app = MediaStationGUI(sensor_thread)
+        app = MediaStationGUI(sensor_thread, kiosk_mode=kiosk_mode)
         app.run()  # Vollbild, Kiosk-Modus
     except KeyboardInterrupt:
         print("\nProgramm beendet durch Benutzer")

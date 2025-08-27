@@ -18,9 +18,10 @@ class FileWatcher(FileSystemEventHandler):
             self.callback()
 
 class MediaStationGUI:
-    def __init__(self, sensor_thread):
+    def __init__(self, sensor_thread, kiosk_mode=False):
         self.sensor_thread = sensor_thread
         self.media_player = MediaPlayer()
+        self.kiosk_mode = kiosk_mode
         
         # Dateipfade
         self.selected_video = None
@@ -30,9 +31,15 @@ class MediaStationGUI:
         
         # GUI erstellen
         self.root = tk.Tk()
-        self.root.attributes('-fullscreen', True)
-        self.root.config(cursor="none")  # Mauszeiger ausblenden
-        self.root.title("Pi Media Station")
+        
+        if self.kiosk_mode:
+            self.root.attributes('-fullscreen', True)
+            self.root.config(cursor="none")  # Mauszeiger im Kiosk-Modus ausblenden
+        else:
+            # Test-Modus: Fenster mit Mauszeiger
+            self.root.geometry("1024x768")
+            self.root.title("Pi Media Station - Test Modus")
+        
         self.root.configure(bg='black')
         
         # ESC zum Beenden (für Testing)
