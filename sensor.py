@@ -3,27 +3,19 @@ HC-SR04 Ultraschallsensor + Glättung, läuft im Thread
 """
 import threading
 import time
-import random
-
-# Für echten HC-SR04 diese Imports aktivieren:
 import RPi.GPIO as GPIO
 
 class SensorThread(threading.Thread):
-    def __init__(self, interval=0.2, trig_pin=18, echo_pin=24, use_dummy=False):
+    def __init__(self, interval=0.2, trig_pin=18, echo_pin=24):
         super().__init__(daemon=True)
         self.interval = interval
         self.distance = 0.0
         self.running = True
         self._values = []  # Für Mittelwertfilter
         self.filter_size = 5
-        
-        # GPIO-Pins für HC-SR04
         self.trig_pin = trig_pin
         self.echo_pin = echo_pin
-        self.use_dummy = use_dummy
-        
-        if not use_dummy:
-            self._setup_gpio()
+        self._setup_gpio()
     
     def _setup_gpio(self):
         """GPIO für HC-SR04 einrichten"""
@@ -41,14 +33,13 @@ class SensorThread(threading.Thread):
             GPIO.output(self.trig_pin, False)
             
             start_time = time.time()
-            stop_time = time.time()
+            stop_time = start_time
             
             # Warten auf Echo-Start (mit Timeout)
             timeout_start = time.time()
             while GPIO.input(self.echo_pin) == 0:
                 start_time = time.time()
                 if start_time - timeout_start > 0.1:  # 100ms Timeout
-                    print("[Sensor] Echo-Start Timeout")
                     return 0
             
             # Warten auf Echo-Ende (mit Timeout)
@@ -56,7 +47,6 @@ class SensorThread(threading.Thread):
             while GPIO.input(self.echo_pin) == 1:
                 stop_time = time.time()
                 if stop_time - timeout_start > 0.1:  # 100ms Timeout
-                    print("[Sensor] Echo-Ende Timeout")
                     return 0
             
             time_elapsed = stop_time - start_time
@@ -64,37 +54,19 @@ class SensorThread(threading.Thread):
             
             # Plausibilitätsprüfung
             if distance < 2 or distance > 400:
-                print(f"[Sensor] Unplausibler Wert: {distance:.1f}cm")
                 return 0
                 
             return distance
             
-        except Exception as e:
-            print(f"[Sensor] Messfehler: {e}")
+        except Exception:
             return 0
     
-    def _measure_distance_dummy(self):
-        """Dummy-Sensor für Testing - nur wenn explizit gewünscht"""
-        # Simuliert realistische Sensordaten mit etwas Rauschen
-        base_distance = 50.0
-        noise = random.uniform(-5, 5)
-        # Simuliert gelegentliche "Ausreißer" wie bei echten Sensoren
-        if random.random() < 0.05:  # 5% Chance für Ausreißer
-            noise += random.uniform(-20, 20)
-        
-        return max(2, min(400, base_distance + noise))  # HC-SR04 Bereich: 2-400cm
-
     def run(self):
         """Sensor-Thread Hauptschleife"""
-        print(f"[DEBUG] Sensor-Thread gestartet (dummy={self.use_dummy})")  # Debug-Output
         while self.running:
             try:
-                if self.use_dummy:
-                    distance = self._measure_distance_dummy()
-                else:
-                    distance = self._measure_distance_real()
+                distance = self._measure_distance_real()
                 
-                # Nur wenn tatsächlich ein Sensor (echt oder dummy) aktiv ist
                 if distance > 0:
                     # Mittelwertfilter anwenden
                     self._values.append(distance)
@@ -107,8 +79,7 @@ class SensorThread(threading.Thread):
                     # Kein Sensor aktiv - Abstand bleibt 0
                     self.distance = 0.0
                 
-            except Exception as e:
-                print(f"Sensor-Fehler: {e}")
+            except Exception:
                 self.distance = 0.0
             
             time.sleep(self.interval)
@@ -116,8 +87,10 @@ class SensorThread(threading.Thread):
     def stop(self):
         """Sensor-Thread stoppen"""
         self.running = False
-        if not self.use_dummy:
+        try:
             GPIO.cleanup()
+        except Exception:
+            pass
     
     def set_filter_size(self, size):
         """Größe des Mittelwertfilters ändern"""
