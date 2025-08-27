@@ -88,8 +88,8 @@ class VLCMediaPlayer:
                 '--no-osd',                  # Kein On-Screen-Display
                 '--quiet',                   # Weniger Ausgaben
                 '--no-audio-display',        # Keine Audio-Visualisierung
-                '--image-duration', '30',    # Bilder 30 Sekunden anzeigen
-                '--fullscreen'               # Vollbild
+                '--image-duration', '30'     # Bilder 30 Sekunden anzeigen
+                # Fullscreen entfernt - wird später gesetzt
             ]
             
             self.vlc_instance = vlc.Instance(vlc_args)
@@ -104,8 +104,13 @@ class VLCMediaPlayer:
             
             print(f"[VLC-MediaPlayer] VLC erfolgreich initialisiert und an Frame gebunden (ID: {self.video_frame.winfo_id()})")
             
+            # Test-Ausgabe für VLC-Funktionalität
+            print(f"[VLC-MediaPlayer] VLC-Version: {vlc.libvlc_get_version().decode()}")
+            
         except Exception as e:
             print(f"[VLC-MediaPlayer] VLC-Initialisierung fehlgeschlagen: {e}")
+            import traceback
+            traceback.print_exc()
             global VLC_AVAILABLE
             VLC_AVAILABLE = False
     
@@ -132,7 +137,16 @@ class VLCMediaPlayer:
     
     def play_media_list(self, media_files, shuffle=False):
         """Medienliste abspielen (Videos, Bilder, Audio gemischt)"""
-        if not VLC_AVAILABLE or not media_files:
+        print(f"[VLC-MediaPlayer] play_media_list aufgerufen mit {len(media_files) if media_files else 0} Dateien")
+        print(f"[VLC-MediaPlayer] VLC verfügbar: {VLC_AVAILABLE}")
+        
+        if not VLC_AVAILABLE:
+            print("[VLC-MediaPlayer] VLC nicht verfügbar - zeige schwarzes Bild")
+            self.show_black()
+            return False
+        
+        if not media_files:
+            print("[VLC-MediaPlayer] Keine Media-Dateien - zeige schwarzes Bild")
             self.show_black()
             return False
         
@@ -141,12 +155,19 @@ class VLCMediaPlayer:
             self.current_playlist = media_files.copy()
             if shuffle:
                 random.shuffle(self.current_playlist)
+                print(f"[VLC-MediaPlayer] Playlist gemischt")
+            
+            print(f"[VLC-MediaPlayer] Aktuelle Playlist: {[os.path.basename(f) for f in self.current_playlist]}")
             
             self.current_index = 0
-            return self._play_current_media()
+            result = self._play_current_media()
+            print(f"[VLC-MediaPlayer] _play_current_media Resultat: {result}")
+            return result
             
         except Exception as e:
             print(f"[VLC-MediaPlayer] Fehler beim Abspielen der Medienliste: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def play_single_media(self, media_file):
@@ -208,14 +229,27 @@ class VLCMediaPlayer:
                 print(f"[VLC-MediaPlayer] Spiele Video: {media_name}")
             
             # Abspielen starten
+            print(f"[VLC-MediaPlayer] Versuche VLC-Play für: {media_name}")
             result = self.vlc_player.play()
+            print(f"[VLC-MediaPlayer] VLC-Play-Resultat: {result}")
+            
             if result == 0:  # VLC-Erfolg
                 self.is_playing = True
                 self.current_mode = "playing"
                 self.media_start_time = time.time()
+                print(f"[VLC-MediaPlayer] ✓ Wiedergabe erfolgreich gestartet: {media_name}")
+                
+                # Kurz warten und Status prüfen
+                time.sleep(0.5)
+                state = self.vlc_player.get_state()
+                print(f"[VLC-MediaPlayer] VLC-Player-Status nach Start: {state}")
+                
                 return True
             else:
-                print(f"[VLC-MediaPlayer] VLC-Play fehlgeschlagen für: {media_name}")
+                print(f"[VLC-MediaPlayer] ✗ VLC-Play fehlgeschlagen für: {media_name} (Resultat: {result})")
+                # Zusätzliche Diagnostik
+                state = self.vlc_player.get_state()
+                print(f"[VLC-MediaPlayer] VLC-Player-Status bei Fehler: {state}")
                 return False
                 
         except Exception as e:

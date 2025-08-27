@@ -175,6 +175,8 @@ class VLCMediaStationGUI:
         controls_row1 = tk.Frame(control_frame, bg='black')
         controls_row1.pack(pady=5)
         
+        tk.Button(controls_row1, text="▶ START", command=self.start_playback, 
+                 bg='lime', fg='black', font=('Arial', 11, 'bold')).pack(side='left', padx=5)
         tk.Button(controls_row1, text="Pause/Play", command=self.vlc_pause, 
                  bg='yellow', fg='black', font=('Arial', 11)).pack(side='left', padx=5)
         tk.Button(controls_row1, text="Stop", command=self.vlc_stop, 
@@ -396,7 +398,8 @@ class VLCMediaStationGUI:
             self.image_checkboxes[image_file] = var
             cb = tk.Checkbutton(self.image_scroll_frame, text=os.path.basename(image_file), 
                                variable=var, bg='gray10', fg='white', selectcolor='darkgray',
-                               font=('Arial', 9))
+                               font=('Arial', 9),
+                               command=self.on_image_selection_changed)  # Callback hinzugefügt
             cb.pack(anchor='w', padx=3, pady=1)
         
         # Audio
@@ -418,6 +421,11 @@ class VLCMediaStationGUI:
         self.audio_status_label.config(text=f"Audio: {len(self.all_audio_files)} gefunden", fg='lime')
         
         print(f"[VLC-GUI] Gefunden: {len(self.all_video_files)} Videos, {len(self.all_image_files)} Bilder, {len(self.all_audio_files)} Audio")
+        
+        # Bildvorschau starten falls Bilder ausgewählt sind
+        if self.all_image_files:
+            # Kurz warten damit GUI vollständig geladen ist
+            self.root.after(500, self.on_image_selection_changed)
     
     # Speichern-Methoden für alle Parameter
     def save_min_dist(self):
@@ -626,6 +634,10 @@ class VLCMediaStationGUI:
                 text=f"Playlist '{playlist_name}' geladen: {loaded_videos}V, {loaded_images}B, {loaded_audios}A ({total_files} Dateien)", 
                 fg='lime')
             
+            # Bildvorschau aktualisieren falls Bilder geladen wurden
+            if loaded_images > 0:
+                self.on_image_selection_changed()
+            
         except Exception as e:
             self.playlist_status_label.config(text=f"Laden fehlgeschlagen: {e}", fg='red')
     
@@ -750,6 +762,48 @@ class VLCMediaStationGUI:
         """Ausgewählte Audio-Dateien zurückgeben"""
         return [path for path, var in self.audio_checkboxes.items() if var.get()]
     
+    def on_image_selection_changed(self):
+        """Wird aufgerufen wenn Bild-Auswahl geändert wird - zeigt Bilder sofort an"""
+        try:
+            # Nur reagieren wenn nicht gerade ein Video/Audio über Sensor läuft
+            if self.media_player.is_playing:
+                # Prüfen ob gerade Video/Audio läuft (nicht nur Bild-Anzeige)
+                if hasattr(self.media_player, 'current_playlist') and self.media_player.current_playlist:
+                    current_file = self.media_player.current_playlist[self.media_player.current_index] if self.media_player.current_index < len(self.media_player.current_playlist) else None
+                    if current_file and not current_file.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif')):
+                        # Video oder Audio läuft - nicht unterbrechen
+                        print("[VLC-GUI] Bild-Auswahl geändert, aber Video/Audio läuft - keine Unterbrechung")
+                        return
+            
+            selected_images = self.get_selected_images()
+            
+            if selected_images:
+                # Erstes ausgewähltes Bild anzeigen
+                first_image = selected_images[0]
+                print(f"[VLC-GUI] Zeige Bild-Vorschau: {os.path.basename(first_image)}")
+                
+                # Stoppe aktuelle Wiedergabe falls es nur ein Bild ist
+                if self.media_player.is_playing:
+                    self.media_player.stop()
+                
+                # Einzelnes Bild anzeigen
+                success = self.media_player.play_single_media(first_image)
+                if success:
+                    self.media_status_label.config(
+                        text=f"Bild-Vorschau: {os.path.basename(first_image)}", 
+                        fg='cyan'
+                    )
+                else:
+                    print(f"[VLC-GUI] FEHLER: Konnte Bild nicht anzeigen: {os.path.basename(first_image)}")
+            else:
+                # Keine Bilder ausgewählt - schwarzes Bild
+                print("[VLC-GUI] Keine Bilder ausgewählt - zeige schwarzes Bild")
+                self.media_player.show_black()
+                self.media_status_label.config(text="Keine Bilder ausgewählt", fg='gray')
+                
+        except Exception as e:
+            print(f"[VLC-GUI] FEHLER in on_image_selection_changed: {e}")
+    
     def scan_files(self):
         """Alle Mediendateien erneut scannen"""
         print("[VLC-GUI] Scanne Mediendateien...")
@@ -782,31 +836,64 @@ class VLCMediaStationGUI:
         self.create_checkboxes()
     
     def start_playback(self):
-        """Wiedergabe starten"""
+        """Wiedergabe manuell starten (unabhängig vom Sensor)"""
         try:
-            selected_videos = self.get_selected_videos()
-            selected_images = self.get_selected_images()
-            selected_audios = self.get_selected_audios()
-            
-            all_selected = selected_videos + selected_images + selected_audios
-            
-            if not all_selected:
-                self.video_status_label.config(text="Keine Dateien ausgewählt!", fg='red')
-                return
-            
-            # Shuffle wenn gewünscht
-            import random
-            random.shuffle(all_selected)
-            
-            # Media-Player mit Liste starten
-            self.media_player.play_media_list(all_selected)
-            
-            self.video_status_label.config(text=f"Wiedergabe gestartet: {len(all_selected)} Dateien", fg='lime')
-            print(f"[VLC-GUI] Wiedergabe gestartet mit {len(all_selected)} Dateien")
+            if self.sensor_mode == "video":
+                # Video-Modus
+                selected_videos = self.get_selected_videos()
+                
+                if not selected_videos:
+                    self.media_status_label.config(text="Keine Videos ausgewählt!", fg='red')
+                    print("[VLC-GUI] Manueller Start: Keine Videos ausgewählt")
+                    return
+                
+                print(f"[VLC-GUI] Manueller Video-Start mit {len(selected_videos)} Videos")
+                print(f"[VLC-GUI] Videos: {[os.path.basename(v) for v in selected_videos]}")
+                
+                # Stoppen falls etwas läuft
+                if self.media_player.is_playing:
+                    self.media_player.stop()
+                
+                success = self.media_player.play_media_list(selected_videos, shuffle=True)
+                
+                if success:
+                    self.media_status_label.config(text=f"Video-Wiedergabe: {len(selected_videos)} Videos", fg='lime')
+                    print("[VLC-GUI] Video-Wiedergabe erfolgreich gestartet")
+                else:
+                    self.media_status_label.config(text="Video-Start fehlgeschlagen!", fg='red')
+                    print("[VLC-GUI] FEHLER: Video-Wiedergabe fehlgeschlagen")
+                    
+            elif self.sensor_mode == "audio":
+                # Audio-Modus (Audio + Bilder)
+                selected_audios = self.get_selected_audios()
+                selected_images = self.get_selected_images()
+                mixed_playlist = selected_audios + selected_images
+                
+                if not mixed_playlist:
+                    self.media_status_label.config(text="Keine Audio/Bild-Dateien ausgewählt!", fg='red')
+                    print("[VLC-GUI] Manueller Start: Keine Audio/Bild-Dateien ausgewählt")
+                    return
+                
+                print(f"[VLC-GUI] Manueller Audio+Bild-Start: {len(selected_audios)} Audio + {len(selected_images)} Bilder")
+                print(f"[VLC-GUI] Dateien: {[os.path.basename(f) for f in mixed_playlist]}")
+                
+                # Stoppen falls etwas läuft
+                if self.media_player.is_playing:
+                    self.media_player.stop()
+                
+                success = self.media_player.play_media_list(mixed_playlist, shuffle=True)
+                
+                if success:
+                    self.media_status_label.config(
+                        text=f"Audio+Bild-Wiedergabe: {len(selected_audios)}A + {len(selected_images)}B", fg='lime')
+                    print("[VLC-GUI] Audio+Bild-Wiedergabe erfolgreich gestartet")
+                else:
+                    self.media_status_label.config(text="Audio+Bild-Start fehlgeschlagen!", fg='red')
+                    print("[VLC-GUI] FEHLER: Audio+Bild-Wiedergabe fehlgeschlagen")
             
         except Exception as e:
-            self.video_status_label.config(text=f"Start-Fehler: {e}", fg='red')
-            print(f"[VLC-GUI] Start-Fehler: {e}")
+            self.media_status_label.config(text=f"Start-Fehler: {e}", fg='red')
+            print(f"[VLC-GUI] FEHLER in start_playback: {e}")
     
     def close(self):
         """GUI schließen"""
@@ -911,20 +998,25 @@ class VLCMediaStationGUI:
                     # Sensor ausgelöst
                     self.handle_sensor_trigger()
                 else:
-                    # Außerhalb Bereich - weiter laufen lassen
+                    # Außerhalb Bereich - Sensor-Wiedergabe beenden
                     if self.media_player.is_playing:
-                        media_info = self.media_player.get_current_media_info()
-                        if media_info:
-                            self.media_status_label.config(
-                                text=f"Läuft: {media_info['name']} ({media_info['index']}/{media_info['total']})",
-                                fg='cyan'
-                            )
-                        
-                        # Auto-weiter bei Ende
-                        if self.media_player.is_media_finished():
-                            self.media_player.next_media()
+                        # Prüfen ob gerade Sensor-Wiedergabe läuft (Video/Audio-Playlist)
+                        if hasattr(self.media_player, 'current_playlist') and self.media_player.current_playlist and len(self.media_player.current_playlist) > 1:
+                            # Multi-Media-Playlist läuft - das ist Sensor-Wiedergabe, beenden
+                            print("[VLC-GUI] Außerhalb Sensor-Bereich - beende Sensor-Wiedergabe")
+                            self.media_player.stop()
+                            # Zurück zur Bildvorschau
+                            self.restore_image_preview()
+                        else:
+                            # Einzelbild-Vorschau läuft - weiterlaufen lassen
+                            media_info = self.media_player.get_current_media_info()
+                            if media_info:
+                                self.media_status_label.config(
+                                    text=f"Bild-Vorschau: {media_info['name']}", fg='cyan'
+                                )
                     else:
-                        self.media_status_label.config(text="Bereit - außerhalb Sensor-Bereich", fg='yellow')
+                        # Nichts läuft - Bildvorschau starten falls Bilder ausgewählt
+                        self.restore_image_preview()
                         
             except ValueError:
                 self.media_status_label.config(text="Ungültige Sensor-Werte", fg='red')
@@ -933,27 +1025,92 @@ class VLCMediaStationGUI:
         self.root.after(200, self.update_status)
     
     def handle_sensor_trigger(self):
-        """Sensor ausgelöst - VLC-Playlist starten"""
-        if self.sensor_mode == "video":
-            # Nur Videos
-            selected_videos = self.get_selected_videos()
-            if selected_videos and not self.media_player.is_playing:
-                self.media_player.play_media_list(selected_videos, shuffle=True)
-                self.media_status_label.config(
-                    text=f"Video-Playlist: {len(selected_videos)} Videos", fg='lime'
-                )
-        
-        elif self.sensor_mode == "audio":
-            # Audio + Bilder gemischt
-            selected_audios = self.get_selected_audios()
-            selected_images = self.get_selected_images()
-            mixed_playlist = selected_audios + selected_images
+        """Sensor ausgelöst - VLC-Playlist starten (überschreibt Bildvorschau)"""
+        try:
+            if self.sensor_mode == "video":
+                # Nur Videos
+                selected_videos = self.get_selected_videos()
+                print(f"[VLC-GUI] Sensor ausgelöst - Video-Modus: {len(selected_videos)} Videos gefunden")
+                
+                if selected_videos:
+                    # Stoppe alles was läuft (auch Bildvorschau)
+                    if self.media_player.is_playing:
+                        self.media_player.stop()
+                    
+                    print(f"[VLC-GUI] Starte Video-Wiedergabe (überschreibt Bildvorschau): {[os.path.basename(v) for v in selected_videos]}")
+                    success = self.media_player.play_media_list(selected_videos, shuffle=True)
+                    if success:
+                        self.media_status_label.config(
+                            text=f"Sensor → Video-Playlist: {len(selected_videos)} Videos", fg='lime'
+                        )
+                        print("[VLC-GUI] Video-Wiedergabe erfolgreich gestartet (Sensor)")
+                    else:
+                        self.media_status_label.config(
+                            text="Video-Start fehlgeschlagen!", fg='red'
+                        )
+                        print("[VLC-GUI] FEHLER: Video-Wiedergabe konnte nicht gestartet werden")
+                        
+                        # Bei Fehler zurück zur Bildvorschau
+                        self.restore_image_preview()
+                else:
+                    print("[VLC-GUI] WARNUNG: Keine Videos ausgewählt für Sensor-Auslösung")
+                    self.media_status_label.config(text="Keine Videos ausgewählt!", fg='orange')
             
-            if mixed_playlist and not self.media_player.is_playing:
-                self.media_player.play_media_list(mixed_playlist, shuffle=True)
-                self.media_status_label.config(
-                    text=f"Audio+Bild: {len(selected_audios)}A + {len(selected_images)}B", fg='lime'
-                )
+            elif self.sensor_mode == "audio":
+                # Audio + Bilder gemischt
+                selected_audios = self.get_selected_audios()
+                selected_images = self.get_selected_images()
+                mixed_playlist = selected_audios + selected_images
+                
+                print(f"[VLC-GUI] Sensor ausgelöst - Audio-Modus: {len(selected_audios)} Audio + {len(selected_images)} Bilder")
+                
+                if mixed_playlist:
+                    # Stoppe alles was läuft (auch Bildvorschau)
+                    if self.media_player.is_playing:
+                        self.media_player.stop()
+                    
+                    print(f"[VLC-GUI] Starte Audio+Bild-Wiedergabe (überschreibt Bildvorschau): {[os.path.basename(f) for f in mixed_playlist]}")
+                    success = self.media_player.play_media_list(mixed_playlist, shuffle=True)
+                    if success:
+                        self.media_status_label.config(
+                            text=f"Sensor → Audio+Bild: {len(selected_audios)}A + {len(selected_images)}B", fg='lime'
+                        )
+                        print("[VLC-GUI] Audio+Bild-Wiedergabe erfolgreich gestartet (Sensor)")
+                    else:
+                        self.media_status_label.config(
+                            text="Audio+Bild-Start fehlgeschlagen!", fg='red'
+                        )
+                        print("[VLC-GUI] FEHLER: Audio+Bild-Wiedergabe konnte nicht gestartet werden")
+                        
+                        # Bei Fehler zurück zur Bildvorschau
+                        self.restore_image_preview()
+                else:
+                    print("[VLC-GUI] WARNUNG: Keine Audio/Bild-Dateien ausgewählt für Sensor-Auslösung")
+                    self.media_status_label.config(text="Keine Audio/Bild-Dateien ausgewählt!", fg='orange')
+                    
+        except Exception as e:
+            print(f"[VLC-GUI] FEHLER in handle_sensor_trigger: {e}")
+            self.media_status_label.config(text=f"Sensor-Trigger-Fehler: {e}", fg='red')
+    
+    def restore_image_preview(self):
+        """Stellt die Bildvorschau wieder her wenn Sensor-Wiedergabe beendet ist"""
+        try:
+            selected_images = self.get_selected_images()
+            if selected_images:
+                first_image = selected_images[0]
+                print(f"[VLC-GUI] Stelle Bildvorschau wieder her: {os.path.basename(first_image)}")
+                success = self.media_player.play_single_media(first_image)
+                if success:
+                    self.media_status_label.config(
+                        text=f"Bild-Vorschau: {os.path.basename(first_image)}", 
+                        fg='cyan'
+                    )
+            else:
+                print("[VLC-GUI] Keine Bilder für Vorschau - zeige schwarzes Bild")
+                self.media_player.show_black()
+                self.media_status_label.config(text="Bereit - außerhalb Sensor-Bereich", fg='yellow')
+        except Exception as e:
+            print(f"[VLC-GUI] FEHLER in restore_image_preview: {e}")
     
     def run(self):
         """GUI starten"""
