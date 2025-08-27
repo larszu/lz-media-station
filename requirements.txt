@@ -2,4 +2,5 @@ tkinter
 watchdog
 python-vlc
 Pillow
+pygame
 RPi.GPIO

@@ -25,6 +25,15 @@ except ImportError:
     PIL_AVAILABLE = False
     print("[MediaPlayer] PIL nicht verfügbar - Bildanzeige limitiert")
 
+# pygame für Audio
+try:
+    import pygame
+    pygame.mixer.init()
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
+    print("[MediaPlayer] pygame nicht verfügbar - Audio-Funktionen limitiert")
+
 class MediaPlayer:
     def __init__(self):
         global VLC_AVAILABLE
@@ -39,53 +48,132 @@ class MediaPlayer:
         self.media_window = None
         self.media_label = None
         self.video_process = None
+        self.video_start_time = 0
+        self.video_duration = 0
         
-        # VLC-Instanz für echte Implementierung
+        # Audio-System
+        self.current_audio = None
+        self.audio_thread = None
+        self.audio_playing = False
+        self.audio_fade_time = 2.0  # Standard Fade-Zeit
+        self.selected_audio_files = []
+        self.current_audio_index = 0
+        self.audio_stop_event = threading.Event()
+        self.audio_start_time = 0  # Start-Zeit für Mindestlaufzeit
+        
+        # Mindestlaufzeiten für Stabilität
+        self.image_start_time = 0
+        self.video_forced_start_time = 0  # Für Mindest-Video-Laufzeit
+        
+        # Immer tkinter-Fenster erstellen
+        print("[MediaPlayer] Initialisiere separates Media-Fenster...")
+        self._init_fallback_window()
+        
+        # VLC-Instanz für echte Implementierung (optional)
         if VLC_AVAILABLE:
             try:
                 self.vlc_instance = vlc.Instance(
-                    '--fullscreen', 
                     '--no-video-title-show',
                     '--no-osd',
                     '--quiet'
                 )
                 self.vlc_player = self.vlc_instance.media_player_new()
-                print("[MediaPlayer] VLC erfolgreich initialisiert")
+                print("[MediaPlayer] VLC erfolgreich initialisiert (als zusätzliche Option)")
             except Exception as e:
                 print(f"[MediaPlayer] VLC-Initialisierung fehlgeschlagen: {e}")
                 VLC_AVAILABLE = False
         
-        if not VLC_AVAILABLE:
-            print("[MediaPlayer] Verwende tkinter Fallback für Medien-Anzeige")
-            self._init_fallback_window()
+        print(f"[MediaPlayer] Bereit - VLC verfügbar: {VLC_AVAILABLE}")
         
     def _init_fallback_window(self):
         """Initialisiert separates tkinter-Fenster für Medien"""
-        self.media_window = tk.Toplevel()
-        self.media_window.title("Pi Media Station - Anzeige")
-        self.media_window.configure(bg='black')
-        self.media_window.attributes('-fullscreen', True)
-        self.media_window.focus_force()
-        
-        # Label für Bilder/Text
-        self.media_label = Label(
-            self.media_window, 
-            bg='black', 
-            fg='white',
-            text="Schwarzes Bild",
-            font=('Arial', 24)
-        )
-        self.media_label.pack(fill=tk.BOTH, expand=True)
-        
-        # ESC zum Vollbild verlassen
-        self.media_window.bind('<Escape>', self._toggle_fullscreen)
-        self.media_window.bind('<F11>', self._toggle_fullscreen)
+        try:
+            self.media_window = tk.Toplevel()
+            self.media_window.title("Pi Media Station - Anzeige")
+            self.media_window.configure(bg='black')
+            
+            # Fenster konfigurieren
+            self.media_window.geometry("800x600")  # Startgröße
+            self.media_window.state('zoomed')  # Maximiert (Windows)
+            
+            # Label für Bilder/Text
+            self.media_label = Label(
+                self.media_window, 
+                bg='black', 
+                fg='white',
+                text="Pi Media Station\n\nBereit für Medien-Anzeige\n\nF11 = Vollbild\nESC = Fenster",
+                font=('Arial', 20),
+                justify='center'
+            )
+            self.media_label.pack(fill=tk.BOTH, expand=True)
+            
+            # Tastenkombinationen
+            self.media_window.bind('<Escape>', self._toggle_fullscreen)
+            self.media_window.bind('<F11>', self._toggle_fullscreen)
+            self.media_window.bind('<Alt-F4>', lambda e: self.media_window.quit())
+            
+            # Fenster in den Vordergrund
+            self.media_window.lift()
+            self.media_window.focus_force()
+            
+            print("[MediaPlayer] Separates Media-Fenster erstellt")
+            
+        except Exception as e:
+            print(f"[MediaPlayer] Fehler beim Erstellen des Media-Fensters: {e}")
+            self.media_window = None
+            self.media_label = None
         
     def _toggle_fullscreen(self, event=None):
         """Vollbild ein/aus für tkinter Fallback"""
         if self.media_window:
-            current = self.media_window.attributes('-fullscreen')
-            self.media_window.attributes('-fullscreen', not current)
+            try:
+                current = self.media_window.attributes('-fullscreen')
+                self.media_window.attributes('-fullscreen', not current)
+                if not current:
+                    print("[MediaPlayer] Vollbild aktiviert")
+                else:
+                    print("[MediaPlayer] Vollbild deaktiviert")
+            except Exception as e:
+                print(f"[MediaPlayer] Vollbild-Toggle Fehler: {e}")
+                # Fallback für Windows
+                try:
+                    if self.media_window.state() == 'zoomed':
+                        self.media_window.state('normal')
+                        self.media_window.geometry("800x600")
+                    else:
+                        self.media_window.state('zoomed')
+                except:
+                    pass
+            
+    def is_video_finished(self):
+        """Prüft ob das aktuelle Video beendet ist"""
+        if self.current_mode != "video":
+            return False
+        
+        # VLC-Prüfung
+        if VLC_AVAILABLE and self.vlc_player:
+            try:
+                state = self.vlc_player.get_state()
+                # Video ist beendet wenn es gestoppt oder am Ende ist
+                if state in [vlc.State.Ended, vlc.State.Stopped, vlc.State.Error]:
+                    return True
+            except:
+                pass
+        
+        # Externe Player-Prüfung
+        if self.video_process:
+            # Prüfen ob Prozess noch läuft
+            if self.video_process.poll() is not None:
+                return True  # Prozess beendet
+        
+        # Fallback: Zeit-basierte Schätzung (sehr grob)
+        if self.video_start_time > 0:
+            elapsed = time.time() - self.video_start_time
+            # Annahme: Video ist nach 5 Minuten "wahrscheinlich" beendet
+            if elapsed > 300:  # 5 Minuten
+                return True
+        
+        return False
             
     def play_video(self, path):
         """Video im Loop und Vollbild abspielen"""
@@ -99,23 +187,56 @@ class MediaPlayer:
             
         self.current_mode = "video"
         self.current_file = path
+        self.video_start_time = time.time()  # Startzeit speichern
+        self.video_forced_start_time = time.time()  # Mindestlaufzeit-Timer
         
-        if VLC_AVAILABLE and self.vlc_player:
-            # VLC für Video-Wiedergabe
-            try:
-                media = self.vlc_instance.media_new(path)
-                media.add_option('input-repeat=-1')  # Endlos-Loop
-                self.vlc_player.set_media(media)
-                self.vlc_player.set_fullscreen(True)
-                self.vlc_player.play()
-                self.is_playing = True
-                print(f"[MediaPlayer] VLC spielt Video: {os.path.basename(path)}")
-            except Exception as e:
-                print(f"[MediaPlayer] VLC Video-Fehler: {e}")
-                self._fallback_video(path)
-        else:
-            # Fallback: Externes Programm für Video
-            self._fallback_video(path)
+        print(f"[MediaPlayer] Starte Video: {os.path.basename(path)}")
+        
+        # Priorität: Externe Player > VLC > tkinter Fallback
+        if not self._fallback_video(path):
+            if VLC_AVAILABLE and self.vlc_player:
+                self._vlc_play_video(path)
+            else:
+                # tkinter Fallback für Videos
+                if self.media_window and self.media_label:
+                    self.media_label.config(
+                        text=f"🎬 VIDEO\n\n{os.path.basename(path)}\n\n(Kein Video-Player verfügbar)\n\nExterner Player erforderlich",
+                        font=('Arial', 16),
+                        fg='yellow'
+                    )
+    
+    def _vlc_play_video(self, path):
+        """VLC Video-Wiedergabe"""
+        try:
+            media = self.vlc_instance.media_new(path)
+            # Kein Loop - Video soll normal enden
+            self.vlc_player.set_media(media)
+            
+            # VLC in separatem Fenster einbetten (falls möglich)
+            if self.media_window:
+                try:
+                    # Windows Handle für VLC
+                    hwnd = self.media_window.winfo_id()
+                    self.vlc_player.set_hwnd(hwnd)
+                except:
+                    pass
+            
+            self.vlc_player.play()
+            self.is_playing = True
+            print(f"[MediaPlayer] VLC spielt Video: {os.path.basename(path)}")
+            
+            # Status im tkinter-Fenster anzeigen
+            if self.media_window and self.media_label:
+                self.media_label.config(
+                    text=f"🎬 VLC VIDEO\n\n{os.path.basename(path)}\n\nWird wiedergegeben...",
+                    font=('Arial', 18),
+                    fg='lime'
+                )
+            
+        except Exception as e:
+            print(f"[MediaPlayer] VLC Video-Fehler: {e}")
+            return False
+        return True
     
     def _fallback_video(self, path):
         """Fallback Video-Wiedergabe mit externem Player"""
@@ -129,46 +250,54 @@ class MediaPlayer:
         
         try:
             # Versuche verschiedene Video-Player
-            players = ['vlc', 'mpv', 'mplayer']
+            players = ['vlc', 'mpv', 'mplayer', 'wmplayer']
             for player in players:
                 try:
                     if player == 'vlc':
                         self.video_process = subprocess.Popen([
                             player, path, 
                             '--fullscreen', 
-                            '--loop',
                             '--no-video-title-show',
                             '--quiet'
                         ])
                     elif player == 'mpv':
                         self.video_process = subprocess.Popen([
                             player, path,
-                            '--fullscreen',
-                            '--loop-file=inf'
+                            '--fullscreen'
+                        ])
+                    elif player == 'wmplayer':
+                        # Windows Media Player
+                        self.video_process = subprocess.Popen([
+                            player, path,
+                            '/fullscreen'
                         ])
                     else:  # mplayer
                         self.video_process = subprocess.Popen([
                             player, path,
-                            '-fs',
-                            '-loop', '0'
+                            '-fs'
                         ])
                     
                     print(f"[MediaPlayer] {player} spielt Video: {os.path.basename(path)}")
-                    break
+                    
+                    # Status im tkinter-Fenster anzeigen
+                    if self.media_window and self.media_label:
+                        self.media_label.config(
+                            text=f"🎬 EXTERNAL VIDEO\n\n{os.path.basename(path)}\n\nPlayer: {player.upper()}",
+                            font=('Arial', 18),
+                            fg='cyan'
+                        )
+                    return True
+                    
                 except FileNotFoundError:
                     continue
-            else:
-                # Kein externer Player gefunden - tkinter Fallback
-                if self.media_window and self.media_label:
-                    self.media_label.config(
-                        text=f"VIDEO: {os.path.basename(path)}\n\n(Kein Video-Player verfügbar)",
-                        font=('Arial', 20)
-                    )
+            
+            # Kein externer Player gefunden
+            print("[MediaPlayer] Kein Video-Player gefunden")
+            return False
                     
         except Exception as e:
             print(f"[MediaPlayer] Fallback Video-Fehler: {e}")
-            if self.media_window and self.media_label:
-                self.media_label.config(text="Video-Wiedergabe fehlgeschlagen")
+            return False
 
     def show_image(self, path):
         """Bild anzeigen"""
@@ -182,6 +311,7 @@ class MediaPlayer:
             
         self.current_mode = "image"
         self.current_file = path
+        self.image_start_time = time.time()  # Mindestlaufzeit-Timer
         
         # Video stoppen falls läuft
         self._stop_video()
@@ -250,6 +380,8 @@ class MediaPlayer:
         self.current_mode = "black"
         self.current_file = None
         
+        print("[MediaPlayer] Zeige schwarzes Bild")
+        
         # Video stoppen
         self._stop_video()
         
@@ -259,17 +391,16 @@ class MediaPlayer:
             except:
                 pass
         
-        # tkinter Fallback: Schwarzes Bild
+        # tkinter: Schwarzes Bild mit Status
         if self.media_window and self.media_label:
             self.media_label.config(
                 image="",
-                text="Schwarzes Bild", 
+                text="⚫ STANDBY\n\nKein Objekt erkannt\n\nWarte auf Sensor-Signal...", 
                 fg='gray',
-                font=('Arial', 24)
+                font=('Arial', 20),
+                justify='center'
             )
             self.media_label.image = None
-            
-        print("[MediaPlayer] Schwarzes Bild")
 
     def _stop_video(self):
         """Video-Wiedergabe stoppen"""
@@ -297,6 +428,9 @@ class MediaPlayer:
         """Ressourcen freigeben"""
         print("[MediaPlayer] Cleanup...")
         
+        # Audio stoppen
+        self.stop_audio()
+        
         # Video stoppen
         self._stop_video()
         
@@ -314,9 +448,217 @@ class MediaPlayer:
             except:
                 pass
         
+        # pygame cleanup
+        if PYGAME_AVAILABLE:
+            try:
+                pygame.mixer.quit()
+            except:
+                pass
+        
         # tkinter Fenster schließen
         if self.media_window:
             try:
                 self.media_window.destroy()
             except:
                 pass
+    
+    def set_audio_fade_time(self, fade_time):
+        """Setzt die Fade-Zeit für Audio-Übergänge"""
+        self.audio_fade_time = max(0.1, float(fade_time))
+        print(f"[MediaPlayer] Audio Fade-Zeit: {self.audio_fade_time}s")
+    
+    def start_audio_playlist(self, audio_files):
+        """Startet Audio-Playlist im Hintergrund"""
+        if not audio_files:
+            self.stop_audio()
+            return
+        
+        # Aktuelle Audio stoppen
+        self.stop_audio()
+        
+        self.selected_audio_files = audio_files.copy()
+        self.current_audio_index = 0
+        self.audio_stop_event.clear()
+        
+        # Audio-Thread starten
+        self.audio_thread = threading.Thread(
+            target=self._audio_playlist_worker, 
+            daemon=True
+        )
+        self.audio_thread.start()
+        print(f"[MediaPlayer] Audio-Playlist gestartet: {len(audio_files)} Dateien")
+    
+    def _audio_playlist_worker(self):
+        """Audio-Playlist Worker Thread"""
+        while not self.audio_stop_event.is_set() and self.selected_audio_files:
+            try:
+                # Aktuelle Audio-Datei
+                current_file = self.selected_audio_files[self.current_audio_index]
+                
+                if not os.path.exists(current_file):
+                    print(f"[MediaPlayer] Audio-Datei nicht gefunden: {current_file}")
+                    self._next_audio()
+                    continue
+                
+                print(f"[MediaPlayer] Spiele Audio: {os.path.basename(current_file)}")
+                self.current_audio = current_file
+                self.audio_playing = True
+                self.audio_start_time = time.time()  # Mindestlaufzeit-Timer
+                
+                # Audio mit pygame abspielen
+                if PYGAME_AVAILABLE:
+                    self._play_audio_pygame(current_file)
+                else:
+                    # Fallback mit externem Player
+                    self._play_audio_external(current_file)
+                
+                # Zum nächsten Track
+                if not self.audio_stop_event.is_set():
+                    self._next_audio()
+                    
+            except Exception as e:
+                print(f"[MediaPlayer] Audio-Playlist Fehler: {e}")
+                time.sleep(1)
+        
+        self.audio_playing = False
+        print("[MediaPlayer] Audio-Playlist beendet")
+    
+    def _play_audio_pygame(self, file_path):
+        """Audio mit pygame abspielen"""
+        try:
+            pygame.mixer.music.load(file_path)
+            pygame.mixer.music.play()
+            
+            # Warten bis Audio beendet
+            while pygame.mixer.music.get_busy() and not self.audio_stop_event.is_set():
+                time.sleep(0.1)
+            
+            # Fade-out wenn gestoppt
+            if not self.audio_stop_event.is_set():
+                # Fade zwischen Tracks
+                fade_ms = int(self.audio_fade_time * 1000)
+                pygame.mixer.music.fadeout(fade_ms)
+                time.sleep(self.audio_fade_time)
+            
+        except Exception as e:
+            print(f"[MediaPlayer] pygame Audio-Fehler: {e}")
+            # Fallback: kurz warten
+            time.sleep(2)
+    
+    def _play_audio_external(self, file_path):
+        """Audio mit externem Player abspielen"""
+        try:
+            # Versuche verschiedene Audio-Player
+            players = ['vlc', 'mpv', 'wmplayer']
+            
+            for player in players:
+                try:
+                    if player == 'vlc':
+                        process = subprocess.Popen([
+                            player, file_path,
+                            '--intf', 'dummy',
+                            '--play-and-exit',
+                            '--quiet'
+                        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    elif player == 'mpv':
+                        process = subprocess.Popen([
+                            player, file_path,
+                            '--no-video'
+                        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    else:  # wmplayer
+                        process = subprocess.Popen([
+                            player, file_path
+                        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    
+                    # Warten bis Prozess beendet
+                    while process.poll() is None and not self.audio_stop_event.is_set():
+                        time.sleep(0.1)
+                    
+                    if not self.audio_stop_event.is_set():
+                        # Kurze Pause zwischen Tracks
+                        time.sleep(self.audio_fade_time)
+                    
+                    if process.poll() is None:
+                        process.terminate()
+                    
+                    return  # Erfolgreich abgespielt
+                    
+                except FileNotFoundError:
+                    continue
+            
+            # Kein Player gefunden
+            print("[MediaPlayer] Kein Audio-Player gefunden")
+            time.sleep(2)  # Kurze Pause
+            
+        except Exception as e:
+            print(f"[MediaPlayer] Externer Audio-Player Fehler: {e}")
+            time.sleep(2)
+    
+    def _next_audio(self):
+        """Zum nächsten Audio-Track wechseln"""
+        if self.selected_audio_files:
+            self.current_audio_index = (self.current_audio_index + 1) % len(self.selected_audio_files)
+    
+    def stop_audio(self):
+        """Audio-Wiedergabe stoppen"""
+        print("[MediaPlayer] Stoppe Audio")
+        
+        # Stop-Event setzen
+        self.audio_stop_event.set()
+        
+        # pygame stoppen
+        if PYGAME_AVAILABLE:
+            try:
+                pygame.mixer.music.stop()
+            except:
+                pass
+        
+        # Thread beenden
+        if self.audio_thread and self.audio_thread.is_alive():
+            self.audio_thread.join(timeout=2)
+        
+        self.audio_playing = False
+        self.current_audio = None
+        self.audio_thread = None
+    
+    def get_current_audio_info(self):
+        """Gibt Informationen über aktuell laufende Audio zurück"""
+        if self.audio_playing and self.current_audio:
+            total_files = len(self.selected_audio_files)
+            current_index = self.current_audio_index + 1
+            filename = os.path.basename(self.current_audio)
+            return f"{filename} ({current_index}/{total_files})"
+        return None
+    
+    def can_switch_from_video(self, min_runtime=3.0):
+        """Prüft ob genug Zeit vergangen ist um vom Video zu wechseln"""
+        if self.current_mode != "video":
+            return True
+        
+        if self.video_forced_start_time == 0:
+            return True  # Kein erzwungener Start
+        
+        elapsed = time.time() - self.video_forced_start_time
+        return elapsed >= min_runtime
+    
+    def can_switch_from_image(self, min_runtime=2.0):
+        """Prüft ob genug Zeit vergangen ist um vom Bild zu wechseln"""
+        if self.current_mode != "image":
+            return True
+        
+        if self.image_start_time == 0:
+            return True  # Kein Start-Zeit gesetzt
+        
+        elapsed = time.time() - self.image_start_time
+        return elapsed >= min_runtime
+    
+    def can_switch_audio(self, min_runtime=5.0):
+        """Prüft ob Audio-Track genug Zeit hatte zum Abspielen"""
+        if not self.audio_playing:
+            return True
+        
+        if self.audio_start_time == 0:
+            return True  # Kein Start-Zeit gesetzt
+        
+        elapsed = time.time() - self.audio_start_time
+        return elapsed >= min_runtime
