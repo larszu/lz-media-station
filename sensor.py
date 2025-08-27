@@ -34,23 +34,44 @@ class SensorThread(threading.Thread):
         time.sleep(2)  # Sensor stabilisieren
     
     def _measure_distance_real(self):
-        """Echte HC-SR04 Abstandsmessung"""
-        GPIO.output(self.trig_pin, True)
-        time.sleep(0.00001)  # 10µs Trigger-Impuls
-        GPIO.output(self.trig_pin, False)
-        
-        start_time = time.time()
-        stop_time = time.time()
-        
-        while GPIO.input(self.echo_pin) == 0:
+        """Echte HC-SR04 Abstandsmessung mit Timeout-Schutz"""
+        try:
+            GPIO.output(self.trig_pin, True)
+            time.sleep(0.00001)  # 10µs Trigger-Impuls
+            GPIO.output(self.trig_pin, False)
+            
             start_time = time.time()
-        
-        while GPIO.input(self.echo_pin) == 1:
             stop_time = time.time()
-        
-        time_elapsed = stop_time - start_time
-        distance = (time_elapsed * 34300) / 2  # Schallgeschwindigkeit
-        return distance
+            
+            # Warten auf Echo-Start (mit Timeout)
+            timeout_start = time.time()
+            while GPIO.input(self.echo_pin) == 0:
+                start_time = time.time()
+                if start_time - timeout_start > 0.1:  # 100ms Timeout
+                    print("[Sensor] Echo-Start Timeout")
+                    return 0
+            
+            # Warten auf Echo-Ende (mit Timeout)
+            timeout_start = time.time()
+            while GPIO.input(self.echo_pin) == 1:
+                stop_time = time.time()
+                if stop_time - timeout_start > 0.1:  # 100ms Timeout
+                    print("[Sensor] Echo-Ende Timeout")
+                    return 0
+            
+            time_elapsed = stop_time - start_time
+            distance = (time_elapsed * 34300) / 2  # Schallgeschwindigkeit
+            
+            # Plausibilitätsprüfung
+            if distance < 2 or distance > 400:
+                print(f"[Sensor] Unplausibler Wert: {distance:.1f}cm")
+                return 0
+                
+            return distance
+            
+        except Exception as e:
+            print(f"[Sensor] Messfehler: {e}")
+            return 0
     
     def _measure_distance_dummy(self):
         """Dummy-Sensor für Testing - nur wenn explizit gewünscht"""

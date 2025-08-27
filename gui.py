@@ -64,8 +64,11 @@ class MediaStationGUI:
         
         self.root.configure(bg='black')
         
-        # ESC zum Beenden (für Testing)
-        self.root.bind('<Escape>', lambda e: self.root.quit())
+        # ESC zum Beenden (für Testing) - Robuste Behandlung
+        self.root.bind('<Escape>', self._handle_escape_key)
+        self.root.bind('<Control-c>', lambda e: self._emergency_quit())
+        self.root.bind('<Control-q>', lambda e: self._emergency_quit())
+        self.root.bind('<Alt-F4>', lambda e: self._emergency_quit())
         
         self.setup_gui()
         self.setup_file_watchers()

@@ -8,6 +8,8 @@ import time
 import tkinter as tk
 from tkinter import Label
 import subprocess
+import platform
+import sys
 
 # VLC-Integration versuchen
 try:
@@ -92,9 +94,22 @@ class MediaPlayer:
             self.media_window.title("Pi Media Station - Anzeige")
             self.media_window.configure(bg='black')
             
-            # Fenster konfigurieren
+            # Fenster konfigurieren - plattformabhängig
             self.media_window.geometry("800x600")  # Startgröße
-            self.media_window.state('zoomed')  # Maximiert (Windows)
+            
+            # Plattformspezifische Vollbild-Logik
+            if platform.system() == "Windows":
+                self.media_window.state('zoomed')  # Windows: Maximiert
+            else:
+                # Linux/Raspberry Pi: Andere Ansätze
+                try:
+                    self.media_window.attributes('-zoomed', True)  # Linux-Variante
+                except:
+                    try:
+                        self.media_window.state('zoomed')  # Falls unterstützt
+                    except:
+                        # Fallback: Vollbild über Geometrie
+                        self.media_window.geometry(f"{self.media_window.winfo_screenwidth()}x{self.media_window.winfo_screenheight()}+0+0")
             
             # Label für Bilder/Text
             self.media_label = Label(
@@ -108,9 +123,11 @@ class MediaPlayer:
             self.media_label.pack(fill=tk.BOTH, expand=True)
             
             # Tastenkombinationen
-            self.media_window.bind('<Escape>', self._toggle_fullscreen)
+            self.media_window.bind('<Escape>', self._handle_escape)
             self.media_window.bind('<F11>', self._toggle_fullscreen)
-            self.media_window.bind('<Alt-F4>', lambda e: self.media_window.quit())
+            self.media_window.bind('<Alt-F4>', lambda e: self._emergency_quit())
+            self.media_window.bind('<Control-c>', lambda e: self._emergency_quit())
+            self.media_window.bind('<Control-q>', lambda e: self._emergency_quit())
             
             # Fenster in den Vordergrund
             self.media_window.lift()
@@ -123,8 +140,71 @@ class MediaPlayer:
             self.media_window = None
             self.media_label = None
         
+    def _handle_escape(self, event=None):
+        """Intelligente ESC-Behandlung: Vollbild-Toggle oder Notfall-Beenden"""
+        try:
+            # Prüfen ob wir im Vollbild sind
+            if self.media_window:
+                try:
+                    is_fullscreen = self.media_window.attributes('-fullscreen')
+                    if is_fullscreen:
+                        # Aus Vollbild heraus
+                        self._toggle_fullscreen()
+                        print("[MediaPlayer] ESC: Vollbild deaktiviert")
+                    else:
+                        # Nicht im Vollbild - Notfall-Beenden
+                        print("[MediaPlayer] ESC: Notfall-Beenden aktiviert")
+                        self._emergency_quit()
+                except:
+                    # Fallback bei Fehlern
+                    self._emergency_quit()
+        except Exception as e:
+            print(f"[MediaPlayer] ESC-Handler Fehler: {e}")
+            self._emergency_quit()
+    
+    def _emergency_quit(self):
+        """Notfall-Beenden der Anwendung"""
+        print("[MediaPlayer] NOTFALL-BEENDEN: Stoppe alle Medien und beende Anwendung")
+        try:
+            # Alle Medien sofort stoppen
+            self.stop_audio()
+            self._stop_video()
+            
+            # VLC stoppen
+            if VLC_AVAILABLE and self.vlc_player:
+                try:
+                    self.vlc_player.stop()
+                except:
+                    pass
+            
+            # Media-Fenster schließen
+            if self.media_window:
+                try:
+                    self.media_window.quit()
+                    self.media_window.destroy()
+                except:
+                    pass
+            
+            # Hauptanwendung beenden (über tkinter root)
+            import tkinter
+            for widget in tkinter._default_root.winfo_children():
+                if hasattr(widget, 'quit'):
+                    widget.quit()
+            
+            # Als letzter Ausweg: Prozess beenden
+            import sys
+            import os
+            print("[MediaPlayer] Erzwinge Prozess-Beendigung...")
+            os._exit(0)
+            
+        except Exception as e:
+            print(f"[MediaPlayer] Notfall-Beenden Fehler: {e}")
+            # Harte Beendigung als allerletzte Option
+            import os
+            os._exit(1)
+    
     def _toggle_fullscreen(self, event=None):
-        """Vollbild ein/aus für tkinter Fallback"""
+        """Vollbild ein/aus für tkinter Fallback - plattformkompatibel"""
         if self.media_window:
             try:
                 current = self.media_window.attributes('-fullscreen')
@@ -135,14 +215,28 @@ class MediaPlayer:
                     print("[MediaPlayer] Vollbild deaktiviert")
             except Exception as e:
                 print(f"[MediaPlayer] Vollbild-Toggle Fehler: {e}")
-                # Fallback für Windows
+                # Plattformspezifische Fallbacks
                 try:
-                    if self.media_window.state() == 'zoomed':
-                        self.media_window.state('normal')
-                        self.media_window.geometry("800x600")
+                    if platform.system() == "Windows":
+                        # Windows-spezifischer Fallback
+                        if self.media_window.state() == 'zoomed':
+                            self.media_window.state('normal')
+                            self.media_window.geometry("800x600")
+                        else:
+                            self.media_window.state('zoomed')
                     else:
-                        self.media_window.state('zoomed')
-                except:
+                        # Linux/Pi Fallback: Geometrie-basiert
+                        current_geometry = self.media_window.geometry()
+                        if "800x600" in current_geometry:
+                            # Zu Vollbild wechseln
+                            screen_w = self.media_window.winfo_screenwidth()
+                            screen_h = self.media_window.winfo_screenheight()
+                            self.media_window.geometry(f"{screen_w}x{screen_h}+0+0")
+                        else:
+                            # Zu Fenster wechseln
+                            self.media_window.geometry("800x600+100+100")
+                except Exception as fallback_error:
+                    print(f"[MediaPlayer] Fallback-Toggle Fehler: {fallback_error}")
                     pass
             
     def is_video_finished(self):
@@ -176,7 +270,7 @@ class MediaPlayer:
         return False
             
     def play_video(self, path):
-        """Video im Loop und Vollbild abspielen"""
+        """Video im Vollbild abspielen - nur ein System aktiv"""
         if not os.path.exists(path):
             print(f"[MediaPlayer] Video nicht gefunden: {path}")
             self.show_black()
@@ -192,33 +286,56 @@ class MediaPlayer:
         
         print(f"[MediaPlayer] Starte Video: {os.path.basename(path)}")
         
-        # Priorität: Externe Player > VLC > tkinter Fallback
-        if not self._fallback_video(path):
-            if VLC_AVAILABLE and self.vlc_player:
-                self._vlc_play_video(path)
-            else:
-                # tkinter Fallback für Videos
-                if self.media_window and self.media_label:
-                    self.media_label.config(
-                        text=f"🎬 VIDEO\n\n{os.path.basename(path)}\n\n(Kein Video-Player verfügbar)\n\nExterner Player erforderlich",
-                        font=('Arial', 16),
-                        fg='yellow'
-                    )
+        # Priorität: VLC eingebettet > Externes VLC > tkinter Fallback
+        # Aber NUR EIN System verwenden!
+        if VLC_AVAILABLE and self.vlc_player:
+            # Versuche VLC eingebettet
+            if self._vlc_play_video(path):
+                return  # Erfolgreich mit VLC eingebettet
+        
+        # Fallback: Externes VLC (aber tkinter-Fenster ausblenden)
+        if self._fallback_video(path):
+            # Externes Video läuft - tkinter-Fenster minimieren
+            if self.media_window:
+                try:
+                    self.media_window.withdraw()  # Fenster ausblenden
+                except:
+                    pass
+            return
+        
+        # Letzter Fallback: tkinter mit Fehlermeldung
+        if self.media_window and self.media_label:
+            try:
+                self.media_window.deiconify()  # Fenster wieder einblenden
+            except:
+                pass
+            self.media_label.config(
+                text=f"🎬 VIDEO\n\n{os.path.basename(path)}\n\n(Kein Video-Player verfügbar)\n\nBitte VLC installieren",
+                font=('Arial', 16),
+                fg='yellow'
+            )
     
     def _vlc_play_video(self, path):
-        """VLC Video-Wiedergabe"""
+        """VLC Video-Wiedergabe - plattformkompatibel"""
         try:
             media = self.vlc_instance.media_new(path)
             # Kein Loop - Video soll normal enden
             self.vlc_player.set_media(media)
             
-            # VLC in separatem Fenster einbetten (falls möglich)
+            # VLC in separatem Fenster einbetten (plattformspezifisch)
             if self.media_window:
                 try:
-                    # Windows Handle für VLC
-                    hwnd = self.media_window.winfo_id()
-                    self.vlc_player.set_hwnd(hwnd)
-                except:
+                    if platform.system() == "Windows":
+                        # Windows Handle für VLC
+                        hwnd = self.media_window.winfo_id()
+                        self.vlc_player.set_hwnd(hwnd)
+                    else:
+                        # Linux/X11 Handle für VLC
+                        xid = self.media_window.winfo_id()
+                        self.vlc_player.set_xwindow(xid)
+                except Exception as embed_error:
+                    print(f"[MediaPlayer] VLC-Einbettung Fehler: {embed_error}")
+                    # VLC läuft in eigenem Fenster falls Einbettung fehlschlägt
                     pass
             
             self.vlc_player.play()
@@ -239,7 +356,7 @@ class MediaPlayer:
         return True
     
     def _fallback_video(self, path):
-        """Fallback Video-Wiedergabe mit externem Player"""
+        """Fallback Video-Wiedergabe mit externem Player - plattformkompatibel"""
         # Aktuellen Video-Prozess stoppen
         if self.video_process:
             try:
@@ -249,8 +366,13 @@ class MediaPlayer:
                 pass
         
         try:
-            # Versuche verschiedene Video-Player
-            players = ['vlc', 'mpv', 'mplayer', 'wmplayer']
+            # Plattformspezifische Player-Liste
+            if platform.system() == "Windows":
+                players = ['vlc', 'mpv', 'mplayer', 'wmplayer']
+            else:
+                # Linux/Raspberry Pi - kein wmplayer
+                players = ['vlc', 'mpv', 'mplayer', 'omxplayer']  # omxplayer für Raspberry Pi
+            
             for player in players:
                 try:
                     if player == 'vlc':
@@ -258,15 +380,24 @@ class MediaPlayer:
                             player, path, 
                             '--fullscreen', 
                             '--no-video-title-show',
-                            '--quiet'
+                            '--quiet',
+                            '--intf', 'dummy',  # Verhindert VLC-GUI
+                            '--no-embedded-video'  # Kein eingebettetes Video
                         ])
                     elif player == 'mpv':
                         self.video_process = subprocess.Popen([
                             player, path,
                             '--fullscreen'
                         ])
+                    elif player == 'omxplayer':
+                        # Raspberry Pi Hardware-Player
+                        self.video_process = subprocess.Popen([
+                            player, path,
+                            '--win', '0,0,1920,1080',  # Vollbild
+                            '--no-osd'
+                        ])
                     elif player == 'wmplayer':
-                        # Windows Media Player
+                        # Windows Media Player (nur Windows)
                         self.video_process = subprocess.Popen([
                             player, path,
                             '/fullscreen'
@@ -274,7 +405,7 @@ class MediaPlayer:
                     else:  # mplayer
                         self.video_process = subprocess.Popen([
                             player, path,
-                            '-fs'
+                            '-fs'  # Vollbild
                         ])
                     
                     print(f"[MediaPlayer] {player} spielt Video: {os.path.basename(path)}")
@@ -300,7 +431,7 @@ class MediaPlayer:
             return False
 
     def show_image(self, path):
-        """Bild anzeigen"""
+        """Bild anzeigen - nur ein System aktiv"""
         if not os.path.exists(path):
             print(f"[MediaPlayer] Bild nicht gefunden: {path}")
             self.show_black()
@@ -316,6 +447,13 @@ class MediaPlayer:
         # Video stoppen falls läuft
         self._stop_video()
         
+        # tkinter-Fenster wieder einblenden für Bilder
+        if self.media_window:
+            try:
+                self.media_window.deiconify()
+            except:
+                pass
+        
         if VLC_AVAILABLE and self.vlc_player:
             # VLC für Bild-Anzeige
             try:
@@ -324,12 +462,12 @@ class MediaPlayer:
                 self.vlc_player.set_fullscreen(True)
                 self.vlc_player.play()
                 print(f"[MediaPlayer] VLC zeigt Bild: {os.path.basename(path)}")
+                return  # VLC erfolgreich
             except Exception as e:
                 print(f"[MediaPlayer] VLC Bild-Fehler: {e}")
-                self._fallback_image(path)
-        else:
-            # tkinter Fallback für Bilder
-            self._fallback_image(path)
+        
+        # Fallback: tkinter für Bilder
+        self._fallback_image(path)
     
     def _fallback_image(self, path):
         """Fallback Bild-Anzeige mit tkinter"""
@@ -384,6 +522,13 @@ class MediaPlayer:
         
         # Video stoppen
         self._stop_video()
+        
+        # tkinter-Fenster wieder einblenden
+        if self.media_window:
+            try:
+                self.media_window.deiconify()
+            except:
+                pass
         
         if VLC_AVAILABLE and self.vlc_player:
             try:
@@ -546,10 +691,14 @@ class MediaPlayer:
             time.sleep(2)
     
     def _play_audio_external(self, file_path):
-        """Audio mit externem Player abspielen"""
+        """Audio mit externem Player abspielen - plattformkompatibel"""
         try:
-            # Versuche verschiedene Audio-Player
-            players = ['vlc', 'mpv', 'wmplayer']
+            # Plattformspezifische Audio-Player
+            if platform.system() == "Windows":
+                players = ['vlc', 'mpv', 'wmplayer']
+            else:
+                # Linux/Raspberry Pi
+                players = ['vlc', 'mpv', 'aplay', 'paplay']  # aplay/paplay für Pi
             
             for player in players:
                 try:
@@ -565,7 +714,20 @@ class MediaPlayer:
                             player, file_path,
                             '--no-video'
                         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    else:  # wmplayer
+                    elif player == 'aplay':
+                        # ALSA player für Linux/Pi (nur WAV)
+                        if file_path.lower().endswith('.wav'):
+                            process = subprocess.Popen([
+                                player, file_path
+                            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        else:
+                            continue  # Überspringen für nicht-WAV
+                    elif player == 'paplay':
+                        # PulseAudio player für Linux/Pi
+                        process = subprocess.Popen([
+                            player, file_path
+                        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    else:  # wmplayer (Windows)
                         process = subprocess.Popen([
                             player, file_path
                         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

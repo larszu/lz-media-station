@@ -1,6 +1,13 @@
-tkinter
+# Plattformübergreifende Abhängigkeiten
 watchdog
 python-vlc
 Pillow
 pygame
-RPi.GPIO
+
+# Plattformspezifische Abhängigkeiten
+# Raspberry Pi GPIO-Bibliothek (nur auf Linux/Pi)
+RPi.GPIO; platform_system == "Linux"
+
+# Tkinter ist normalerweise in Python enthalten
+# Falls nicht verfügbar, kann es nachinstalliert werden:
+# tkinter  # Meist schon vorhanden
