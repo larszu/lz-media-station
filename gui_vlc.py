@@ -7,6 +7,8 @@ import os
 import time
 import json
 import datetime
+import subprocess
+import platform
 from config import DEFAULT_MIN_DIST, DEFAULT_MAX_DIST, DEFAULT_INTERVAL, VIDEO_FOLDER, IMAGE_FOLDER, AUDIO_FOLDER, IMAGE_DISPLAY_TIME, AUDIO_FADE_TIME, MIN_VIDEO_RUNTIME, MIN_IMAGE_DISPLAY_TIME, MIN_AUDIO_RUNTIME
 from media_player_vlc import VLCMediaPlayer
 
@@ -45,6 +47,10 @@ class VLCMediaStationGUI:
         
         self.setup_gui()
         self.scan_media_files()
+        
+        # Sensor-Modus initial setzen
+        self.update_sensor_mode()
+        
         self.update_status()
     
     def setup_gui(self):
@@ -68,7 +74,7 @@ class VLCMediaStationGUI:
         main_frame = scrollable_frame
         
         # Titel
-        tk.Label(main_frame, text="🎬 Pi Media Station - VLC Edition", 
+        tk.Label(main_frame, text="Pi Media Station - VLC Edition", 
                 font=('Arial', 24, 'bold'), fg='cyan', bg='black').pack(pady=10)
         
         # Status
@@ -77,94 +83,102 @@ class VLCMediaStationGUI:
         self.status_label.pack(pady=5)
         
         # Sensor-Einstellungen
-        settings_frame = tk.LabelFrame(main_frame, text="🔧 Sensor-Einstellungen", 
+        settings_frame = tk.LabelFrame(main_frame, text="Sensor-Einstellungen", 
                                      font=('Arial', 14, 'bold'), fg='white', bg='black', bd=2)
         settings_frame.pack(pady=10, padx=10, fill='x')
         
         # Min/Max Abstand mit Speichern-Buttons
         tk.Label(settings_frame, text="Min. Abstand (cm):", fg='white', bg='black').grid(row=0, column=0, sticky='w', padx=10, pady=5)
         self.min_dist_var = tk.StringVar(value=str(DEFAULT_MIN_DIST))
-        tk.Entry(settings_frame, textvariable=self.min_dist_var, width=10).grid(row=0, column=1, padx=5)
-        tk.Button(settings_frame, text="💾 Speichern", bg='lightgreen', fg='black',
+        tk.Entry(settings_frame, textvariable=self.min_dist_var, width=10, 
+                bg='gray20', fg='white', insertbackground='white').grid(row=0, column=1, padx=5)
+        tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                  command=self.save_min_dist, font=('Arial', 10)).grid(row=0, column=2, padx=5)
         
         tk.Label(settings_frame, text="Max. Abstand (cm):", fg='white', bg='black').grid(row=0, column=3, sticky='w', padx=10)
         self.max_dist_var = tk.StringVar(value=str(DEFAULT_MAX_DIST))
-        tk.Entry(settings_frame, textvariable=self.max_dist_var, width=10).grid(row=0, column=4, padx=5)
-        tk.Button(settings_frame, text="💾 Speichern", bg='lightgreen', fg='black',
+        tk.Entry(settings_frame, textvariable=self.max_dist_var, width=10,
+                bg='gray20', fg='white', insertbackground='white').grid(row=0, column=4, padx=5)
+        tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                  command=self.save_max_dist, font=('Arial', 10)).grid(row=0, column=5, padx=5)
         
         # Messintervall
         tk.Label(settings_frame, text="Messintervall (ms):", fg='white', bg='black').grid(row=1, column=0, sticky='w', padx=10, pady=5)
         self.interval_var = tk.StringVar(value=str(int(DEFAULT_INTERVAL * 1000)))
-        tk.Entry(settings_frame, textvariable=self.interval_var, width=10).grid(row=1, column=1, padx=5)
-        tk.Button(settings_frame, text="💾 Speichern", bg='lightgreen', fg='black',
+        tk.Entry(settings_frame, textvariable=self.interval_var, width=10,
+                bg='gray20', fg='white', insertbackground='white').grid(row=1, column=1, padx=5)
+        tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                  command=self.save_interval, font=('Arial', 10)).grid(row=1, column=2, padx=5)
         
         # Bildwechselzeit
         tk.Label(settings_frame, text="Bildwechsel (s):", fg='white', bg='black').grid(row=1, column=3, sticky='w', padx=10)
         self.image_interval_var = tk.StringVar(value=str(IMAGE_DISPLAY_TIME))
-        tk.Entry(settings_frame, textvariable=self.image_interval_var, width=10).grid(row=1, column=4, padx=5)
-        tk.Button(settings_frame, text="💾 Speichern", bg='lightgreen', fg='black',
+        tk.Entry(settings_frame, textvariable=self.image_interval_var, width=10,
+                bg='gray20', fg='white', insertbackground='white').grid(row=1, column=4, padx=5)
+        tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                  command=self.save_image_interval, font=('Arial', 10)).grid(row=1, column=5, padx=5)
         
         # Audio-Fade
         tk.Label(settings_frame, text="Audio-Fade (ms):", fg='white', bg='black').grid(row=2, column=0, sticky='w', padx=10, pady=5)
         self.audio_fade_var = tk.StringVar(value=str(int(AUDIO_FADE_TIME * 1000)))
-        tk.Entry(settings_frame, textvariable=self.audio_fade_var, width=10).grid(row=2, column=1, padx=5)
-        tk.Button(settings_frame, text="💾 Speichern", bg='lightgreen', fg='black',
+        tk.Entry(settings_frame, textvariable=self.audio_fade_var, width=10,
+                bg='gray20', fg='white', insertbackground='white').grid(row=2, column=1, padx=5)
+        tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                  command=self.save_audio_fade, font=('Arial', 10)).grid(row=2, column=2, padx=5)
         
         # Mindestzeiten
         tk.Label(settings_frame, text="Min. Video-Zeit (s):", fg='white', bg='black').grid(row=3, column=0, sticky='w', padx=10, pady=5)
         self.min_video_var = tk.StringVar(value=str(MIN_VIDEO_RUNTIME))
-        tk.Entry(settings_frame, textvariable=self.min_video_var, width=10).grid(row=3, column=1, padx=5)
-        tk.Button(settings_frame, text="💾 Speichern", bg='lightgreen', fg='black',
+        tk.Entry(settings_frame, textvariable=self.min_video_var, width=10,
+                bg='gray20', fg='white', insertbackground='white').grid(row=3, column=1, padx=5)
+        tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                  command=self.save_min_video_time, font=('Arial', 10)).grid(row=3, column=2, padx=5)
         
         tk.Label(settings_frame, text="Min. Bild-Zeit (s):", fg='white', bg='black').grid(row=3, column=3, sticky='w', padx=10)
         self.min_image_var = tk.StringVar(value=str(MIN_IMAGE_DISPLAY_TIME))
-        tk.Entry(settings_frame, textvariable=self.min_image_var, width=10).grid(row=3, column=4, padx=5)
-        tk.Button(settings_frame, text="💾 Speichern", bg='lightgreen', fg='black',
+        tk.Entry(settings_frame, textvariable=self.min_image_var, width=10,
+                bg='gray20', fg='white', insertbackground='white').grid(row=3, column=4, padx=5)
+        tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                  command=self.save_min_image_time, font=('Arial', 10)).grid(row=3, column=5, padx=5)
         
         tk.Label(settings_frame, text="Min. Audio-Zeit (s):", fg='white', bg='black').grid(row=4, column=0, sticky='w', padx=10, pady=5)
         self.min_audio_var = tk.StringVar(value=str(MIN_AUDIO_RUNTIME))
-        tk.Entry(settings_frame, textvariable=self.min_audio_var, width=10).grid(row=4, column=1, padx=5)
-        tk.Button(settings_frame, text="💾 Speichern", bg='lightgreen', fg='black',
+        tk.Entry(settings_frame, textvariable=self.min_audio_var, width=10,
+                bg='gray20', fg='white', insertbackground='white').grid(row=4, column=1, padx=5)
+        tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                  command=self.save_min_audio_time, font=('Arial', 10)).grid(row=4, column=2, padx=5)
         
         # Sensor-Modus
-        sensor_mode_frame = tk.LabelFrame(main_frame, text="📡 Sensor-Modus", 
+        sensor_mode_frame = tk.LabelFrame(main_frame, text="Sensor-Modus", 
                                         font=('Arial', 14, 'bold'), fg='orange', bg='black', bd=2)
         sensor_mode_frame.pack(pady=10, padx=10, fill='x')
         
         self.sensor_mode_var = tk.StringVar(value="video")
-        tk.Radiobutton(sensor_mode_frame, text="🎬 Video abspielen bei Sensor-Auslösung", 
-                      variable=self.sensor_mode_var, value="video", bg='black', fg='white', 
+        tk.Radiobutton(sensor_mode_frame, text="Video abspielen bei Sensor-Auslösung", 
+                      variable=self.sensor_mode_var, value="video", bg='black', fg='white',
                       selectcolor='darkgray', font=('Arial', 12),
                       command=self.update_sensor_mode).pack(anchor='w', padx=10, pady=5)
         
-        tk.Radiobutton(sensor_mode_frame, text="🎵 Audio abspielen bei Sensor-Auslösung (+ Bilder)", 
-                      variable=self.sensor_mode_var, value="audio", bg='black', fg='white', 
+        tk.Radiobutton(sensor_mode_frame, text="Audio abspielen bei Sensor-Auslösung (+ Bilder)", 
+                      variable=self.sensor_mode_var, value="audio", bg='black', fg='white',
                       selectcolor='darkgray', font=('Arial', 12),
                       command=self.update_sensor_mode).pack(anchor='w', padx=10, pady=5)
         
         # VLC-Steuerung + Media-Vollbild
-        control_frame = tk.LabelFrame(main_frame, text="🎛️ VLC-Steuerung", 
+        control_frame = tk.LabelFrame(main_frame, text="VLC-Steuerung", 
                                     font=('Arial', 14, 'bold'), fg='magenta', bg='black', bd=2)
         control_frame.pack(pady=10, padx=10, fill='x')
         
         controls_row1 = tk.Frame(control_frame, bg='black')
         controls_row1.pack(pady=5)
         
-        tk.Button(controls_row1, text="⏸️ Pause/Play", command=self.vlc_pause, 
+        tk.Button(controls_row1, text="Pause/Play", command=self.vlc_pause, 
                  bg='yellow', fg='black', font=('Arial', 11)).pack(side='left', padx=5)
-        tk.Button(controls_row1, text="⏹️ Stop", command=self.vlc_stop, 
+        tk.Button(controls_row1, text="Stop", command=self.vlc_stop, 
                  bg='red', fg='white', font=('Arial', 11)).pack(side='left', padx=5)
-        tk.Button(controls_row1, text="⏭️ Nächstes", command=self.vlc_next, 
+        tk.Button(controls_row1, text="Nächstes", command=self.vlc_next, 
                  bg='lightblue', fg='black', font=('Arial', 11)).pack(side='left', padx=5)
-        tk.Button(controls_row1, text="⏮️ Vorheriges", command=self.vlc_previous, 
+        tk.Button(controls_row1, text="Vorheriges", command=self.vlc_previous, 
                  bg='lightblue', fg='black', font=('Arial', 11)).pack(side='left', padx=5)
         
         # Media-Vollbild Toggle (nicht GUI-Vollbild!)
@@ -174,14 +188,24 @@ class VLCMediaStationGUI:
         tk.Label(controls_row2, text="Media-Anzeige:", font=('Arial', 12, 'bold'), 
                 fg='cyan', bg='black').pack(side='left', padx=10)
         
-        tk.Button(controls_row2, text="📺 Media-Vollbild EIN", command=self.toggle_media_fullscreen, 
+        tk.Button(controls_row2, text="Media-Vollbild EIN", command=self.toggle_media_fullscreen, 
                  bg='lime', fg='black', font=('Arial', 11, 'bold')).pack(side='left', padx=5)
         
-        tk.Button(controls_row2, text="🖼️ Media-Fenster", command=self.set_media_windowed, 
+        tk.Button(controls_row2, text="Media-Fenster", command=self.set_media_windowed, 
                  bg='orange', fg='black', font=('Arial', 11)).pack(side='left', padx=5)
         
+        # GUI-Kontrollen
+        tk.Label(controls_row2, text=" | GUI:", font=('Arial', 12, 'bold'), 
+                fg='white', bg='black').pack(side='left', padx=10)
+        
+        tk.Button(controls_row2, text="GUI verstecken", command=self.hide_gui, 
+                 bg='purple', fg='white', font=('Arial', 11)).pack(side='left', padx=5)
+        
+        tk.Button(controls_row2, text="GUI-Vollbild (F11)", command=self.toggle_gui_fullscreen, 
+                 bg='darkgreen', fg='white', font=('Arial', 11)).pack(side='left', padx=5)
+        
         # Playlist Editor
-        playlist_frame = tk.LabelFrame(main_frame, text="🎶 Playlist Editor", 
+        playlist_frame = tk.LabelFrame(main_frame, text="Playlist Editor", 
                                       font=('Arial', 14, 'bold'), fg='magenta', bg='black', bd=2)
         playlist_frame.pack(pady=10, padx=10, fill='x')
         
@@ -191,10 +215,10 @@ class VLCMediaStationGUI:
         tk.Button(playlist_controls, text="↻ Playlists laden", bg='lightblue', fg='black',
                  command=self.refresh_playlists, font=('Arial', 11)).pack(side='left', padx=5)
         
-        tk.Button(playlist_controls, text="💾 Aktuelle speichern", bg='lightgreen', fg='black',
+        tk.Button(playlist_controls, text="Aktuelle speichern", bg='lightgreen', fg='black',
                  command=self.save_current_playlist, font=('Arial', 11)).pack(side='left', padx=5)
         
-        tk.Button(playlist_controls, text="📁 Playlist laden", bg='orange', fg='black',
+        tk.Button(playlist_controls, text="Playlist laden", bg='orange', fg='black',
                  command=self.load_playlist, font=('Arial', 11)).pack(side='left', padx=5)
         
         # Playlist-Liste
@@ -213,7 +237,7 @@ class VLCMediaStationGUI:
         self.playlist_status_label.pack(pady=2)
         
         # Dateiauswahl
-        files_frame = tk.LabelFrame(main_frame, text="📁 Datei-Auswahl", 
+        files_frame = tk.LabelFrame(main_frame, text="Datei-Auswahl", 
                                   font=('Arial', 14, 'bold'), fg='lime', bg='black', bd=2)
         files_frame.pack(pady=10, padx=10, fill='both', expand=True)
         
@@ -225,7 +249,9 @@ class VLCMediaStationGUI:
         video_frame = tk.Frame(columns_frame, bg='black')
         video_frame.pack(side='left', fill='both', expand=True, padx=2)
         
-        tk.Label(video_frame, text="🎬 Videos", font=('Arial', 12, 'bold'), fg='cyan', bg='black').pack(pady=2)
+        tk.Label(video_frame, text="Videos", font=('Arial', 12, 'bold'), fg='cyan', bg='black').pack(pady=2)
+        tk.Button(video_frame, text="Ordner öffnen", bg='lightblue', fg='black', 
+                 font=('Arial', 9), command=self.open_video_folder).pack(pady=2)
         
         video_scroll_container = tk.Frame(video_frame, bg='black', relief='sunken', bd=1)
         video_scroll_container.pack(fill='both', expand=True, pady=2)
@@ -245,7 +271,9 @@ class VLCMediaStationGUI:
         image_frame = tk.Frame(columns_frame, bg='black')
         image_frame.pack(side='left', fill='both', expand=True, padx=2)
         
-        tk.Label(image_frame, text="🖼️ Bilder", font=('Arial', 12, 'bold'), fg='cyan', bg='black').pack(pady=2)
+        tk.Label(image_frame, text="Bilder", font=('Arial', 12, 'bold'), fg='cyan', bg='black').pack(pady=2)
+        tk.Button(image_frame, text="Ordner öffnen", bg='lightblue', fg='black', 
+                 font=('Arial', 9), command=self.open_image_folder).pack(pady=2)
         
         image_scroll_container = tk.Frame(image_frame, bg='black', relief='sunken', bd=1)
         image_scroll_container.pack(fill='both', expand=True, pady=2)
@@ -265,7 +293,9 @@ class VLCMediaStationGUI:
         audio_frame = tk.Frame(columns_frame, bg='black')
         audio_frame.pack(side='left', fill='both', expand=True, padx=2)
         
-        tk.Label(audio_frame, text="🎵 Audio", font=('Arial', 12, 'bold'), fg='cyan', bg='black').pack(pady=2)
+        tk.Label(audio_frame, text="Audio", font=('Arial', 12, 'bold'), fg='cyan', bg='black').pack(pady=2)
+        tk.Button(audio_frame, text="Ordner öffnen", bg='lightblue', fg='black', 
+                 font=('Arial', 9), command=self.open_audio_folder).pack(pady=2)
         
         audio_scroll_container = tk.Frame(audio_frame, bg='black', relief='sunken', bd=1)
         audio_scroll_container.pack(fill='both', expand=True, pady=2)
@@ -626,10 +656,37 @@ class VLCMediaStationGUI:
         except Exception as e:
             print(f"[VLC-GUI] GUI-Vollbild-Fehler: {e}")
     
+    def hide_gui(self):
+        """GUI verstecken (nur Media-Fenster sichtbar)"""
+        try:
+            self.root.withdraw()  # GUI-Fenster verstecken
+            print("[VLC-GUI] GUI versteckt - nur Media-Fenster sichtbar")
+            print("[VLC-GUI] TIPP: Alt+Tab zum GUI zurückkehren oder GUI-Fenster in Taskleiste klicken")
+        except Exception as e:
+            print(f"[VLC-GUI] GUI-Hide-Fehler: {e}")
+    
+    def show_gui(self):
+        """GUI wieder anzeigen"""
+        try:
+            self.root.deiconify()  # GUI-Fenster wieder anzeigen
+            self.root.lift()       # GUI in Vordergrund
+            print("[VLC-GUI] GUI wieder sichtbar")
+        except Exception as e:
+            print(f"[VLC-GUI] GUI-Show-Fehler: {e}")
+    
     def update_sensor_mode(self):
         """Sensor-Modus aktualisieren"""
-        self.sensor_mode = self.sensor_mode_var.get()
-        print(f"[VLC-GUI] Sensor-Modus: {self.sensor_mode}")
+        new_mode = self.sensor_mode_var.get()
+        self.sensor_mode = new_mode
+        print(f"[VLC-GUI] Sensor-Modus geändert zu: {self.sensor_mode}")
+        
+        # Zusätzlicher Status für Benutzer
+        if self.sensor_mode == "video":
+            print("[VLC-GUI] → Bei Sensor-Auslösung werden Videos abgespielt")
+        elif self.sensor_mode == "audio":
+            print("[VLC-GUI] → Bei Sensor-Auslösung werden Audio + Bilder abgespielt")
+        else:
+            print(f"[VLC-GUI] → Unbekannter Modus: {self.sensor_mode}")
     
     def vlc_pause(self):
         """VLC Pause/Play"""
@@ -738,6 +795,67 @@ class VLCMediaStationGUI:
     def on_closing(self):
         """Window-Close-Event"""
         self.close()
+    
+    # Ordner-öffnen-Funktionen
+    def open_video_folder(self):
+        """Video-Ordner im Datei-Explorer öffnen"""
+        try:
+            video_path = os.path.abspath(VIDEO_FOLDER)
+            if not os.path.exists(video_path):
+                os.makedirs(video_path)
+                print(f"[VLC-GUI] Video-Ordner erstellt: {video_path}")
+            
+            if platform.system() == "Windows":
+                subprocess.run(['explorer', video_path])
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(['open', video_path])
+            else:  # Linux
+                subprocess.run(['xdg-open', video_path])
+            
+            print(f"[VLC-GUI] Video-Ordner geöffnet: {video_path}")
+            
+        except Exception as e:
+            print(f"[VLC-GUI] Fehler beim Öffnen des Video-Ordners: {e}")
+    
+    def open_image_folder(self):
+        """Bild-Ordner im Datei-Explorer öffnen"""
+        try:
+            image_path = os.path.abspath(IMAGE_FOLDER)
+            if not os.path.exists(image_path):
+                os.makedirs(image_path)
+                print(f"[VLC-GUI] Bild-Ordner erstellt: {image_path}")
+            
+            if platform.system() == "Windows":
+                subprocess.run(['explorer', image_path])
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(['open', image_path])
+            else:  # Linux
+                subprocess.run(['xdg-open', image_path])
+            
+            print(f"[VLC-GUI] Bild-Ordner geöffnet: {image_path}")
+            
+        except Exception as e:
+            print(f"[VLC-GUI] Fehler beim Öffnen des Bild-Ordners: {e}")
+    
+    def open_audio_folder(self):
+        """Audio-Ordner im Datei-Explorer öffnen"""
+        try:
+            audio_path = os.path.abspath(AUDIO_FOLDER)
+            if not os.path.exists(audio_path):
+                os.makedirs(audio_path)
+                print(f"[VLC-GUI] Audio-Ordner erstellt: {audio_path}")
+            
+            if platform.system() == "Windows":
+                subprocess.run(['explorer', audio_path])
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.run(['open', audio_path])
+            else:  # Linux
+                subprocess.run(['xdg-open', audio_path])
+            
+            print(f"[VLC-GUI] Audio-Ordner geöffnet: {audio_path}")
+            
+        except Exception as e:
+            print(f"[VLC-GUI] Fehler beim Öffnen des Audio-Ordners: {e}")
     
     def update_status(self):
         """Status-Update-Schleife"""

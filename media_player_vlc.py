@@ -50,6 +50,15 @@ class VLCMediaPlayer:
             self.media_window.configure(bg='black')
             self.media_window.geometry("800x600")
             
+            # Frame für VLC-Video
+            self.video_frame = tk.Frame(self.media_window, bg='black')
+            self.video_frame.pack(fill='both', expand=True)
+            
+            # Label für Bilder/Status
+            self.media_label = tk.Label(self.video_frame, text="VLC Media Player\n\nBereit für Medien...", 
+                                      font=('Arial', 20), fg='white', bg='black', justify='center')
+            self.media_label.pack(fill='both', expand=True)
+            
             # Vollbild für Raspberry Pi
             if platform.system() == "Linux":
                 try:
@@ -59,20 +68,10 @@ class VLCMediaPlayer:
             else:
                 self.media_window.state('zoomed')  # Windows
             
-            # Label für Status/Fallback
-            self.media_label = Label(
-                self.media_window,
-                bg='black',
-                fg='white',
-                text="VLC Media Player\n\nBereit für Medien...",
-                font=('Arial', 20),
-                justify='center'
-            )
-            self.media_label.pack(fill=tk.BOTH, expand=True)
-            
             # Tastenkombinationen
             self.media_window.bind('<Escape>', lambda e: self._toggle_fullscreen())
             self.media_window.bind('<F11>', lambda e: self._toggle_fullscreen())
+            self.media_window.bind('<f>', lambda e: self._toggle_fullscreen())
             
             print("[VLC-MediaPlayer] Media-Fenster erstellt")
             
@@ -96,13 +95,14 @@ class VLCMediaPlayer:
             self.vlc_instance = vlc.Instance(vlc_args)
             self.vlc_player = self.vlc_instance.media_player_new()
             
-            # VLC an unser tkinter-Fenster binden
+            # VLC an unser video_frame binden
+            self.media_window.update()  # GUI aktualisieren für korrekte IDs
             if platform.system() == "Windows":
-                self.vlc_player.set_hwnd(self.media_window.winfo_id())
+                self.vlc_player.set_hwnd(self.video_frame.winfo_id())
             else:
-                self.vlc_player.set_xwindow(self.media_window.winfo_id())
+                self.vlc_player.set_xwindow(self.video_frame.winfo_id())
             
-            print("[VLC-MediaPlayer] VLC erfolgreich initialisiert")
+            print(f"[VLC-MediaPlayer] VLC erfolgreich initialisiert und an Frame gebunden (ID: {self.video_frame.winfo_id()})")
             
         except Exception as e:
             print(f"[VLC-MediaPlayer] VLC-Initialisierung fehlgeschlagen: {e}")
@@ -118,8 +118,9 @@ class VLCMediaPlayer:
             
             self.current_mode = "black"
             if self.media_label:
+                self.media_label.pack(fill='both', expand=True)  # Label wieder sichtbar machen
                 self.media_label.config(
-                    text="Schwarzes Bild\n\nKein Media aktiv",
+                    text="Media Player bereit\n\nSchwarzens Bild\nKein Media aktiv",
                     bg='black',
                     fg='gray'
                 )
@@ -182,12 +183,28 @@ class VLCMediaPlayer:
             if media_ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif']:
                 # Bilder länger anzeigen
                 media.add_option(f'image-duration={int(self.min_display_time)}')
+                if self.media_label:
+                    self.media_label.config(
+                        text=f"Zeigt Bild:\n{media_name}\n\n({self.current_index + 1}/{len(self.current_playlist)})",
+                        bg='black', fg='cyan'
+                    )
+                    self.media_label.pack(fill='both', expand=True)  # Label sichtbar
                 print(f"[VLC-MediaPlayer] Zeige Bild: {media_name} ({self.min_display_time}s)")
+                
             elif media_ext in ['.mp3', '.wav', '.ogg', '.m4a']:
-                # Audio-Datei (VLC zeigt schwarzen Bildschirm mit Visualisierung)
+                # Audio-Datei mit Label-Info
+                if self.media_label:
+                    self.media_label.config(
+                        text=f"Spielt Audio:\n{media_name}\n\n({self.current_index + 1}/{len(self.current_playlist)})",
+                        bg='black', fg='yellow'
+                    )
+                    self.media_label.pack(fill='both', expand=True)  # Label sichtbar
                 print(f"[VLC-MediaPlayer] Spiele Audio: {media_name}")
+                
             else:
-                # Video-Datei
+                # Video-Datei - Label verstecken damit VLC das Video zeigen kann
+                if self.media_label:
+                    self.media_label.pack_forget()  # Label verstecken für Video
                 print(f"[VLC-MediaPlayer] Spiele Video: {media_name}")
             
             # Abspielen starten
@@ -196,15 +213,6 @@ class VLCMediaPlayer:
                 self.is_playing = True
                 self.current_mode = "playing"
                 self.media_start_time = time.time()
-                
-                # Status im Label aktualisieren
-                if self.media_label:
-                    self.media_label.config(
-                        text=f"Spielt ab:\n{media_name}\n\n({self.current_index + 1}/{len(self.current_playlist)})",
-                        bg='black',
-                        fg='lime'
-                    )
-                
                 return True
             else:
                 print(f"[VLC-MediaPlayer] VLC-Play fehlgeschlagen für: {media_name}")
