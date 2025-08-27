@@ -9,7 +9,7 @@ import random
 import RPi.GPIO as GPIO
 
 class SensorThread(threading.Thread):
-    def __init__(self, interval=0.2, trig_pin=18, echo_pin=24, use_dummy=True):
+    def __init__(self, interval=0.2, trig_pin=18, echo_pin=24, use_dummy=False):
         super().__init__(daemon=True)
         self.interval = interval
         self.distance = 0.0
@@ -53,7 +53,7 @@ class SensorThread(threading.Thread):
         return distance
     
     def _measure_distance_dummy(self):
-        """Dummy-Sensor für Testing"""
+        """Dummy-Sensor für Testing - nur wenn explizit gewünscht"""
         # Simuliert realistische Sensordaten mit etwas Rauschen
         base_distance = 50.0
         noise = random.uniform(-5, 5)
@@ -65,6 +65,7 @@ class SensorThread(threading.Thread):
 
     def run(self):
         """Sensor-Thread Hauptschleife"""
+        print(f"[DEBUG] Sensor-Thread gestartet (dummy={self.use_dummy})")  # Debug-Output
         while self.running:
             try:
                 if self.use_dummy:
@@ -72,13 +73,18 @@ class SensorThread(threading.Thread):
                 else:
                     distance = self._measure_distance_real()
                 
-                # Mittelwertfilter anwenden
-                self._values.append(distance)
-                if len(self._values) > self.filter_size:
-                    self._values.pop(0)
-                
-                # Geglätteter Wert
-                self.distance = sum(self._values) / len(self._values)
+                # Nur wenn tatsächlich ein Sensor (echt oder dummy) aktiv ist
+                if distance > 0:
+                    # Mittelwertfilter anwenden
+                    self._values.append(distance)
+                    if len(self._values) > self.filter_size:
+                        self._values.pop(0)
+                    
+                    # Geglätteter Wert
+                    self.distance = sum(self._values) / len(self._values)
+                else:
+                    # Kein Sensor aktiv - Abstand bleibt 0
+                    self.distance = 0.0
                 
             except Exception as e:
                 print(f"Sensor-Fehler: {e}")

@@ -5,8 +5,13 @@ import os
 import threading
 import time
 
-# TODO: Für VLC-Integration diese Imports aktivieren:
-# import vlc
+# VLC-Integration aktiviert
+try:
+    import vlc
+    VLC_AVAILABLE = True
+except ImportError:
+    VLC_AVAILABLE = False
+    print("[MediaPlayer] VLC nicht verfügbar - Fallback auf Dummy-Modus")
 
 class MediaPlayer:
     def __init__(self):
@@ -16,9 +21,22 @@ class MediaPlayer:
         self.vlc_player = None
         self.is_playing = False
         
-        # TODO: VLC-Instanz für echte Implementierung
-        # self.vlc_instance = vlc.Instance('--fullscreen', '--no-video-title-show')
-        # self.vlc_player = self.vlc_instance.media_player_new()
+        # VLC-Instanz für echte Implementierung
+        if VLC_AVAILABLE:
+            try:
+                self.vlc_instance = vlc.Instance(
+                    '--fullscreen', 
+                    '--no-video-title-show',
+                    '--no-osd',
+                    '--quiet'
+                )
+                self.vlc_player = self.vlc_instance.media_player_new()
+                print("[MediaPlayer] VLC erfolgreich initialisiert")
+            except Exception as e:
+                print(f"[MediaPlayer] VLC-Initialisierung fehlgeschlagen: {e}")
+                VLC_AVAILABLE = False
+        else:
+            print("[MediaPlayer] VLC nicht verfügbar - Dummy-Modus aktiv")
         
     def play_video(self, path):
         """Video im Loop und Vollbild abspielen"""
@@ -32,19 +50,37 @@ class MediaPlayer:
             
         print(f"[MediaPlayer] Video abspielen: {os.path.basename(path)}")
         
-        # TODO: Echte VLC-Implementierung
-        # media = self.vlc_instance.media_new(path)
-        # self.vlc_player.set_media(media)
-        # self.vlc_player.set_fullscreen(True)
-        # self.vlc_player.play()
-        
-        # # Loop aktivieren
-        # self.vlc_player.set_time(0)
-        # threading.Thread(target=self._video_loop_monitor, daemon=True).start()
-        
-        self.current_mode = "video"
-        self.current_file = path
-        self.is_playing = True
+        # VLC-Implementierung
+        if VLC_AVAILABLE and self.vlc_player:
+            try:
+                # Vorherige Wiedergabe stoppen
+                if self.is_playing:
+                    self._stop_playback()
+                
+                # Neues Video laden
+                media = self.vlc_instance.media_new(path)
+                self.vlc_player.set_media(media)
+                
+                # Vollbild-Einstellungen
+                self.vlc_player.set_fullscreen(True)
+                
+                # Video starten
+                self.vlc_player.play()
+                
+                # Loop-Überwachung starten
+                threading.Thread(target=self._video_loop_monitor, daemon=True).start()
+                
+                self.current_mode = "video"
+                self.current_file = path
+                self.is_playing = True
+                
+                print(f"[MediaPlayer] VLC Video gestartet: {os.path.basename(path)}")
+                
+            except Exception as e:
+                print(f"[MediaPlayer] VLC-Fehler: {e}")
+                self._fallback_video_display(path)
+        else:
+            self._fallback_video_display(path)
 
     def show_image(self, path):
         """Bild im Vollbild anzeigen"""
@@ -62,12 +98,25 @@ class MediaPlayer:
         if self.is_playing:
             self._stop_playback()
         
-        # TODO: Echte Bildanzeige mit VLC oder PIL
-        # Für Bilder kann auch ein einfaches tkinter/PIL-Fenster verwendet werden
-        # media = self.vlc_instance.media_new(path)
-        # self.vlc_player.set_media(media)
-        # self.vlc_player.set_fullscreen(True)
-        # self.vlc_player.play()
+        # VLC für Bilder verwenden (funktioniert auch für Bilder)
+        if VLC_AVAILABLE and self.vlc_player:
+            try:
+                media = self.vlc_instance.media_new(path)
+                self.vlc_player.set_media(media)
+                self.vlc_player.set_fullscreen(True)
+                self.vlc_player.play()
+                
+                # Für Bilder: nach dem Laden pausieren (statische Anzeige)
+                time.sleep(0.5)  # Kurz warten bis geladen
+                self.vlc_player.pause()
+                
+                print(f"[MediaPlayer] VLC Bild angezeigt: {os.path.basename(path)}")
+                
+            except Exception as e:
+                print(f"[MediaPlayer] VLC-Bildanzeige-Fehler: {e}")
+                self._fallback_image_display(path)
+        else:
+            self._fallback_image_display(path)
         
         self.current_mode = "image"
         self.current_file = path
@@ -84,8 +133,14 @@ class MediaPlayer:
         if self.is_playing:
             self._stop_playback()
         
-        # TODO: Schwarzen Bildschirm mit VLC oder tkinter
-        # Einfache Lösung: Leeres schwarzes Video oder Bild abspielen
+        # VLC für schwarzen Bildschirm
+        if VLC_AVAILABLE and self.vlc_player:
+            try:
+                self.vlc_player.stop()
+                # Alternativ: schwarzes Dummy-Video oder einfach stoppen
+                print("[MediaPlayer] VLC gestoppt - schwarzer Bildschirm")
+            except Exception as e:
+                print(f"[MediaPlayer] VLC-Stop-Fehler: {e}")
         
         self.current_mode = "black"
         self.current_file = None
@@ -93,30 +148,63 @@ class MediaPlayer:
     
     def _stop_playback(self):
         """Aktuelle Wiedergabe stoppen"""
-        # TODO: VLC stoppen
-        # if self.vlc_player:
-        #     self.vlc_player.stop()
+        if VLC_AVAILABLE and self.vlc_player:
+            try:
+                self.vlc_player.stop()
+            except Exception as e:
+                print(f"[MediaPlayer] VLC-Stop-Fehler: {e}")
         
         self.is_playing = False
     
     def _video_loop_monitor(self):
         """Überwacht Video-Wiedergabe für Loop-Funktion"""
-        # TODO: VLC-Loop-Überwachung
-        # while self.current_mode == "video" and self.is_playing:
-        #     if self.vlc_player.get_state() == vlc.State.Ended:
-        #         self.vlc_player.set_time(0)
-        #         self.vlc_player.play()
-        #     time.sleep(0.5)
-        pass
+        if not VLC_AVAILABLE or not self.vlc_player:
+            return
+            
+        while self.current_mode == "video" and self.is_playing:
+            try:
+                state = self.vlc_player.get_state()
+                # Wenn Video zu Ende, von vorne starten
+                if state == vlc.State.Ended:
+                    print("[MediaPlayer] Video beendet - Loop restart")
+                    self.vlc_player.set_time(0)
+                    self.vlc_player.play()
+                elif state == vlc.State.Error:
+                    print("[MediaPlayer] VLC-Wiedergabe-Fehler")
+                    break
+                    
+                time.sleep(0.5)  # Alle 500ms prüfen
+            except Exception as e:
+                print(f"[MediaPlayer] Loop-Monitor-Fehler: {e}")
+                break
+    
+    def _fallback_video_display(self, path):
+        """Fallback wenn VLC nicht funktioniert"""
+        print(f"[MediaPlayer] Fallback: Video-Dummy für {os.path.basename(path)}")
+        self.current_mode = "video"
+        self.current_file = path
+        self.is_playing = True
+    
+    def _fallback_image_display(self, path):
+        """Fallback wenn VLC nicht funktioniert"""
+        print(f"[MediaPlayer] Fallback: Bild-Dummy für {os.path.basename(path)}")
+        self.current_mode = "image"
+        self.current_file = path
+        self.is_playing = False
     
     def cleanup(self):
         """Ressourcen freigeben"""
         self._stop_playback()
-        # TODO: VLC cleanup
-        # if self.vlc_player:
-        #     self.vlc_player.release()
-        # if self.vlc_instance:
-        #     self.vlc_instance.release()
+        if VLC_AVAILABLE and self.vlc_player:
+            try:
+                self.vlc_player.release()
+            except:
+                pass
+        if VLC_AVAILABLE and self.vlc_instance:
+            try:
+                self.vlc_instance.release()
+            except:
+                pass
 
 
 # Alternative Implementierung mit tkinter für einfache Bildanzeige

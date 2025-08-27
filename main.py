@@ -22,7 +22,7 @@ if __name__ == "__main__":
     # Kiosk-Modus über Kommandozeilen-Argument steuern
     import sys
     kiosk_mode = "--kiosk" in sys.argv
-    use_real_sensor = "--real-sensor" in sys.argv
+    use_dummy_sensor = "--dummy-sensor" in sys.argv  # Nur bei expliziter Angabe Dummy verwenden
 
     if kiosk_mode:
         print("Starte Raspberry Pi Media Station - KIOSK MODUS")
@@ -30,13 +30,18 @@ if __name__ == "__main__":
         print("Starte Raspberry Pi Media Station - TEST MODUS")
         print("Für Kiosk-Modus: python3 main.py --kiosk")
     
+    if use_dummy_sensor:
+        print("ACHTUNG: Verwende Dummy-Sensor (--dummy-sensor)")
+    else:
+        print("Verwende echten HC-SR04 Sensor")
+    
     print("Drücke ESC in der GUI zum Beenden")
     print("Oder Ctrl+C im Terminal")
 
-    # Sensor-Thread starten
+    # Sensor-Thread starten (standardmäßig echter Sensor)
     sensor_thread = SensorThread(
         interval=DEFAULT_INTERVAL, 
-        use_dummy=not use_real_sensor
+        use_dummy=use_dummy_sensor
     )
     sensor_thread.start()
 

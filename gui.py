@@ -205,32 +205,40 @@ class MediaStationGUI:
         """Status-Update (wird zyklisch aufgerufen)"""
         # Abstand anzeigen
         distance = self.sensor_thread.distance
-        self.status_label.config(text=f"Abstand: {distance:.1f} cm")
+        print(f"[DEBUG] Sensor-Abstand: {distance:.1f} cm")  # Debug-Output
         
-        # Media-Steuerung basierend auf Abstand
-        try:
-            min_dist = float(self.min_dist_var.get())
-            max_dist = float(self.max_dist_var.get())
+        if distance == 0.0:
+            self.status_label.config(text="Sensor: Nicht verbunden", fg='red')
+            # Ohne Sensor immer schwarzes Bild
+            self.media_player.show_black()
+            self.media_status_label.config(text="Status: Kein Sensor - Schwarzes Bild", fg='red')
+        else:
+            self.status_label.config(text=f"Abstand: {distance:.1f} cm", fg='lime')
             
-            if min_dist <= distance <= max_dist:
-                # Video abspielen
-                if self.selected_video:
-                    self.media_player.play_video(self.selected_video)
-                    self.media_status_label.config(text="Status: Video läuft", fg='lime')
+            # Media-Steuerung basierend auf Abstand
+            try:
+                min_dist = float(self.min_dist_var.get())
+                max_dist = float(self.max_dist_var.get())
+                
+                if min_dist <= distance <= max_dist:
+                    # Video abspielen
+                    if self.selected_video:
+                        self.media_player.play_video(self.selected_video)
+                        self.media_status_label.config(text="Status: Video läuft", fg='lime')
+                    else:
+                        self.media_player.show_black()
+                        self.media_status_label.config(text="Status: Kein Video gewählt - Schwarzes Bild", fg='orange')
                 else:
-                    self.media_player.show_black()
-                    self.media_status_label.config(text="Status: Kein Video gewählt - Schwarzes Bild", fg='orange')
-            else:
-                # Bild anzeigen
-                if self.selected_image:
-                    self.media_player.show_image(self.selected_image)
-                    self.media_status_label.config(text="Status: Bild angezeigt", fg='cyan')
-                else:
-                    self.media_player.show_black()
-                    self.media_status_label.config(text="Status: Kein Bild gewählt - Schwarzes Bild", fg='orange')
-        except ValueError:
-            # Ungültige Schwellwerte
-            pass
+                    # Bild anzeigen
+                    if self.selected_image:
+                        self.media_player.show_image(self.selected_image)
+                        self.media_status_label.config(text="Status: Bild angezeigt", fg='cyan')
+                    else:
+                        self.media_player.show_black()
+                        self.media_status_label.config(text="Status: Kein Bild gewählt - Schwarzes Bild", fg='orange')
+            except ValueError:
+                # Ungültige Schwellwerte
+                pass
         
         # Nächstes Update in 100ms
         self.root.after(100, self.update_status)
@@ -244,3 +252,4 @@ class MediaStationGUI:
             self.observer.stop()
             self.observer.join()
             self.sensor_thread.stop()
+            self.media_player.cleanup()  # VLC-Ressourcen freigeben
