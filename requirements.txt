@@ -1,0 +1,5 @@
+tkinter
+watchdog
+python-vlc
+Pillow
+RPi.GPIO
