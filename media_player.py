@@ -109,6 +109,27 @@ class MediaPlayer:
                 VLC_AVAILABLE = False
         
         print(f"[MediaPlayer] Bereit - VLC verfügbar: {VLC_AVAILABLE}")
+    
+    def _init_vlc(self):
+        """Initialisiert oder re-initialisiert VLC"""
+        global VLC_AVAILABLE
+        if not VLC_AVAILABLE:
+            return False
+            
+        try:
+            self.vlc_instance = vlc.Instance(
+                '--no-video-title-show',
+                '--no-osd',
+                '--quiet',
+                '--no-xlib'  # Verhindert X11-Threading-Probleme
+            )
+            self.vlc_player = self.vlc_instance.media_player_new()
+            print("[MediaPlayer] VLC (re-)initialisiert")
+            return True
+        except Exception as e:
+            print(f"[MediaPlayer] VLC-Initialisierung fehlgeschlagen: {e}")
+            VLC_AVAILABLE = False
+            return False
         
     def _init_fallback_window(self):
         """Initialisiert separates tkinter-Fenster für Medien"""
@@ -299,95 +320,160 @@ class MediaPlayer:
         
         print(f"[MediaPlayer] Starte Video: {os.path.basename(path)}")
         
-        # Priorität: Externe Player > VLC > tkinter Fallback
-        if not self._fallback_video(path):
-            if VLC_AVAILABLE and self.vlc_player:
-                self._vlc_play_video(path)
-            else:
-                # tkinter Fallback für Videos
-                if self.media_window and self.media_label:
-                    self.media_label.config(
-                        text=f"🎬 VIDEO\n\n{os.path.basename(path)}\n\n(Kein Video-Player verfügbar)\n\nExterner Player erforderlich",
-                        font=('Arial', 16),
-                        fg='yellow'
-                    )
+        # PRIORITÄT 1: Externer VLC-Prozess (stabiler auf Raspberry Pi!)
+        if self._fallback_video(path):
+            self.is_playing = True
+            return
+            
+        # PRIORITÄT 2: Python-VLC (nur wenn externer VLC fehlschlägt)
+        if VLC_AVAILABLE and self.vlc_player:
+            if self._vlc_play_video(path):
+                self.is_playing = True
+                return
+        
+        # PRIORITÄT 3: tkinter Fallback
+        if self.media_window and self.media_label:
+            self.media_label.config(
+                text=f"🎬 VIDEO\n\n{os.path.basename(path)}\n\n(Kein Video-Player verfügbar)\n\nExterner Player erforderlich",
+                font=('Arial', 16),
+                fg='yellow'
+            )
     
     def _vlc_play_video(self, path):
-        """VLC Video-Wiedergabe"""
+        """VLC Video-Wiedergabe mit Crash-Recovery"""
         try:
             # Fenster verstecken - VLC öffnet eigenes Fenster
             if self.media_window:
                 self.media_window.withdraw()
             
-            media = self.vlc_instance.media_new(path)
-            # Kein Loop - Video soll normal enden
-            self.vlc_player.set_media(media)
+            # Prüfe ob VLC Player noch funktioniert
+            if not self.vlc_player or not self.vlc_instance:
+                print("[MediaPlayer] VLC nicht verfügbar - reinitalisiere...")
+                if not self._init_vlc():
+                    print("[MediaPlayer] VLC Reinitalisierung fehlgeschlagen")
+                    return False
             
-            # VLC in separatem Fenster einbetten (falls möglich)
-            if self.media_window:
-                try:
-                    # Windows Handle für VLC
-                    hwnd = self.media_window.winfo_id()
-                    self.vlc_player.set_hwnd(hwnd)
-                except:
-                    pass
-            
-            self.vlc_player.play()
-            self.is_playing = True
-            print(f"[MediaPlayer] VLC spielt Video: {os.path.basename(path)}")
-            
-            # Status im tkinter-Fenster anzeigen
-            if self.media_window and self.media_label and str(self.media_label) != '':
-                self.media_label.config(
-                    text=f"🎬 VLC VIDEO\n\n{os.path.basename(path)}\n\nWird wiedergegeben...",
-                    font=('Arial', 18),
-                    fg='lime'
-                )
+            # Setze Timeouts um Hänger zu vermeiden
+            try:
+                media = self.vlc_instance.media_new(path)
+                if not media:
+                    print(f"[MediaPlayer] Konnte VLC Media nicht erstellen für: {path}")
+                    return False
+                    
+                # Kein Loop - Video soll normal enden
+                self.vlc_player.set_media(media)
+                
+                # VLC in separatem Fenster einbetten (falls möglich)
+                if self.media_window:
+                    try:
+                        # Windows Handle für VLC
+                        hwnd = self.media_window.winfo_id()
+                        self.vlc_player.set_hwnd(hwnd)
+                    except:
+                        pass
+                
+                # Versuche Video zu starten
+                ret = self.vlc_player.play()
+                if ret == -1:
+                    print(f"[MediaPlayer] VLC play() fehlgeschlagen für: {path}")
+                    # Versuche VLC neu zu initialisieren
+                    self._recover_vlc()
+                    return False
+                    
+                self.is_playing = True
+                print(f"[MediaPlayer] VLC spielt Video: {os.path.basename(path)}")
+                
+                # Status im tkinter-Fenster anzeigen
+                if self.media_window and self.media_label and str(self.media_label) != '':
+                    self.media_label.config(
+                        text=f"🎬 VLC VIDEO\n\n{os.path.basename(path)}\n\nWird wiedergegeben...",
+                        font=('Arial', 18),
+                        fg='lime'
+                    )
+                    
+            except Exception as e:
+                print(f"[MediaPlayer] Fehler beim VLC-Start: {e}")
+                self._recover_vlc()
+                return False
             
         except Exception as e:
             print(f"[MediaPlayer] VLC Video-Fehler: {e}")
+            self._recover_vlc()
             return False
         return True
     
+    def _recover_vlc(self):
+        """Versuche VLC nach Crash wiederherzustellen"""
+        print("[MediaPlayer] Versuche VLC-Recovery...")
+        try:
+            if self.vlc_player:
+                try:
+                    self.vlc_player.stop()
+                except:
+                    pass
+                try:
+                    self.vlc_player.release()
+                except:
+                    pass
+            self.vlc_player = None
+            self.vlc_instance = None
+            
+            # Warte kurz
+            time.sleep(0.5)
+            
+            # Neu initialisieren
+            if self._init_vlc():
+                print("[MediaPlayer] VLC erfolgreich wiederhergestellt")
+            else:
+                print("[MediaPlayer] VLC Recovery fehlgeschlagen")
+        except Exception as e:
+            print(f"[MediaPlayer] Fehler bei VLC-Recovery: {e}")
+    
     def _fallback_video(self, path):
-        """Fallback Video-Wiedergabe mit externem Player"""
+        """Fallback Video-Wiedergabe mit externem Player (HAUPTMETHODE für Raspberry Pi!)"""
         # Aktuellen Video-Prozess stoppen
         if self.video_process:
             try:
                 self.video_process.terminate()
                 self.video_process.wait(timeout=2)
             except:
-                pass
+                try:
+                    self.video_process.kill()
+                except:
+                    pass
         
         try:
             # Versuche verschiedene Video-Player
-            players = ['vlc', 'mpv', 'mplayer', 'wmplayer']
-            for player in players:
+            # Priorität: VLC (extern) > mpv > mplayer
+            players_config = [
+                ('cvlc', [  # Command-line VLC (stabiler auf Pi!)
+                    path, 
+                    '--fullscreen', 
+                    '--no-video-title-show',
+                    '--no-osd',
+                    '--quiet',
+                    '--play-and-exit'  # Schließt nach Ende
+                ]),
+                ('vlc', [  # GUI VLC als Fallback
+                    path, 
+                    '--fullscreen', 
+                    '--no-video-title-show',
+                    '--no-osd',
+                    '--quiet',
+                    '--play-and-exit'
+                ]),
+                ('mpv', [path, '--fullscreen']),
+                ('mplayer', [path, '-fs']),
+                ('wmplayer', [path, '/fullscreen'])  # Windows
+            ]
+            
+            for player, args in players_config:
                 try:
-                    if player == 'vlc':
-                        self.video_process = subprocess.Popen([
-                            player, path, 
-                            '--fullscreen', 
-                            '--no-video-title-show',
-                            '--quiet'
-                        ])
-                    elif player == 'mpv':
-                        self.video_process = subprocess.Popen([
-                            player, path,
-                            '--fullscreen'
-                        ])
-                    elif player == 'wmplayer':
-                        # Windows Media Player
-                        self.video_process = subprocess.Popen([
-                            player, path,
-                            '/fullscreen'
-                        ])
-                    else:  # mplayer
-                        self.video_process = subprocess.Popen([
-                            player, path,
-                            '-fs'
-                        ])
-                    
+                    self.video_process = subprocess.Popen(
+                        [player] + args,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
                     print(f"[MediaPlayer] {player} spielt Video: {os.path.basename(path)}")
                     
                     # Status im tkinter-Fenster anzeigen
@@ -400,6 +486,9 @@ class MediaPlayer:
                     return True
                     
                 except FileNotFoundError:
+                    continue
+                except Exception as e:
+                    print(f"[MediaPlayer] {player} Fehler: {e}")
                     continue
             
             # Kein externer Player gefunden
@@ -527,6 +616,8 @@ class MediaPlayer:
 
     def _stop_video(self):
         """Video-Wiedergabe stoppen"""
+        print("[MediaPlayer] _stop_video() aufgerufen")
+        
         if self.video_process:
             try:
                 self.video_process.terminate()
@@ -541,11 +632,16 @@ class MediaPlayer:
         
         if VLC_AVAILABLE and self.vlc_player:
             try:
+                print("[MediaPlayer] Stoppe VLC Player...")
                 self.vlc_player.stop()
-            except:
-                pass
+                print("[MediaPlayer] VLC Player gestoppt")
+            except Exception as e:
+                print(f"[MediaPlayer] Fehler beim VLC-Stop: {e}")
         
         self.is_playing = False
+        self.current_mode = None
+        self.current_file = None
+        print("[MediaPlayer] Video-Stop abgeschlossen, is_playing=False")
 
     def cleanup(self):
         """Ressourcen freigeben"""
