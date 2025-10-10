@@ -1,5 +1,6 @@
 """
-Vollständige VLC-basierte GUI für Pi Media Station mit allen Features
+VLC-basierte GUI mit Live-Bildvorschau und Sensor-Integration
+Erweiterte Version mit allen Features der ursprünglichen GUI
 """
 import tkinter as tk
 from tkinter import ttk, simpledialog
@@ -9,51 +10,74 @@ import json
 import datetime
 import subprocess
 import platform
-from config import DEFAULT_MIN_DIST, DEFAULT_MAX_DIST, DEFAULT_INTERVAL, VIDEO_FOLDER, IMAGE_FOLDER, AUDIO_FOLDER, IMAGE_DISPLAY_TIME, AUDIO_FADE_TIME, MIN_VIDEO_RUNTIME, MIN_IMAGE_DISPLAY_TIME, MIN_AUDIO_RUNTIME
+import threading
+from config import (DEFAULT_MIN_DIST, DEFAULT_MAX_DIST, DEFAULT_INTERVAL, 
+                   VIDEO_FOLDER, IMAGE_FOLDER, AUDIO_FOLDER, 
+                   IMAGE_DISPLAY_TIME, AUDIO_FADE_TIME,
+                   MIN_VIDEO_RUNTIME, MIN_IMAGE_DISPLAY_TIME, MIN_AUDIO_RUNTIME)
 from media_player_vlc import VLCMediaPlayer
 
 class VLCMediaStationGUI:
     def __init__(self, sensor_thread, kiosk_mode=False):
         self.sensor_thread = sensor_thread
-        self.media_player = VLCMediaPlayer()
-        self.kiosk_mode = kiosk_mode  # Nur für GUI-Fenster, nicht für Media-Vorschau
+        self.kiosk_mode = kiosk_mode
         self.sensor_mode = "video"  # "video" oder "audio"
+        self._sensor_in_range = False  # Entprellung für Sensor-Trigger
+        # Erweiterte Entprellung/Hysterese & Cooldown
+        self._in_range_count = 0
+        self._out_of_range_count = 0
+        self._stability_cycles_enter = 3  # Anzahl aufeinanderfolgender Messungen für stabilen Eintritt
+        self._stability_cycles_exit = 2   # Schnelleres Reagieren beim Verlassen (nur 2 Messungen = 400ms)
+        self._last_trigger_ts = 0.0
+        self._play_started_ts = 0.0
+        self._cooldown_until_ts = 0.0
+        self._restore_after_id = None  # für verzögertes Wiederherstellen der Bildvorschau
         
         # Dateien
         self.all_video_files = []
         self.all_image_files = []
         self.all_audio_files = []
         self.video_checkboxes = {}
-        self.image_checkboxes = {}
+        self.selected_image_var = None  # Radio-Button für Bildauswahl (nur EINS)
         self.audio_checkboxes = {}
         
-        # Konfigurable Werte (wie in der alten GUI)
+        # Konfigurable Werte
         self.current_image_display_time = IMAGE_DISPLAY_TIME
         self.current_audio_fade_time = AUDIO_FADE_TIME
         self.current_min_video_time = MIN_VIDEO_RUNTIME
         self.current_min_image_time = MIN_IMAGE_DISPLAY_TIME
         self.current_min_audio_time = MIN_AUDIO_RUNTIME
         
-        # GUI erstellen
+        # GUI erstellen (ERST Root-Fenster, dann MediaPlayer!)
         self.root = tk.Tk()
-        self.root.title("Pi Media Station - VLC Edition")
+        self.root.title("FACES Player V1.0")
         self.root.configure(bg='black')
         
-        # GUI ist immer im Fenstermodus - Media-Player hat eigenes Vollbild
-        if self.kiosk_mode:
-            self.root.state('zoomed')  # GUI maximiert, aber nicht fullscreen
-        else:
-            self.root.geometry("1200x800")
+        # Fullscreen für Raspberry Pi (robuster Ansatz)
+        try:
+            # Versuch 1: attributes -zoomed (funktioniert auf Linux)
+            self.root.attributes('-zoomed', True)
+        except:
+            try:
+                # Versuch 2: Fullscreen-Attribut
+                self.root.attributes('-fullscreen', True)
+            except:
+                # Versuch 3: Manuelles Setzen der Größe
+                width = self.root.winfo_screenwidth()
+                height = self.root.winfo_screenheight()
+                self.root.geometry(f"{width}x{height}+0+0")
+        
+        # ESC-Taste zum Beenden im Fullscreen
+        self.root.bind('<Escape>', lambda e: self.cleanup() if not self.kiosk_mode else None)
+        
+        # JETZT MediaPlayer erstellen (nachdem Root existiert)
+        self.media_player = VLCMediaPlayer()
         
         self.setup_gui()
         self.scan_media_files()
-        
-        # Entry-Felder mit aktuellen Werten synchronisieren
         self.sync_entry_fields()
-        
-        # Sensor-Modus initial setzen
+        self.update_trigger_labels()  # Trigger-Labels mit aktuellen Werten initialisieren
         self.update_sensor_mode()
-        
         self.update_status()
     
     def setup_gui(self):
@@ -77,97 +101,211 @@ class VLCMediaStationGUI:
         main_frame = scrollable_frame
         
         # Titel
-        tk.Label(main_frame, text="Pi Media Station - VLC Edition", 
-                font=('Arial', 24, 'bold'), fg='cyan', bg='black').pack(pady=10)
-        
+        tk.Label(main_frame, text="FACES Player V1.0", 
+                 font=('Arial', 24, 'bold'), fg='cyan', bg='black').pack(pady=10)
+
         # Status
         self.status_label = tk.Label(main_frame, text="Sensor: Initialisierung...", 
-                                   font=('Arial', 16), fg='yellow', bg='black')
+                                     font=('Arial', 16), fg='yellow', bg='black')
         self.status_label.pack(pady=5)
-        
+
+        # Sensor Aktivierung Button
+        self.sensor_enabled = False  # Sensor standardmäßig deaktiviert
+        self.sensor_button = tk.Button(main_frame, text="▶ Sensor AKTIVIEREN", 
+                                       command=self.toggle_sensor,
+                                       font=('Arial', 14, 'bold'), 
+                                       bg='green', fg='white',
+                                       width=25, height=2)
+        self.sensor_button.pack(pady=10)
+
         # Sensor-Einstellungen
-        settings_frame = tk.LabelFrame(main_frame, text="Sensor-Einstellungen", 
-                                     font=('Arial', 14, 'bold'), fg='white', bg='black', bd=2)
+        settings_frame = tk.LabelFrame(main_frame, text="Sensor-Einstellungen",
+                                       font=('Arial', 14, 'bold'), fg='white', bg='black', bd=2)
         settings_frame.pack(pady=10, padx=10, fill='x')
-        
+
         # Min/Max Abstand mit Speichern-Buttons
-        tk.Label(settings_frame, text="Min. Abstand (cm):", fg='white', bg='black').grid(row=0, column=0, sticky='w', padx=10, pady=5)
-        self.min_dist_var = tk.StringVar(value=str(DEFAULT_MIN_DIST))
-        tk.Entry(settings_frame, textvariable=self.min_dist_var, width=10, 
-                bg='gray20', fg='white', insertbackground='white').grid(row=0, column=1, padx=5)
+        tk.Label(settings_frame, text="Min. Abstand (cm):", fg='white', bg='black', font=('Arial', 10, 'bold')).grid(row=0, column=0, sticky='w', padx=10, pady=5)
+        self.min_dist_var = tk.StringVar()
+        self.min_dist_var.set(str(DEFAULT_MIN_DIST))
+        self.min_dist_entry = tk.Entry(settings_frame, textvariable=self.min_dist_var, width=10,
+                 bg='gray20', fg='lime', insertbackground='white', font=('Arial', 12, 'bold'))
+        self.min_dist_entry.grid(row=0, column=1, padx=5)
+        self.min_dist_entry.delete(0, tk.END)
+        self.min_dist_entry.insert(0, str(DEFAULT_MIN_DIST))
+        tk.Button(settings_frame, text="Standard", bg='gray30', fg='white',
+                  command=self.reset_min_dist, font=('Arial', 10)).grid(row=0, column=2, padx=5)
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
-                 command=self.save_min_dist, font=('Arial', 10)).grid(row=0, column=2, padx=5)
-        
-        tk.Label(settings_frame, text="Max. Abstand (cm):", fg='white', bg='black').grid(row=0, column=3, sticky='w', padx=10)
-        self.max_dist_var = tk.StringVar(value=str(DEFAULT_MAX_DIST))
-        tk.Entry(settings_frame, textvariable=self.max_dist_var, width=10,
-                bg='gray20', fg='white', insertbackground='white').grid(row=0, column=4, padx=5)
+                  command=self.save_min_dist, font=('Arial', 10)).grid(row=0, column=3, padx=5)
+
+        tk.Label(settings_frame, text="Max. Abstand (cm):", fg='white', bg='black', font=('Arial', 10, 'bold')).grid(row=0, column=4, sticky='w', padx=10)
+        self.max_dist_var = tk.StringVar()
+        self.max_dist_var.set(str(DEFAULT_MAX_DIST))
+        self.max_dist_entry = tk.Entry(settings_frame, textvariable=self.max_dist_var, width=10,
+                 bg='gray20', fg='lime', insertbackground='white', font=('Arial', 12, 'bold'))
+        self.max_dist_entry.grid(row=0, column=5, padx=5)
+        self.max_dist_entry.delete(0, tk.END)
+        self.max_dist_entry.insert(0, str(DEFAULT_MAX_DIST))
+        tk.Button(settings_frame, text="Standard", bg='gray30', fg='white',
+                  command=self.reset_max_dist, font=('Arial', 10)).grid(row=0, column=6, padx=5)
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
-                 command=self.save_max_dist, font=('Arial', 10)).grid(row=0, column=5, padx=5)
-        
+                  command=self.save_max_dist, font=('Arial', 10)).grid(row=0, column=7, padx=5)
+
         # Messintervall
-        tk.Label(settings_frame, text="Messintervall (ms):", fg='white', bg='black').grid(row=1, column=0, sticky='w', padx=10, pady=5)
-        self.interval_var = tk.StringVar(value=str(int(DEFAULT_INTERVAL * 1000)))
-        tk.Entry(settings_frame, textvariable=self.interval_var, width=10,
-                bg='gray20', fg='white', insertbackground='white').grid(row=1, column=1, padx=5)
+        tk.Label(settings_frame, text="Messintervall (ms):", fg='white', bg='black', font=('Arial', 10, 'bold')).grid(row=1, column=0, sticky='w', padx=10, pady=5)
+        self.interval_var = tk.StringVar()
+        self.interval_var.set(str(int(DEFAULT_INTERVAL * 1000)))
+        self.interval_entry = tk.Entry(settings_frame, textvariable=self.interval_var, width=10,
+                 bg='gray20', fg='lime', insertbackground='white', font=('Arial', 12, 'bold'))
+        self.interval_entry.grid(row=1, column=1, padx=5)
+        self.interval_entry.delete(0, tk.END)
+        self.interval_entry.insert(0, str(int(DEFAULT_INTERVAL * 1000)))
+        tk.Button(settings_frame, text="Standard", bg='gray30', fg='white',
+                  command=self.reset_interval, font=('Arial', 10)).grid(row=1, column=2, padx=5)
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
-                 command=self.save_interval, font=('Arial', 10)).grid(row=1, column=2, padx=5)
-        
+                  command=self.save_interval, font=('Arial', 10)).grid(row=1, column=3, padx=5)
+
         # Bildwechselzeit
-        tk.Label(settings_frame, text="Bildwechsel (s):", fg='white', bg='black').grid(row=1, column=3, sticky='w', padx=10)
-        self.image_interval_var = tk.StringVar(value=str(IMAGE_DISPLAY_TIME))
-        tk.Entry(settings_frame, textvariable=self.image_interval_var, width=10,
-                bg='gray20', fg='white', insertbackground='white').grid(row=1, column=4, padx=5)
+        tk.Label(settings_frame, text="Bildwechsel (s):", fg='white', bg='black', font=('Arial', 10, 'bold')).grid(row=1, column=4, sticky='w', padx=10)
+        self.image_interval_var = tk.StringVar()
+        self.image_interval_var.set(str(IMAGE_DISPLAY_TIME))
+        self.image_interval_entry = tk.Entry(settings_frame, textvariable=self.image_interval_var, width=10,
+                 bg='gray20', fg='lime', insertbackground='white', font=('Arial', 12, 'bold'))
+        self.image_interval_entry.grid(row=1, column=5, padx=5)
+        self.image_interval_entry.delete(0, tk.END)
+        self.image_interval_entry.insert(0, str(IMAGE_DISPLAY_TIME))
+        tk.Button(settings_frame, text="Standard", bg='gray30', fg='white',
+                  command=self.reset_image_interval, font=('Arial', 10)).grid(row=1, column=6, padx=5)
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
-                 command=self.save_image_interval, font=('Arial', 10)).grid(row=1, column=5, padx=5)
-        
+                  command=self.save_image_interval, font=('Arial', 10)).grid(row=1, column=7, padx=5)
+
         # Audio-Fade
-        tk.Label(settings_frame, text="Audio-Fade (ms):", fg='white', bg='black').grid(row=2, column=0, sticky='w', padx=10, pady=5)
-        self.audio_fade_var = tk.StringVar(value=str(int(AUDIO_FADE_TIME * 1000)))
-        tk.Entry(settings_frame, textvariable=self.audio_fade_var, width=10,
-                bg='gray20', fg='white', insertbackground='white').grid(row=2, column=1, padx=5)
+        tk.Label(settings_frame, text="Audio-Fade (ms):", fg='white', bg='black', font=('Arial', 10, 'bold')).grid(row=2, column=0, sticky='w', padx=10, pady=5)
+        self.audio_fade_var = tk.StringVar()
+        self.audio_fade_var.set(str(int(AUDIO_FADE_TIME * 1000)))
+        self.audio_fade_entry = tk.Entry(settings_frame, textvariable=self.audio_fade_var, width=10,
+                 bg='gray20', fg='lime', insertbackground='white', font=('Arial', 12, 'bold'))
+        self.audio_fade_entry.grid(row=2, column=1, padx=5)
+        self.audio_fade_entry.delete(0, tk.END)
+        self.audio_fade_entry.insert(0, str(int(AUDIO_FADE_TIME * 1000)))
+        tk.Button(settings_frame, text="Standard", bg='gray30', fg='white',
+                  command=self.reset_audio_fade, font=('Arial', 10)).grid(row=2, column=2, padx=5)
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
-                 command=self.save_audio_fade, font=('Arial', 10)).grid(row=2, column=2, padx=5)
-        
+                  command=self.save_audio_fade, font=('Arial', 10)).grid(row=2, column=3, padx=5)
+
         # Mindestzeiten
-        tk.Label(settings_frame, text="Min. Video-Zeit (s):", fg='white', bg='black').grid(row=3, column=0, sticky='w', padx=10, pady=5)
-        self.min_video_var = tk.StringVar(value=str(MIN_VIDEO_RUNTIME))
-        tk.Entry(settings_frame, textvariable=self.min_video_var, width=10,
-                bg='gray20', fg='white', insertbackground='white').grid(row=3, column=1, padx=5)
+        tk.Label(settings_frame, text="Min. Video-Zeit (s):", fg='white', bg='black', font=('Arial', 10, 'bold')).grid(row=3, column=0, sticky='w', padx=10, pady=5)
+        self.min_video_var = tk.StringVar()
+        self.min_video_var.set(str(MIN_VIDEO_RUNTIME))
+        self.min_video_entry = tk.Entry(settings_frame, textvariable=self.min_video_var, width=10,
+                 bg='gray20', fg='lime', insertbackground='white', font=('Arial', 12, 'bold'))
+        self.min_video_entry.grid(row=3, column=1, padx=5)
+        self.min_video_entry.delete(0, tk.END)
+        self.min_video_entry.insert(0, str(MIN_VIDEO_RUNTIME))
+        tk.Button(settings_frame, text="Standard", bg='gray30', fg='white',
+                  command=self.reset_min_video_time, font=('Arial', 10)).grid(row=3, column=2, padx=5)
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
-                 command=self.save_min_video_time, font=('Arial', 10)).grid(row=3, column=2, padx=5)
-        
-        tk.Label(settings_frame, text="Min. Bild-Zeit (s):", fg='white', bg='black').grid(row=3, column=3, sticky='w', padx=10)
-        self.min_image_var = tk.StringVar(value=str(MIN_IMAGE_DISPLAY_TIME))
-        tk.Entry(settings_frame, textvariable=self.min_image_var, width=10,
-                bg='gray20', fg='white', insertbackground='white').grid(row=3, column=4, padx=5)
+                  command=self.save_min_video_time, font=('Arial', 10)).grid(row=3, column=3, padx=5)
+
+        tk.Label(settings_frame, text="Min. Bild-Zeit (s):", fg='white', bg='black', font=('Arial', 10, 'bold')).grid(row=3, column=4, sticky='w', padx=10)
+        self.min_image_var = tk.StringVar()
+        self.min_image_var.set(str(MIN_IMAGE_DISPLAY_TIME))
+        self.min_image_entry = tk.Entry(settings_frame, textvariable=self.min_image_var, width=10,
+                 bg='gray20', fg='lime', insertbackground='white', font=('Arial', 12, 'bold'))
+        self.min_image_entry.grid(row=3, column=5, padx=5)
+        self.min_image_entry.delete(0, tk.END)
+        self.min_image_entry.insert(0, str(MIN_IMAGE_DISPLAY_TIME))
+        tk.Button(settings_frame, text="Standard", bg='gray30', fg='white',
+                  command=self.reset_min_image_time, font=('Arial', 10)).grid(row=3, column=6, padx=5)
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
-                 command=self.save_min_image_time, font=('Arial', 10)).grid(row=3, column=5, padx=5)
-        
-        tk.Label(settings_frame, text="Min. Audio-Zeit (s):", fg='white', bg='black').grid(row=4, column=0, sticky='w', padx=10, pady=5)
-        self.min_audio_var = tk.StringVar(value=str(MIN_AUDIO_RUNTIME))
-        tk.Entry(settings_frame, textvariable=self.min_audio_var, width=10,
-                bg='gray20', fg='white', insertbackground='white').grid(row=4, column=1, padx=5)
+                  command=self.save_min_image_time, font=('Arial', 10)).grid(row=3, column=7, padx=5)
+
+        tk.Label(settings_frame, text="Min. Audio-Zeit (s):", fg='white', bg='black', font=('Arial', 10, 'bold')).grid(row=4, column=0, sticky='w', padx=10, pady=5)
+        self.min_audio_var = tk.StringVar()
+        self.min_audio_var.set(str(MIN_AUDIO_RUNTIME))
+        self.min_audio_entry = tk.Entry(settings_frame, textvariable=self.min_audio_var, width=10,
+                 bg='gray20', fg='lime', insertbackground='white', font=('Arial', 12, 'bold'))
+        self.min_audio_entry.grid(row=4, column=1, padx=5)
+        self.min_audio_entry.delete(0, tk.END)
+        self.min_audio_entry.insert(0, str(MIN_AUDIO_RUNTIME))
+        tk.Button(settings_frame, text="Standard", bg='gray30', fg='white',
+                  command=self.reset_min_audio_time, font=('Arial', 10)).grid(row=4, column=2, padx=5)
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
-                 command=self.save_min_audio_time, font=('Arial', 10)).grid(row=4, column=2, padx=5)
+                  command=self.save_min_audio_time, font=('Arial', 10)).grid(row=4, column=3, padx=5)
         
-        # Sensor-Modus
-        sensor_mode_frame = tk.LabelFrame(main_frame, text="Sensor-Modus", 
+        # Sensor-Trigger-Konfiguration (3 separate Bereiche für Video/Audio/Bild)
+        sensor_config_frame = tk.LabelFrame(main_frame, text="Sensor-Trigger Konfiguration", 
                                         font=('Arial', 14, 'bold'), fg='orange', bg='black', bd=2)
+        sensor_config_frame.pack(pady=10, padx=10, fill='x')
+        
+        # === VIDEO TRIGGER ===
+        video_trigger_frame = tk.LabelFrame(sensor_config_frame, text="🎬 VIDEO", 
+                                           font=('Arial', 12, 'bold'), fg='cyan', bg='black', bd=2)
+        video_trigger_frame.pack(pady=5, padx=10, fill='x')
+        
+        self.video_trigger_var = tk.StringVar(value="inside")
+        # Dynamische Labels - werden später mit update_trigger_labels() aktualisiert
+        self.video_inside_label = tk.StringVar(value=f"Innerhalb ({DEFAULT_MIN_DIST}-{DEFAULT_MAX_DIST}cm)")
+        self.video_outside_label = tk.StringVar(value=f"Außerhalb (<{DEFAULT_MIN_DIST}cm oder >{DEFAULT_MAX_DIST}cm)")
+        
+        tk.Radiobutton(video_trigger_frame, textvariable=self.video_inside_label, 
+                      variable=self.video_trigger_var, value="inside", bg='black', fg='white',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+        
+        tk.Radiobutton(video_trigger_frame, textvariable=self.video_outside_label, 
+                      variable=self.video_trigger_var, value="outside", bg='black', fg='white',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+        
+        # === AUDIO TRIGGER ===
+        audio_trigger_frame = tk.LabelFrame(sensor_config_frame, text="🎵 AUDIO", 
+                                           font=('Arial', 12, 'bold'), fg='magenta', bg='black', bd=2)
+        audio_trigger_frame.pack(pady=5, padx=10, fill='x')
+        
+        self.audio_trigger_var = tk.StringVar(value="inside")
+        self.audio_inside_label = tk.StringVar(value=f"Innerhalb ({DEFAULT_MIN_DIST}-{DEFAULT_MAX_DIST}cm)")
+        self.audio_outside_label = tk.StringVar(value=f"Außerhalb (<{DEFAULT_MIN_DIST}cm oder >{DEFAULT_MAX_DIST}cm)")
+        
+        tk.Radiobutton(audio_trigger_frame, textvariable=self.audio_inside_label, 
+                      variable=self.audio_trigger_var, value="inside", bg='black', fg='white',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+        
+        tk.Radiobutton(audio_trigger_frame, textvariable=self.audio_outside_label, 
+                      variable=self.audio_trigger_var, value="outside", bg='black', fg='white',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+        
+        # === BILD TRIGGER ===
+        image_trigger_frame = tk.LabelFrame(sensor_config_frame, text="🖼️ BILD", 
+                                           font=('Arial', 12, 'bold'), fg='yellow', bg='black', bd=2)
+        image_trigger_frame.pack(pady=5, padx=10, fill='x')
+        
+        self.image_trigger_var = tk.StringVar(value="outside")  # Bild standardmäßig außerhalb
+        self.image_inside_label = tk.StringVar(value=f"Innerhalb ({DEFAULT_MIN_DIST}-{DEFAULT_MAX_DIST}cm)")
+        self.image_outside_label = tk.StringVar(value=f"Außerhalb (<{DEFAULT_MIN_DIST}cm oder >{DEFAULT_MAX_DIST}cm)")
+        
+        tk.Radiobutton(image_trigger_frame, textvariable=self.image_inside_label, 
+                      variable=self.image_trigger_var, value="inside", bg='black', fg='white',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+        
+        tk.Radiobutton(image_trigger_frame, textvariable=self.image_outside_label, 
+                      variable=self.image_trigger_var, value="outside", bg='black', fg='white',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+        
+        # Sensor-Modus (welcher Medientyp wird getriggert)
+        sensor_mode_frame = tk.LabelFrame(main_frame, text="Aktiver Sensor-Modus", 
+                                        font=('Arial', 14, 'bold'), fg='lime', bg='black', bd=2)
         sensor_mode_frame.pack(pady=10, padx=10, fill='x')
         
         self.sensor_mode_var = tk.StringVar(value="video")
-        tk.Radiobutton(sensor_mode_frame, text="Video abspielen bei Sensor-Auslösung", 
+        tk.Radiobutton(sensor_mode_frame, text="VIDEO-Modus (spielt Videos ab)", 
                       variable=self.sensor_mode_var, value="video", bg='black', fg='white',
                       selectcolor='darkgray', font=('Arial', 12),
                       command=self.update_sensor_mode).pack(anchor='w', padx=10, pady=5)
         
-        tk.Radiobutton(sensor_mode_frame, text="Audio abspielen bei Sensor-Auslösung (+ Bilder)", 
+        tk.Radiobutton(sensor_mode_frame, text="AUDIO-Modus (spielt Audio + Bilder ab)", 
                       variable=self.sensor_mode_var, value="audio", bg='black', fg='white',
                       selectcolor='darkgray', font=('Arial', 12),
                       command=self.update_sensor_mode).pack(anchor='w', padx=10, pady=5)
         
-        # VLC-Steuerung + Media-Vollbild
+        # VLC-Steuerung
         control_frame = tk.LabelFrame(main_frame, text="VLC-Steuerung", 
                                     font=('Arial', 14, 'bold'), fg='magenta', bg='black', bd=2)
         control_frame.pack(pady=10, padx=10, fill='x')
@@ -186,7 +324,7 @@ class VLCMediaStationGUI:
         tk.Button(controls_row1, text="Vorheriges", command=self.vlc_previous, 
                  bg='lightblue', fg='black', font=('Arial', 11)).pack(side='left', padx=5)
         
-        # Media-Vollbild Toggle (nicht GUI-Vollbild!)
+        # Media-Vollbild Controls
         controls_row2 = tk.Frame(control_frame, bg='black')
         controls_row2.pack(pady=5)
         
@@ -199,7 +337,6 @@ class VLCMediaStationGUI:
         tk.Button(controls_row2, text="Media-Fenster", command=self.set_media_windowed, 
                  bg='orange', fg='black', font=('Arial', 11)).pack(side='left', padx=5)
         
-        # GUI-Kontrollen
         tk.Label(controls_row2, text=" | GUI:", font=('Arial', 12, 'bold'), 
                 fg='white', bg='black').pack(side='left', padx=10)
         
@@ -291,13 +428,18 @@ class VLCMediaStationGUI:
         image_canvas.create_window((0, 0), window=self.image_scroll_frame, anchor="nw")
         image_canvas.configure(yscrollcommand=image_scrollbar.set)
         
+
         image_canvas.pack(side="left", fill="both", expand=True)
         image_scrollbar.pack(side="right", fill="y")
-        
+
+        # Bestätigen-Button für Bildauswahl
+        tk.Button(image_frame, text="Bestätigen", bg='lightgreen', fg='black',
+                 font=('Arial', 10, 'bold'), command=self.confirm_image_selection).pack(pady=4)
+
         # Audio-Spalte
         audio_frame = tk.Frame(columns_frame, bg='black')
         audio_frame.pack(side='left', fill='both', expand=True, padx=2)
-        
+
         tk.Label(audio_frame, text="Audio", font=('Arial', 12, 'bold'), fg='cyan', bg='black').pack(pady=2)
         tk.Button(audio_frame, text="Ordner öffnen", bg='lightblue', fg='black', 
                  font=('Arial', 9), command=self.open_audio_folder).pack(pady=2)
@@ -315,7 +457,7 @@ class VLCMediaStationGUI:
         
         audio_canvas.pack(side="left", fill="both", expand=True)
         audio_scrollbar.pack(side="right", fill="y")
-        
+
         # Status-Labels für Dateien
         status_frame = tk.Frame(files_frame, bg='black')
         status_frame.pack(fill='x', pady=5)
@@ -337,9 +479,50 @@ class VLCMediaStationGUI:
                                          font=('Arial', 14, 'bold'), fg='lime', bg='black')
         self.media_status_label.pack(pady=10)
         
-        # Tastenkombinationen für GUI
+        # Tastenkombinationen
         self.root.bind('<F11>', lambda e: self.toggle_gui_fullscreen())
         self.root.bind('<Escape>', lambda e: self.root.quit())
+
+    def confirm_image_selection(self):
+        """Handler für Bestätigen-Button: wendet aktuelle Bildauswahl an und gibt Feedback."""
+        selected_images = self.get_selected_images()
+        if selected_images:
+            print(f"[VLC-GUI] Bildauswahl bestätigt: {[os.path.basename(f) for f in selected_images]}")
+            self.media_status_label.config(text=f"Bildauswahl bestätigt ({len(selected_images)} Bilder)", fg='lightgreen')
+            # Hier ggf. weitere Logik zum Speichern/Anwenden der Auswahl einfügen
+        else:
+            print("[VLC-GUI] Keine Bilder ausgewählt bei Bestätigung.")
+            self.media_status_label.config(text="Keine Bilder ausgewählt!", fg='orange')
+    
+    def toggle_sensor(self):
+        """Aktiviert oder deaktiviert die Sensor-Reaktion"""
+        self.sensor_enabled = not self.sensor_enabled
+        
+        if self.sensor_enabled:
+            # Sensor aktiviert
+            self.sensor_button.config(
+                text="⏸ Sensor DEAKTIVIEREN",
+                bg='red',
+                fg='white'
+            )
+            print("[VLC-GUI] Sensor wurde AKTIVIERT - reagiert auf Bewegung")
+            self.media_status_label.config(text="Sensor aktiviert - warte auf Auslösung", fg='lime')
+            # Bildvorschau anzeigen wenn Bilder vorhanden
+            self.restore_image_preview()
+        else:
+            # Sensor deaktiviert
+            self.sensor_button.config(
+                text="▶ Sensor AKTIVIEREN",
+                bg='green',
+                fg='white'
+            )
+            print("[VLC-GUI] Sensor wurde DEAKTIVIERT")
+            self.media_status_label.config(text="Sensor deaktiviert - bereit zur Konfiguration", fg='yellow')
+            # Stoppe laufende Wiedergabe
+            if self.media_player.is_playing:
+                self.media_player.stop()
+            # Zeige schwarzen Bildschirm
+            self.media_player.show_black()
     
     def scan_media_files(self):
         """Mediendateien scannen und Checkboxen erstellen"""
@@ -381,26 +564,27 @@ class VLCMediaStationGUI:
         self.video_checkboxes.clear()
         
         for video_file in self.all_video_files:
-            var = tk.BooleanVar(value=True)  # Standardmäßig alle ausgewählt
+            var = tk.BooleanVar(value=True)
             self.video_checkboxes[video_file] = var
             cb = tk.Checkbutton(self.video_scroll_frame, text=os.path.basename(video_file), 
                                variable=var, bg='gray10', fg='white', selectcolor='darkgray',
                                font=('Arial', 9))
             cb.pack(anchor='w', padx=3, pady=1)
         
-        # Bilder
+        # Bilder - NUR EINS AUSWÄHLBAR (Radio statt Checkbox)
         for widget in self.image_scroll_frame.winfo_children():
             widget.destroy()
-        self.image_checkboxes.clear()
+        
+        # Initialisiere Variable beim ersten Mal (mit leerem Wert - Benutzer muss wählen)
+        if not self.selected_image_var:
+            self.selected_image_var = tk.StringVar(value="")
         
         for image_file in self.all_image_files:
-            var = tk.BooleanVar(value=True)
-            self.image_checkboxes[image_file] = var
-            cb = tk.Checkbutton(self.image_scroll_frame, text=os.path.basename(image_file), 
-                               variable=var, bg='gray10', fg='white', selectcolor='darkgray',
-                               font=('Arial', 9),
-                               command=self.on_image_selection_changed)  # Callback hinzugefügt
-            cb.pack(anchor='w', padx=3, pady=1)
+            rb = tk.Radiobutton(self.image_scroll_frame, text=os.path.basename(image_file), 
+                               variable=self.selected_image_var, value=image_file,
+                               bg='gray10', fg='white', selectcolor='darkgray',
+                               font=('Arial', 9))
+            rb.pack(anchor='w', padx=3, pady=1)
         
         # Audio
         for widget in self.audio_scroll_frame.winfo_children():
@@ -422,36 +606,83 @@ class VLCMediaStationGUI:
         
         print(f"[VLC-GUI] Gefunden: {len(self.all_video_files)} Videos, {len(self.all_image_files)} Bilder, {len(self.all_audio_files)} Audio")
         
-        # Bildvorschau starten falls Bilder ausgewählt sind
-        if self.all_image_files:
-            # Kurz warten damit GUI vollständig geladen ist
-            self.root.after(500, self.on_image_selection_changed)
+        # KEIN Auto-Start der Bildvorschau mehr - Nutzer wählt manuell
     
-    # Speichern-Methoden für alle Parameter
+    # ====== LIVE IMAGE PREVIEW FUNKTIONALITÄT (ENTFERNT) ======
+    
+    def restore_image_preview(self):
+        """Stellt die Bildvorschau wieder her wenn Sensor-Wiedergabe beendet ist"""
+        try:
+            selected_images = self.get_selected_images()
+            print(f"[FACES] restore_image_preview() - Ausgewählte Bilder: {len(selected_images)}")
+            if selected_images:
+                first_image = selected_images[0]
+                print(f"[FACES] Zeige Bild: {os.path.basename(first_image)}")
+                success = self.media_player.play_single_media(first_image)
+                if success:
+                    self.media_status_label.config(
+                        text=f"Bild-Vorschau: {os.path.basename(first_image)}", 
+                        fg='cyan'
+                    )
+                    print(f"[FACES] Bild erfolgreich angezeigt")
+                else:
+                    print(f"[FACES] FEHLER: Bild konnte nicht angezeigt werden")
+            else:
+                print("[FACES] WARNUNG: Keine Bilder ausgewählt - zeige schwarzes Bild")
+                self.media_player.show_black()
+                self.media_status_label.config(text="Kein Bild ausgewählt", fg='yellow')
+        except Exception as e:
+            print(f"[FACES] FEHLER bei Bildvorschau: {e}")
+            import traceback
+            traceback.print_exc()
+            self.media_player.show_black()
+    
+    # ====== PARAMETER SPEICHERN METHODEN ======
     def save_min_dist(self):
-        """Min-Abstand speichern"""
         try:
             new_min = float(self.min_dist_var.get())
             if new_min >= 1:
-                print(f"[VLC-GUI] Min-Abstand gespeichert: {new_min} cm")
+                print(f"[FACES] Min-Abstand gespeichert: {new_min} cm")
+                self.update_trigger_labels()  # Labels aktualisieren
             else:
-                print("[VLC-GUI] Min-Abstand zu klein (mindestens 1cm)")
+                print("[FACES] Min-Abstand zu klein (mindestens 1cm)")
         except ValueError:
-            print("[VLC-GUI] Ungültiger Min-Abstand")
+            print("[FACES] Ungültiger Min-Abstand")
     
     def save_max_dist(self):
-        """Max-Abstand speichern"""
         try:
             new_max = float(self.max_dist_var.get())
             if new_max >= 10:
-                print(f"[VLC-GUI] Max-Abstand gespeichert: {new_max} cm")
+                print(f"[FACES] Max-Abstand gespeichert: {new_max} cm")
+                self.update_trigger_labels()  # Labels aktualisieren
             else:
-                print("[VLC-GUI] Max-Abstand zu klein (mindestens 10cm)")
+                print("[FACES] Max-Abstand zu klein (mindestens 10cm)")
         except ValueError:
-            print("[VLC-GUI] Ungültiger Max-Abstand")
+            print("[FACES] Ungültiger Max-Abstand")
+    
+    def update_trigger_labels(self):
+        """Aktualisiert die Trigger-Label-Texte mit aktuellen Min/Max-Werten"""
+        try:
+            min_val = self.min_dist_var.get()
+            max_val = self.max_dist_var.get()
+            
+            # Video-Trigger Labels
+            self.video_inside_label.set(f"Innerhalb ({min_val}-{max_val}cm)")
+            self.video_outside_label.set(f"Außerhalb (<{min_val}cm oder >{max_val}cm)")
+            
+            # Audio-Trigger Labels
+            self.audio_inside_label.set(f"Innerhalb ({min_val}-{max_val}cm)")
+            self.audio_outside_label.set(f"Außerhalb (<{min_val}cm oder >{max_val}cm)")
+            
+            # Bild-Trigger Labels
+            self.image_inside_label.set(f"Innerhalb ({min_val}-{max_val}cm)")
+            self.image_outside_label.set(f"Außerhalb (<{min_val}cm oder >{max_val}cm)")
+            
+            print(f"[FACES] Trigger-Labels aktualisiert: {min_val}-{max_val}cm")
+        except Exception as e:
+            print(f"[FACES] Fehler beim Aktualisieren der Trigger-Labels: {e}")
     
     def save_interval(self):
-        """Messintervall speichern"""
         try:
             new_interval_ms = float(self.interval_var.get())
             new_interval_s = new_interval_ms / 1000.0
@@ -461,7 +692,6 @@ class VLCMediaStationGUI:
             print("[VLC-GUI] Ungültiges Messintervall")
     
     def save_image_interval(self):
-        """Bildwechselzeit speichern"""
         try:
             new_interval = float(self.image_interval_var.get())
             self.current_image_display_time = max(1.0, new_interval)
@@ -471,7 +701,6 @@ class VLCMediaStationGUI:
             print("[VLC-GUI] Ungültige Bildwechselzeit")
     
     def save_audio_fade(self):
-        """Audio-Fade-Zeit speichern"""
         try:
             new_fade_ms = float(self.audio_fade_var.get())
             self.current_audio_fade_time = max(10, new_fade_ms) / 1000.0
@@ -480,7 +709,6 @@ class VLCMediaStationGUI:
             print("[VLC-GUI] Ungültige Audio-Fade-Zeit")
     
     def save_min_video_time(self):
-        """Min-Video-Zeit speichern"""
         try:
             new_min_video = float(self.min_video_var.get())
             self.current_min_video_time = max(0.5, new_min_video)
@@ -489,7 +717,6 @@ class VLCMediaStationGUI:
             print("[VLC-GUI] Ungültige Min-Video-Zeit")
     
     def save_min_image_time(self):
-        """Min-Bild-Zeit speichern"""
         try:
             new_min_image = float(self.min_image_var.get())
             self.current_min_image_time = max(0.5, new_min_image)
@@ -498,7 +725,6 @@ class VLCMediaStationGUI:
             print("[VLC-GUI] Ungültige Min-Bild-Zeit")
     
     def save_min_audio_time(self):
-        """Min-Audio-Zeit speichern"""
         try:
             new_min_audio = float(self.min_audio_var.get())
             self.current_min_audio_time = max(1.0, new_min_audio)
@@ -506,9 +732,67 @@ class VLCMediaStationGUI:
         except ValueError:
             print("[VLC-GUI] Ungültige Min-Audio-Zeit")
     
-    # Playlist-Methoden
+    # ====== RESET-METHODEN FÜR STANDARD-BUTTONS ======
+    def reset_min_dist(self):
+        """Setzt Min-Abstand auf Standard zurück"""
+        self.min_dist_var.set(str(DEFAULT_MIN_DIST))
+        self.min_dist_entry.delete(0, tk.END)
+        self.min_dist_entry.insert(0, str(DEFAULT_MIN_DIST))
+        self.update_trigger_labels()  # Labels aktualisieren
+        print(f"[FACES] Min-Abstand auf Standard zurückgesetzt: {DEFAULT_MIN_DIST} cm")
+    
+    def reset_max_dist(self):
+        """Setzt Max-Abstand auf Standard zurück"""
+        self.max_dist_var.set(str(DEFAULT_MAX_DIST))
+        self.max_dist_entry.delete(0, tk.END)
+        self.max_dist_entry.insert(0, str(DEFAULT_MAX_DIST))
+        self.update_trigger_labels()  # Labels aktualisieren
+        print(f"[FACES] Max-Abstand auf Standard zurückgesetzt: {DEFAULT_MAX_DIST} cm")
+    
+    def reset_interval(self):
+        """Setzt Messintervall auf Standard zurück"""
+        self.interval_var.set(str(int(DEFAULT_INTERVAL * 1000)))
+        self.interval_entry.delete(0, tk.END)
+        self.interval_entry.insert(0, str(int(DEFAULT_INTERVAL * 1000)))
+        print(f"[VLC-GUI] Messintervall auf Standard zurückgesetzt: {int(DEFAULT_INTERVAL * 1000)} ms")
+    
+    def reset_image_interval(self):
+        """Setzt Bildwechselzeit auf Standard zurück"""
+        self.image_interval_var.set(str(IMAGE_DISPLAY_TIME))
+        self.image_interval_entry.delete(0, tk.END)
+        self.image_interval_entry.insert(0, str(IMAGE_DISPLAY_TIME))
+        print(f"[VLC-GUI] Bildwechselzeit auf Standard zurückgesetzt: {IMAGE_DISPLAY_TIME} s")
+    
+    def reset_audio_fade(self):
+        """Setzt Audio-Fade auf Standard zurück"""
+        self.audio_fade_var.set(str(int(AUDIO_FADE_TIME * 1000)))
+        self.audio_fade_entry.delete(0, tk.END)
+        self.audio_fade_entry.insert(0, str(int(AUDIO_FADE_TIME * 1000)))
+        print(f"[VLC-GUI] Audio-Fade auf Standard zurückgesetzt: {int(AUDIO_FADE_TIME * 1000)} ms")
+    
+    def reset_min_video_time(self):
+        """Setzt Min-Video-Zeit auf Standard zurück"""
+        self.min_video_var.set(str(MIN_VIDEO_RUNTIME))
+        self.min_video_entry.delete(0, tk.END)
+        self.min_video_entry.insert(0, str(MIN_VIDEO_RUNTIME))
+        print(f"[VLC-GUI] Min-Video-Zeit auf Standard zurückgesetzt: {MIN_VIDEO_RUNTIME} s")
+    
+    def reset_min_image_time(self):
+        """Setzt Min-Bild-Zeit auf Standard zurück"""
+        self.min_image_var.set(str(MIN_IMAGE_DISPLAY_TIME))
+        self.min_image_entry.delete(0, tk.END)
+        self.min_image_entry.insert(0, str(MIN_IMAGE_DISPLAY_TIME))
+        print(f"[VLC-GUI] Min-Bild-Zeit auf Standard zurückgesetzt: {MIN_IMAGE_DISPLAY_TIME} s")
+    
+    def reset_min_audio_time(self):
+        """Setzt Min-Audio-Zeit auf Standard zurück"""
+        self.min_audio_var.set(str(MIN_AUDIO_RUNTIME))
+        self.min_audio_entry.delete(0, tk.END)
+        self.min_audio_entry.insert(0, str(MIN_AUDIO_RUNTIME))
+        print(f"[VLC-GUI] Min-Audio-Zeit auf Standard zurückgesetzt: {MIN_AUDIO_RUNTIME} s")
+    
+    # ====== PLAYLIST METHODEN ======
     def refresh_playlists(self):
-        """Verfügbare Playlists laden"""
         try:
             playlist_dir = "playlists"
             if not os.path.exists(playlist_dir):
@@ -531,7 +815,6 @@ class VLCMediaStationGUI:
             self.playlist_status_label.config(text=f"Fehler beim Laden: {e}", fg='red')
     
     def save_current_playlist(self):
-        """Aktuelle Auswahl als Playlist speichern"""
         try:
             playlist_name = simpledialog.askstring("Playlist speichern", "Name für die Playlist:")
             if not playlist_name:
@@ -578,7 +861,6 @@ class VLCMediaStationGUI:
             self.playlist_status_label.config(text=f"Speichern fehlgeschlagen: {e}", fg='red')
     
     def load_playlist(self):
-        """Ausgewählte Playlist laden"""
         try:
             selection = self.playlist_listbox.curselection()
             if not selection:
@@ -641,205 +923,23 @@ class VLCMediaStationGUI:
         except Exception as e:
             self.playlist_status_label.config(text=f"Laden fehlgeschlagen: {e}", fg='red')
     
-    # Media-Vollbild-Methoden (nicht GUI-Vollbild!)
-    def toggle_media_fullscreen(self):
-        """Media-Player Vollbild umschalten"""
-        try:
-            self.media_player._toggle_fullscreen()
-            print("[VLC-GUI] Media-Vollbild umgeschaltet")
-        except Exception as e:
-            print(f"[VLC-GUI] Media-Vollbild-Fehler: {e}")
-    
-    def set_media_windowed(self):
-        """Media-Player im Fenstermodus"""
-        try:
-            if self.media_player.media_window:
-                self.media_player.media_window.attributes('-fullscreen', False)
-            print("[VLC-GUI] Media-Player im Fenstermodus")
-        except Exception as e:
-            print(f"[VLC-GUI] Media-Fenster-Fehler: {e}")
-    
-    def toggle_gui_fullscreen(self):
-        """GUI-Vollbild umschalten (F11)"""
-        try:
-            self.kiosk_mode = not self.kiosk_mode
-            if self.kiosk_mode:
-                self.root.attributes('-fullscreen', True)
-            else:
-                self.root.attributes('-fullscreen', False)
-            print(f"[VLC-GUI] GUI-Vollbild: {self.kiosk_mode}")
-        except Exception as e:
-            print(f"[VLC-GUI] GUI-Vollbild-Fehler: {e}")
-    
-    def hide_gui(self):
-        """GUI verstecken (nur Media-Fenster sichtbar)"""
-        try:
-            self.root.withdraw()  # GUI-Fenster verstecken
-            print("[VLC-GUI] GUI versteckt - nur Media-Fenster sichtbar")
-            print("[VLC-GUI] TIPP: Alt+Tab zum GUI zurückkehren oder GUI-Fenster in Taskleiste klicken")
-        except Exception as e:
-            print(f"[VLC-GUI] GUI-Hide-Fehler: {e}")
-    
-    def show_gui(self):
-        """GUI wieder anzeigen"""
-        try:
-            self.root.deiconify()  # GUI-Fenster wieder anzeigen
-            self.root.lift()       # GUI in Vordergrund
-            print("[VLC-GUI] GUI wieder sichtbar")
-        except Exception as e:
-            print(f"[VLC-GUI] GUI-Show-Fehler: {e}")
-    
-    def sync_entry_fields(self):
-        """Entry-Felder mit aktuellen Werten synchronisieren"""
-        try:
-            # Sensor-Einstellungen - verwende aktuelle Sensor-Thread-Werte falls vorhanden
-            if hasattr(self.sensor_thread, 'min_distance'):
-                self.min_dist_var.set(str(self.sensor_thread.min_distance))
-            else:
-                self.min_dist_var.set(str(DEFAULT_MIN_DIST))
-            
-            if hasattr(self.sensor_thread, 'max_distance'):
-                self.max_dist_var.set(str(self.sensor_thread.max_distance))
-            else:
-                self.max_dist_var.set(str(DEFAULT_MAX_DIST))
-            
-            if hasattr(self.sensor_thread, 'interval'):
-                self.interval_var.set(str(int(self.sensor_thread.interval * 1000)))
-            else:
-                self.interval_var.set(str(int(DEFAULT_INTERVAL * 1000)))
-            
-            # Media-Timing - verwende aktuelle Werte
-            self.image_interval_var.set(str(self.current_image_display_time))
-            self.audio_fade_var.set(str(int(self.current_audio_fade_time * 1000)))
-            self.min_video_var.set(str(self.current_min_video_time))
-            self.min_image_var.set(str(self.current_min_image_time))
-            self.min_audio_var.set(str(self.current_min_audio_time))
-            
-            print("[VLC-GUI] Entry-Felder mit aktuellen Werten synchronisiert")
-            
-        except Exception as e:
-            print(f"[VLC-GUI] Fehler beim Synchronisieren der Entry-Felder: {e}")
-    
-    def update_sensor_mode(self):
-        """Sensor-Modus aktualisieren"""
-        new_mode = self.sensor_mode_var.get()
-        self.sensor_mode = new_mode
-        print(f"[VLC-GUI] Sensor-Modus geändert zu: {self.sensor_mode}")
-        
-        # Zusätzlicher Status für Benutzer
-        if self.sensor_mode == "video":
-            print("[VLC-GUI] → Bei Sensor-Auslösung werden Videos abgespielt")
-        elif self.sensor_mode == "audio":
-            print("[VLC-GUI] → Bei Sensor-Auslösung werden Audio + Bilder abgespielt")
-        else:
-            print(f"[VLC-GUI] → Unbekannter Modus: {self.sensor_mode}")
-    
+    # ====== VLC STEUERUNG ======
     def vlc_pause(self):
-        """VLC Pause/Play"""
         self.media_player.pause()
     
     def vlc_stop(self):
-        """VLC Stop"""
         self.media_player.stop()
     
     def vlc_next(self):
-        """VLC Nächstes"""
         self.media_player.next_media()
     
     def vlc_previous(self):
-        """VLC Vorheriges"""
         self.media_player.previous_media()
     
-    def get_selected_videos(self):
-        """Ausgewählte Videos zurückgeben"""
-        return [path for path, var in self.video_checkboxes.items() if var.get()]
-    
-    def get_selected_images(self):
-        """Ausgewählte Bilder zurückgeben"""
-        return [path for path, var in self.image_checkboxes.items() if var.get()]
-    
-    def get_selected_audios(self):
-        """Ausgewählte Audio-Dateien zurückgeben"""
-        return [path for path, var in self.audio_checkboxes.items() if var.get()]
-    
-    def on_image_selection_changed(self):
-        """Wird aufgerufen wenn Bild-Auswahl geändert wird - zeigt Bilder sofort an"""
-        try:
-            # Nur reagieren wenn nicht gerade ein Video/Audio über Sensor läuft
-            if self.media_player.is_playing:
-                # Prüfen ob gerade Video/Audio läuft (nicht nur Bild-Anzeige)
-                if hasattr(self.media_player, 'current_playlist') and self.media_player.current_playlist:
-                    current_file = self.media_player.current_playlist[self.media_player.current_index] if self.media_player.current_index < len(self.media_player.current_playlist) else None
-                    if current_file and not current_file.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif')):
-                        # Video oder Audio läuft - nicht unterbrechen
-                        print("[VLC-GUI] Bild-Auswahl geändert, aber Video/Audio läuft - keine Unterbrechung")
-                        return
-            
-            selected_images = self.get_selected_images()
-            
-            if selected_images:
-                # Erstes ausgewähltes Bild anzeigen
-                first_image = selected_images[0]
-                print(f"[VLC-GUI] Zeige Bild-Vorschau: {os.path.basename(first_image)}")
-                
-                # Stoppe aktuelle Wiedergabe falls es nur ein Bild ist
-                if self.media_player.is_playing:
-                    self.media_player.stop()
-                
-                # Einzelnes Bild anzeigen
-                success = self.media_player.play_single_media(first_image)
-                if success:
-                    self.media_status_label.config(
-                        text=f"Bild-Vorschau: {os.path.basename(first_image)}", 
-                        fg='cyan'
-                    )
-                else:
-                    print(f"[VLC-GUI] FEHLER: Konnte Bild nicht anzeigen: {os.path.basename(first_image)}")
-            else:
-                # Keine Bilder ausgewählt - schwarzes Bild
-                print("[VLC-GUI] Keine Bilder ausgewählt - zeige schwarzes Bild")
-                self.media_player.show_black()
-                self.media_status_label.config(text="Keine Bilder ausgewählt", fg='gray')
-                
-        except Exception as e:
-            print(f"[VLC-GUI] FEHLER in on_image_selection_changed: {e}")
-    
-    def scan_files(self):
-        """Alle Mediendateien erneut scannen"""
-        print("[VLC-GUI] Scanne Mediendateien...")
-        self.all_video_files = []
-        self.all_image_files = []
-        self.all_audio_files = []
-        
-        # Videos scannen
-        video_dir = os.path.join(os.path.dirname(__file__), 'videos')
-        if os.path.exists(video_dir):
-            for file in os.listdir(video_dir):
-                if file.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.m4v')):
-                    self.all_video_files.append(os.path.join(video_dir, file))
-        
-        # Bilder scannen
-        image_dir = os.path.join(os.path.dirname(__file__), 'images')
-        if os.path.exists(image_dir):
-            for file in os.listdir(image_dir):
-                if file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp')):
-                    self.all_image_files.append(os.path.join(image_dir, file))
-        
-        # Audio scannen
-        audio_dir = os.path.join(os.path.dirname(__file__), 'audio')
-        if os.path.exists(audio_dir):
-            for file in os.listdir(audio_dir):
-                if file.lower().endswith(('.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.wma')):
-                    self.all_audio_files.append(os.path.join(audio_dir, file))
-        
-        print(f"[VLC-GUI] Scan abgeschlossen: {len(self.all_video_files)} Videos, {len(self.all_image_files)} Bilder, {len(self.all_audio_files)} Audio")
-        self.create_checkboxes()
-    
     def start_playback(self):
-        """Wiedergabe manuell starten (unabhängig vom Sensor)"""
+        """Wiedergabe manuell starten"""
         try:
             if self.sensor_mode == "video":
-                # Video-Modus
                 selected_videos = self.get_selected_videos()
                 
                 if not selected_videos:
@@ -848,9 +948,7 @@ class VLCMediaStationGUI:
                     return
                 
                 print(f"[VLC-GUI] Manueller Video-Start mit {len(selected_videos)} Videos")
-                print(f"[VLC-GUI] Videos: {[os.path.basename(v) for v in selected_videos]}")
                 
-                # Stoppen falls etwas läuft
                 if self.media_player.is_playing:
                     self.media_player.stop()
                 
@@ -864,7 +962,6 @@ class VLCMediaStationGUI:
                     print("[VLC-GUI] FEHLER: Video-Wiedergabe fehlgeschlagen")
                     
             elif self.sensor_mode == "audio":
-                # Audio-Modus (Audio + Bilder)
                 selected_audios = self.get_selected_audios()
                 selected_images = self.get_selected_images()
                 mixed_playlist = selected_audios + selected_images
@@ -875,9 +972,7 @@ class VLCMediaStationGUI:
                     return
                 
                 print(f"[VLC-GUI] Manueller Audio+Bild-Start: {len(selected_audios)} Audio + {len(selected_images)} Bilder")
-                print(f"[VLC-GUI] Dateien: {[os.path.basename(f) for f in mixed_playlist]}")
                 
-                # Stoppen falls etwas läuft
                 if self.media_player.is_playing:
                     self.media_player.stop()
                 
@@ -895,31 +990,51 @@ class VLCMediaStationGUI:
             self.media_status_label.config(text=f"Start-Fehler: {e}", fg='red')
             print(f"[VLC-GUI] FEHLER in start_playback: {e}")
     
-    def close(self):
-        """GUI schließen"""
+    # ====== VOLLBILD & GUI CONTROLS ======
+    def toggle_media_fullscreen(self):
         try:
-            if hasattr(self, 'sensor_thread') and self.sensor_thread:
-                self.sensor_thread.stop()
-                self.sensor_thread = None
-            
-            if hasattr(self, 'media_player') and self.media_player:
-                self.media_player.stop()
-                self.media_player = None
-            
-            self.root.quit()
-            self.root.destroy()
-            print("[VLC-GUI] GUI erfolgreich geschlossen")
-            
+            self.media_player._toggle_fullscreen()
+            print("[VLC-GUI] Media-Vollbild umgeschaltet")
         except Exception as e:
-            print(f"[VLC-GUI] Schließ-Fehler: {e}")
+            print(f"[VLC-GUI] Media-Vollbild-Fehler: {e}")
     
-    def on_closing(self):
-        """Window-Close-Event"""
-        self.close()
+    def set_media_windowed(self):
+        try:
+            if self.media_player.media_window:
+                self.media_player.media_window.attributes('-fullscreen', False)
+            print("[VLC-GUI] Media-Player im Fenstermodus")
+        except Exception as e:
+            print(f"[VLC-GUI] Media-Fenster-Fehler: {e}")
     
-    # Ordner-öffnen-Funktionen
+    def toggle_gui_fullscreen(self):
+        try:
+            self.kiosk_mode = not self.kiosk_mode
+            if self.kiosk_mode:
+                self.root.attributes('-fullscreen', True)
+            else:
+                self.root.attributes('-fullscreen', False)
+            print(f"[VLC-GUI] GUI-Vollbild: {self.kiosk_mode}")
+        except Exception as e:
+            print(f"[VLC-GUI] GUI-Vollbild-Fehler: {e}")
+    
+    def hide_gui(self):
+        try:
+            self.root.withdraw()
+            print("[VLC-GUI] GUI versteckt - nur Media-Fenster sichtbar")
+            print("[VLC-GUI] TIPP: Alt+Tab zum GUI zurückkehren oder GUI-Fenster in Taskleiste klicken")
+        except Exception as e:
+            print(f"[VLC-GUI] GUI-Hide-Fehler: {e}")
+    
+    def show_gui(self):
+        try:
+            self.root.deiconify()
+            self.root.lift()
+            print("[VLC-GUI] GUI wieder sichtbar")
+        except Exception as e:
+            print(f"[VLC-GUI] GUI-Show-Fehler: {e}")
+    
+    # ====== ORDNER ÖFFNEN ======
     def open_video_folder(self):
-        """Video-Ordner im Datei-Explorer öffnen"""
         try:
             video_path = os.path.abspath(VIDEO_FOLDER)
             if not os.path.exists(video_path):
@@ -928,9 +1043,9 @@ class VLCMediaStationGUI:
             
             if platform.system() == "Windows":
                 subprocess.run(['explorer', video_path])
-            elif platform.system() == "Darwin":  # macOS
+            elif platform.system() == "Darwin":
                 subprocess.run(['open', video_path])
-            else:  # Linux
+            else:
                 subprocess.run(['xdg-open', video_path])
             
             print(f"[VLC-GUI] Video-Ordner geöffnet: {video_path}")
@@ -939,7 +1054,6 @@ class VLCMediaStationGUI:
             print(f"[VLC-GUI] Fehler beim Öffnen des Video-Ordners: {e}")
     
     def open_image_folder(self):
-        """Bild-Ordner im Datei-Explorer öffnen"""
         try:
             image_path = os.path.abspath(IMAGE_FOLDER)
             if not os.path.exists(image_path):
@@ -948,9 +1062,9 @@ class VLCMediaStationGUI:
             
             if platform.system() == "Windows":
                 subprocess.run(['explorer', image_path])
-            elif platform.system() == "Darwin":  # macOS
+            elif platform.system() == "Darwin":
                 subprocess.run(['open', image_path])
-            else:  # Linux
+            else:
                 subprocess.run(['xdg-open', image_path])
             
             print(f"[VLC-GUI] Bild-Ordner geöffnet: {image_path}")
@@ -959,7 +1073,6 @@ class VLCMediaStationGUI:
             print(f"[VLC-GUI] Fehler beim Öffnen des Bild-Ordners: {e}")
     
     def open_audio_folder(self):
-        """Audio-Ordner im Datei-Explorer öffnen"""
         try:
             audio_path = os.path.abspath(AUDIO_FOLDER)
             if not os.path.exists(audio_path):
@@ -968,9 +1081,9 @@ class VLCMediaStationGUI:
             
             if platform.system() == "Windows":
                 subprocess.run(['explorer', audio_path])
-            elif platform.system() == "Darwin":  # macOS
+            elif platform.system() == "Darwin":
                 subprocess.run(['open', audio_path])
-            else:  # Linux
+            else:
                 subprocess.run(['xdg-open', audio_path])
             
             print(f"[VLC-GUI] Audio-Ordner geöffnet: {audio_path}")
@@ -978,45 +1091,145 @@ class VLCMediaStationGUI:
         except Exception as e:
             print(f"[VLC-GUI] Fehler beim Öffnen des Audio-Ordners: {e}")
     
+    # ====== HILFSMETHODEN ======
+    def get_selected_videos(self):
+        return [path for path, var in self.video_checkboxes.items() if var.get()]
+    
+    def get_selected_images(self):
+        """Gibt das eine ausgewählte Bild zurück (oder leere Liste)"""
+        if self.selected_image_var and self.selected_image_var.get():
+            selected = self.selected_image_var.get()
+            print(f"[FACES] get_selected_images() - Bild ausgewählt: {os.path.basename(selected)}")
+            return [selected]
+        else:
+            print(f"[FACES] get_selected_images() - KEIN Bild ausgewählt (var exists: {bool(self.selected_image_var)}, value: '{self.selected_image_var.get() if self.selected_image_var else 'None'}')")
+            return []
+    
+    def get_selected_audios(self):
+        return [path for path, var in self.audio_checkboxes.items() if var.get()]
+    
+    def sync_entry_fields(self):
+        """Synchronisiert die GUI-Entry-Felder mit den aktuellen Sensor- und Config-Werten"""
+        try:
+            # Min/Max Abstand
+            if hasattr(self.sensor_thread, 'min_distance'):
+                self.min_dist_var.set(str(self.sensor_thread.min_distance))
+            else:
+                self.min_dist_var.set(str(DEFAULT_MIN_DIST))
+            
+            if hasattr(self.sensor_thread, 'max_distance'):
+                self.max_dist_var.set(str(self.sensor_thread.max_distance))
+            else:
+                self.max_dist_var.set(str(DEFAULT_MAX_DIST))
+            
+            # Messintervall
+            if hasattr(self.sensor_thread, 'interval'):
+                self.interval_var.set(str(int(self.sensor_thread.interval * 1000)))
+            else:
+                self.interval_var.set(str(int(DEFAULT_INTERVAL * 1000)))
+            
+            # Bildwechsel, Audio-Fade und Mindestzeiten
+            self.image_interval_var.set(str(self.current_image_display_time))
+            self.audio_fade_var.set(str(int(self.current_audio_fade_time * 1000)))
+            self.min_video_var.set(str(self.current_min_video_time))
+            self.min_image_var.set(str(self.current_min_image_time))
+            self.min_audio_var.set(str(self.current_min_audio_time))
+            
+            # Force update - stelle sicher dass die Entry-Widgets die Werte auch wirklich anzeigen
+            self.root.update_idletasks()
+            
+            print(f"[VLC-GUI] Entry-Felder synchronisiert: Min={self.min_dist_var.get()}, Max={self.max_dist_var.get()}, Intervall={self.interval_var.get()}ms")
+            
+        except Exception as e:
+            print(f"[VLC-GUI] Fehler beim Synchronisieren der Entry-Felder: {e}")
+    
+    def update_sensor_mode(self):
+        new_mode = self.sensor_mode_var.get()
+        self.sensor_mode = new_mode
+        print(f"[VLC-GUI] Sensor-Modus geändert zu: {self.sensor_mode}")
+        
+        if self.sensor_mode == "video":
+            print("[VLC-GUI] → Bei Sensor-Auslösung werden Videos abgespielt")
+        elif self.sensor_mode == "audio":
+            print("[VLC-GUI] → Bei Sensor-Auslösung werden Audio + Bilder abgespielt")
+    
+    # ====== SENSOR INTEGRATION & STATUS UPDATE ======
     def update_status(self):
-        """Status-Update-Schleife"""
+        """Status-Update-Schleife mit Sensor-Integration"""
         distance = self.sensor_thread.distance
         
+        # Prüfe ob Sensor aktiviert ist
+        if not self.sensor_enabled:
+            # Sensor ist deaktiviert - zeige nur Status, aber keine Reaktion
+            if distance == 0.0:
+                self.status_label.config(text="Sensor: Nicht verbunden (deaktiviert)", fg='orange')
+            else:
+                self.status_label.config(text=f"Abstand: {distance:.1f} cm (deaktiviert)", fg='gray')
+            # Nächstes Update
+            self.root.after(200, self.update_status)
+            return
+        
+        # Sensor ist aktiviert - normale Logik
         if distance == 0.0:
             self.status_label.config(text="Sensor: Nicht verbunden", fg='red')
-            self.media_player.show_black()
+            # Bildvorschau anzeigen wenn Sensor nicht verbunden
+            if not self._sensor_in_range:
+                self.restore_image_preview()
             self.media_status_label.config(text="Status: Kein Sensor", fg='red')
         else:
             self.status_label.config(text=f"Abstand: {distance:.1f} cm", fg='lime')
             
-            # Sensor-Bereich prüfen
             try:
                 min_dist = float(self.min_dist_var.get())
                 max_dist = float(self.max_dist_var.get())
                 
-                if min_dist <= distance <= max_dist:
-                    # Sensor ausgelöst
-                    self.handle_sensor_trigger()
+                # Prüfe ob innerhalb oder außerhalb des Bereichs
+                in_range = (min_dist <= distance <= max_dist)
+                
+                # Hole Trigger-Einstellung basierend auf aktuellem Modus
+                if self.sensor_mode == "video":
+                    trigger_mode = self.video_trigger_var.get()
+                elif self.sensor_mode == "audio":
+                    trigger_mode = self.audio_trigger_var.get()
                 else:
-                    # Außerhalb Bereich - Sensor-Wiedergabe beenden
+                    trigger_mode = "inside"  # Fallback
+                
+                # Bild-Trigger separat prüfen
+                image_trigger_mode = self.image_trigger_var.get()
+                
+                # Bestimme ob Video/Audio getriggert werden soll
+                should_trigger = (trigger_mode == "inside" and in_range) or (trigger_mode == "outside" and not in_range)
+                
+                # Bestimme ob Bild gezeigt werden soll
+                should_show_image = (image_trigger_mode == "inside" and in_range) or (image_trigger_mode == "outside" and not in_range)
+                
+                now = time.time()
+                
+                # TRIGGER: Video/Audio starten
+                if should_trigger and not self._sensor_in_range:
+                    if now >= self._cooldown_until_ts:
+                        # Flanke: Trigger-Bedingung erfüllt = Video/Audio starten
+                        self._sensor_in_range = True
+                        self.handle_sensor_trigger()
+                        self._last_trigger_ts = now
+                        self._play_started_ts = now
+                        # Cooldown bis mindestens zur minimalen Abspielzeit
+                        min_runtime = self.current_min_video_time if self.sensor_mode == "video" else self.current_min_audio_time
+                        self._cooldown_until_ts = now + max(0.5, float(min_runtime))
+                
+                # BILD ZEIGEN: Wenn Video/Audio-Trigger nicht mehr aktiv UND Bild-Trigger aktiv
+                elif not should_trigger and self._sensor_in_range:
+                    # Flanke: Trigger-Bedingung nicht mehr erfüllt
+                    self._sensor_in_range = False
                     if self.media_player.is_playing:
-                        # Prüfen ob gerade Sensor-Wiedergabe läuft (Video/Audio-Playlist)
-                        if hasattr(self.media_player, 'current_playlist') and self.media_player.current_playlist and len(self.media_player.current_playlist) > 1:
-                            # Multi-Media-Playlist läuft - das ist Sensor-Wiedergabe, beenden
-                            print("[VLC-GUI] Außerhalb Sensor-Bereich - beende Sensor-Wiedergabe")
-                            self.media_player.stop()
-                            # Zurück zur Bildvorschau
-                            self.restore_image_preview()
-                        else:
-                            # Einzelbild-Vorschau läuft - weiterlaufen lassen
-                            media_info = self.media_player.get_current_media_info()
-                            if media_info:
-                                self.media_status_label.config(
-                                    text=f"Bild-Vorschau: {media_info['name']}", fg='cyan'
-                                )
-                    else:
-                        # Nichts läuft - Bildvorschau starten falls Bilder ausgewählt
+                        print(f"[FACES] Trigger nicht mehr aktiv - stoppe {self.sensor_mode.upper()}")
+                        self.media_player.stop()
+                    # Zeige Bild nur wenn Bild-Trigger aktiv ist
+                    if should_show_image:
+                        print("[FACES] Zeige BILD (Bild-Trigger aktiv)")
                         self.restore_image_preview()
+                    else:
+                        print("[FACES] Kein Bild (Bild-Trigger nicht aktiv)")
                         
             except ValueError:
                 self.media_status_label.config(text="Ungültige Sensor-Werte", fg='red')
@@ -1028,12 +1241,10 @@ class VLCMediaStationGUI:
         """Sensor ausgelöst - VLC-Playlist starten (überschreibt Bildvorschau)"""
         try:
             if self.sensor_mode == "video":
-                # Nur Videos
                 selected_videos = self.get_selected_videos()
                 print(f"[VLC-GUI] Sensor ausgelöst - Video-Modus: {len(selected_videos)} Videos gefunden")
                 
                 if selected_videos:
-                    # Stoppe alles was läuft (auch Bildvorschau)
                     if self.media_player.is_playing:
                         self.media_player.stop()
                     
@@ -1049,15 +1260,12 @@ class VLCMediaStationGUI:
                             text="Video-Start fehlgeschlagen!", fg='red'
                         )
                         print("[VLC-GUI] FEHLER: Video-Wiedergabe konnte nicht gestartet werden")
-                        
-                        # Bei Fehler zurück zur Bildvorschau
                         self.restore_image_preview()
                 else:
                     print("[VLC-GUI] WARNUNG: Keine Videos ausgewählt für Sensor-Auslösung")
                     self.media_status_label.config(text="Keine Videos ausgewählt!", fg='orange')
             
             elif self.sensor_mode == "audio":
-                # Audio + Bilder gemischt
                 selected_audios = self.get_selected_audios()
                 selected_images = self.get_selected_images()
                 mixed_playlist = selected_audios + selected_images
@@ -1065,7 +1273,6 @@ class VLCMediaStationGUI:
                 print(f"[VLC-GUI] Sensor ausgelöst - Audio-Modus: {len(selected_audios)} Audio + {len(selected_images)} Bilder")
                 
                 if mixed_playlist:
-                    # Stoppe alles was läuft (auch Bildvorschau)
                     if self.media_player.is_playing:
                         self.media_player.stop()
                     
@@ -1080,10 +1287,6 @@ class VLCMediaStationGUI:
                         self.media_status_label.config(
                             text="Audio+Bild-Start fehlgeschlagen!", fg='red'
                         )
-                        print("[VLC-GUI] FEHLER: Audio+Bild-Wiedergabe konnte nicht gestartet werden")
-                        
-                        # Bei Fehler zurück zur Bildvorschau
-                        self.restore_image_preview()
                 else:
                     print("[VLC-GUI] WARNUNG: Keine Audio/Bild-Dateien ausgewählt für Sensor-Auslösung")
                     self.media_status_label.config(text="Keine Audio/Bild-Dateien ausgewählt!", fg='orange')
@@ -1092,33 +1295,46 @@ class VLCMediaStationGUI:
             print(f"[VLC-GUI] FEHLER in handle_sensor_trigger: {e}")
             self.media_status_label.config(text=f"Sensor-Trigger-Fehler: {e}", fg='red')
     
-    def restore_image_preview(self):
-        """Stellt die Bildvorschau wieder her wenn Sensor-Wiedergabe beendet ist"""
-        try:
-            selected_images = self.get_selected_images()
-            if selected_images:
-                first_image = selected_images[0]
-                print(f"[VLC-GUI] Stelle Bildvorschau wieder her: {os.path.basename(first_image)}")
-                success = self.media_player.play_single_media(first_image)
-                if success:
-                    self.media_status_label.config(
-                        text=f"Bild-Vorschau: {os.path.basename(first_image)}", 
-                        fg='cyan'
-                    )
-            else:
-                print("[VLC-GUI] Keine Bilder für Vorschau - zeige schwarzes Bild")
-                self.media_player.show_black()
-                self.media_status_label.config(text="Bereit - außerhalb Sensor-Bereich", fg='yellow')
-        except Exception as e:
-            print(f"[VLC-GUI] FEHLER in restore_image_preview: {e}")
-    
+    # ====== HAUPTMETHODEN ======
     def run(self):
         """GUI starten"""
         try:
+            # Window close handler
+            self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
             self.root.mainloop()
+        except Exception as e:
+            print(f"[VLC-GUI] Fehler in run(): {e}")
         finally:
-            self.sensor_thread.stop()
-            self.media_player.cleanup()
+            self.cleanup()
+    
+    def on_closing(self):
+        """Cleanup beim Schließen"""
+        self.cleanup()
+    
+    def cleanup(self):
+        """Aufräumen"""
+        try:
+            print("[VLC-GUI] Cleanup wird durchgeführt...")
+            
+            if hasattr(self, 'sensor_thread') and self.sensor_thread:
+                self.sensor_thread.stop()
+                self.sensor_thread = None
+            
+            if hasattr(self, 'media_player') and self.media_player:
+                self.media_player.cleanup()
+                self.media_player = None
+            
+            if hasattr(self, 'root'):
+                self.root.quit()
+                try:
+                    self.root.destroy()
+                except:
+                    pass  # Bereits zerstört
+            
+            print("[VLC-GUI] Cleanup abgeschlossen")
+            
+        except Exception as e:
+            print(f"[VLC-GUI] Cleanup-Fehler: {e}")
 
 # Kompatibilitäts-Alias
 MediaStationGUI = VLCMediaStationGUI

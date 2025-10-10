@@ -2,8 +2,8 @@
 Standardwerte und Pfade
 """
 DEFAULT_MIN_DIST = 5  # cm (Standardwert: 5cm Mindestabstand)
-DEFAULT_MAX_DIST = 80  # cm (Standardwert: 80cm Maximalabstand)
-DEFAULT_INTERVAL = 0.4 # Sekunden (Standardwert: 400ms Messintervall)
+DEFAULT_MAX_DIST = 120  # cm (Standardwert: 120cm Maximalabstand)
+DEFAULT_INTERVAL = 0.2 # Sekunden (Standardwert: 200ms Messintervall - schnellere Reaktion)
 VIDEO_FOLDER = "videos"
 IMAGE_FOLDER = "images"
 AUDIO_FOLDER = "audio"

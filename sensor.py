@@ -3,19 +3,35 @@ HC-SR04 Ultraschallsensor + Glättung, läuft im Thread
 """
 import threading
 import time
-import RPi.GPIO as GPIO
+import random
+
+# GPIO-Import mit Fallback für Non-Pi Systeme
+try:
+    import RPi.GPIO as GPIO
+    GPIO_AVAILABLE = True
+except ImportError:
+    GPIO_AVAILABLE = False
+    print("[Sensor] RPi.GPIO nicht verfügbar - nur Dummy-Sensor möglich")
 
 class SensorThread(threading.Thread):
-    def __init__(self, interval=0.2, trig_pin=18, echo_pin=24):
+    def __init__(self, interval=0.2, trig_pin=18, echo_pin=24, use_dummy=False):
         super().__init__(daemon=True)
         self.interval = interval
         self.distance = 0.0
         self.running = True
         self._values = []  # Für Mittelwertfilter
         self.filter_size = 5
+        
+        # GPIO-Pins für HC-SR04
         self.trig_pin = trig_pin
         self.echo_pin = echo_pin
-        self._setup_gpio()
+        self.use_dummy = use_dummy
+        
+        if not use_dummy and GPIO_AVAILABLE:
+            self._setup_gpio()
+        elif not use_dummy and not GPIO_AVAILABLE:
+            print("[Sensor] GPIO nicht verfügbar - verwende Dummy-Sensor")
+            self.use_dummy = True
     
     def _setup_gpio(self):
         """GPIO für HC-SR04 einrichten"""
@@ -26,47 +42,46 @@ class SensorThread(threading.Thread):
         time.sleep(2)  # Sensor stabilisieren
     
     def _measure_distance_real(self):
-        """Echte HC-SR04 Abstandsmessung mit Timeout-Schutz"""
-        try:
-            GPIO.output(self.trig_pin, True)
-            time.sleep(0.00001)  # 10µs Trigger-Impuls
-            GPIO.output(self.trig_pin, False)
-            
+        """Echte HC-SR04 Abstandsmessung"""
+        GPIO.output(self.trig_pin, True)
+        time.sleep(0.00001)  # 10µs Trigger-Impuls
+        GPIO.output(self.trig_pin, False)
+        
+        start_time = time.time()
+        stop_time = time.time()
+        
+        while GPIO.input(self.echo_pin) == 0:
             start_time = time.time()
-            stop_time = start_time
-            
-            # Warten auf Echo-Start (mit Timeout)
-            timeout_start = time.time()
-            while GPIO.input(self.echo_pin) == 0:
-                start_time = time.time()
-                if start_time - timeout_start > 0.1:  # 100ms Timeout
-                    return 0
-            
-            # Warten auf Echo-Ende (mit Timeout)
-            timeout_start = time.time()
-            while GPIO.input(self.echo_pin) == 1:
-                stop_time = time.time()
-                if stop_time - timeout_start > 0.1:  # 100ms Timeout
-                    return 0
-            
-            time_elapsed = stop_time - start_time
-            distance = (time_elapsed * 34300) / 2  # Schallgeschwindigkeit
-            
-            # Plausibilitätsprüfung
-            if distance < 2 or distance > 400:
-                return 0
-                
-            return distance
-            
-        except Exception:
-            return 0
+        
+        while GPIO.input(self.echo_pin) == 1:
+            stop_time = time.time()
+        
+        time_elapsed = stop_time - start_time
+        distance = (time_elapsed * 34300) / 2  # Schallgeschwindigkeit
+        return distance
     
+    def _measure_distance_dummy(self):
+        """Dummy-Sensor für Testing - nur wenn explizit gewünscht"""
+        # Simuliert realistische Sensordaten mit etwas Rauschen
+        base_distance = 50.0
+        noise = random.uniform(-5, 5)
+        # Simuliert gelegentliche "Ausreißer" wie bei echten Sensoren
+        if random.random() < 0.05:  # 5% Chance für Ausreißer
+            noise += random.uniform(-20, 20)
+        
+        return max(2, min(400, base_distance + noise))  # HC-SR04 Bereich: 2-400cm
+
     def run(self):
         """Sensor-Thread Hauptschleife"""
+        print(f"[DEBUG] Sensor-Thread gestartet (dummy={self.use_dummy})")  # Debug-Output
         while self.running:
             try:
-                distance = self._measure_distance_real()
+                if self.use_dummy:
+                    distance = self._measure_distance_dummy()
+                else:
+                    distance = self._measure_distance_real()
                 
+                # Nur wenn tatsächlich ein Sensor (echt oder dummy) aktiv ist
                 if distance > 0:
                     # Mittelwertfilter anwenden
                     self._values.append(distance)
@@ -79,7 +94,8 @@ class SensorThread(threading.Thread):
                     # Kein Sensor aktiv - Abstand bleibt 0
                     self.distance = 0.0
                 
-            except Exception:
+            except Exception as e:
+                print(f"Sensor-Fehler: {e}")
                 self.distance = 0.0
             
             time.sleep(self.interval)
@@ -87,10 +103,11 @@ class SensorThread(threading.Thread):
     def stop(self):
         """Sensor-Thread stoppen"""
         self.running = False
-        try:
-            GPIO.cleanup()
-        except Exception:
-            pass
+        if not self.use_dummy and GPIO_AVAILABLE:
+            try:
+                GPIO.cleanup()
+            except Exception as e:
+                print(f"[Sensor] GPIO cleanup error: {e}")
     
     def set_filter_size(self, size):
         """Größe des Mittelwertfilters ändern"""

@@ -1,7 +1,7 @@
 """
-Einstiegspunkt: Startet VLC-basierte GUI und Sensor-Thread
+Einstiegspunkt: Startet GUI und Sensor-Thread
 """
-from gui_vlc import VLCMediaStationGUI
+from gui_vlc import VLCMediaStationGUI as MediaStationGUI
 from sensor import SensorThread
 import threading
 import signal
@@ -9,41 +9,50 @@ import sys
 
 def signal_handler(sig, frame):
     """Graceful shutdown bei Ctrl+C"""
-    print("\nBeende VLC Media Station...")
+    print("\nBeende Programm...")
     sys.exit(0)
 
 if __name__ == "__main__":
     # Signal-Handler für sauberes Beenden
     signal.signal(signal.SIGINT, signal_handler)
     
-    # Konfiguration laden
+    # Dummy-Konfiguration laden
     from config import DEFAULT_INTERVAL
 
     # Kiosk-Modus über Kommandozeilen-Argument steuern
+    import sys
     kiosk_mode = "--kiosk" in sys.argv
+    use_dummy_sensor = "--dummy-sensor" in sys.argv  # Nur bei expliziter Angabe Dummy verwenden
 
     if kiosk_mode:
-        print("🎬 Starte Raspberry Pi Media Station - VLC KIOSK MODUS")
+        print("Starte Raspberry Pi Media Station - KIOSK MODUS")
     else:
-        print("🎬 Starte Raspberry Pi Media Station - VLC NORMAL MODUS")
+        print("Starte Raspberry Pi Media Station - TEST MODUS")
         print("Für Kiosk-Modus: python3 main.py --kiosk")
     
-    print("🔧 VLC-basierte einheitliche Media-Engine")
-    print("📡 Verwende echten HC-SR04 Sensor")
-    print("🎯 ESC = Vollbild-Toggle | Ctrl+C = Beenden")
+    if use_dummy_sensor:
+        print("ACHTUNG: Verwende Dummy-Sensor (--dummy-sensor)")
+    else:
+        print("Verwende echten HC-SR04 Sensor")
+    
+    print("Drücke ESC in der GUI zum Beenden")
+    print("Oder Ctrl+C im Terminal")
 
-    # Sensor-Thread starten (immer echter Sensor)
-    sensor_thread = SensorThread(interval=DEFAULT_INTERVAL)
+    # Sensor-Thread starten (standardmäßig echter Sensor)
+    sensor_thread = SensorThread(
+        interval=DEFAULT_INTERVAL, 
+        use_dummy=use_dummy_sensor
+    )
     sensor_thread.start()
 
     try:
-        # VLC-GUI starten
-        app = VLCMediaStationGUI(sensor_thread, kiosk_mode=kiosk_mode)
-        app.run()
+        # GUI starten
+        app = MediaStationGUI(sensor_thread, kiosk_mode=kiosk_mode)
+        app.run()  # Vollbild, Kiosk-Modus
     except KeyboardInterrupt:
         print("\nProgramm beendet durch Benutzer")
     finally:
         # Cleanup
         sensor_thread.stop()
-        sensor_thread.join(timeout=2)
-        print("✅ VLC Media Station cleanup abgeschlossen")
+        sensor_thread.join(timeout=5)  # Mehr Zeit für GPIO cleanup
+        print("Cleanup abgeschlossen")
