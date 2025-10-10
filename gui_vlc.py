@@ -21,7 +21,6 @@ class VLCMediaStationGUI:
     def __init__(self, sensor_thread, kiosk_mode=False):
         self.sensor_thread = sensor_thread
         self.kiosk_mode = kiosk_mode
-        self.sensor_mode = "video"  # "video" oder "audio"
         self._sensor_in_range = False  # Entprellung für Sensor-Trigger
         # Erweiterte Entprellung/Hysterese & Cooldown
         self._in_range_count = 0
@@ -77,7 +76,6 @@ class VLCMediaStationGUI:
         self.scan_media_files()
         self.sync_entry_fields()
         self.update_trigger_labels()  # Trigger-Labels mit aktuellen Werten initialisieren
-        self.update_sensor_mode()
         self.update_status()
     
     def setup_gui(self):
@@ -232,7 +230,7 @@ class VLCMediaStationGUI:
         tk.Button(settings_frame, text="Speichern", bg='lightgreen', fg='black',
                   command=self.save_min_audio_time, font=('Arial', 10)).grid(row=4, column=3, padx=5)
         
-        # Sensor-Trigger-Konfiguration (3 separate Bereiche für Video/Audio/Bild)
+        # Sensor-Trigger-Konfiguration (4 separate Bereiche für Video/Audio1/Audio2/Bild)
         sensor_config_frame = tk.LabelFrame(main_frame, text="Sensor-Trigger Konfiguration", 
                                         font=('Arial', 14, 'bold'), fg='orange', bg='black', bd=2)
         sensor_config_frame.pack(pady=10, padx=10, fill='x')
@@ -249,28 +247,57 @@ class VLCMediaStationGUI:
         
         tk.Radiobutton(video_trigger_frame, textvariable=self.video_inside_label, 
                       variable=self.video_trigger_var, value="inside", bg='black', fg='white',
-                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
         
         tk.Radiobutton(video_trigger_frame, textvariable=self.video_outside_label, 
                       variable=self.video_trigger_var, value="outside", bg='black', fg='white',
-                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
         
-        # === AUDIO TRIGGER ===
-        audio_trigger_frame = tk.LabelFrame(sensor_config_frame, text="🎵 AUDIO", 
+        tk.Radiobutton(video_trigger_frame, text="Deaktiviert", 
+                      variable=self.video_trigger_var, value="disabled", bg='black', fg='gray',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
+        
+        # === AUDIO 1 TRIGGER ===
+        audio_trigger_frame = tk.LabelFrame(sensor_config_frame, text="🎵 AUDIO 1", 
                                            font=('Arial', 12, 'bold'), fg='magenta', bg='black', bd=2)
         audio_trigger_frame.pack(pady=5, padx=10, fill='x')
         
-        self.audio_trigger_var = tk.StringVar(value="inside")
+        self.audio_trigger_var = tk.StringVar(value="disabled")
         self.audio_inside_label = tk.StringVar(value=f"Innerhalb ({DEFAULT_MIN_DIST}-{DEFAULT_MAX_DIST}cm)")
         self.audio_outside_label = tk.StringVar(value=f"Außerhalb (<{DEFAULT_MIN_DIST}cm oder >{DEFAULT_MAX_DIST}cm)")
         
         tk.Radiobutton(audio_trigger_frame, textvariable=self.audio_inside_label, 
                       variable=self.audio_trigger_var, value="inside", bg='black', fg='white',
-                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
         
         tk.Radiobutton(audio_trigger_frame, textvariable=self.audio_outside_label, 
                       variable=self.audio_trigger_var, value="outside", bg='black', fg='white',
-                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
+        
+        tk.Radiobutton(audio_trigger_frame, text="Deaktiviert", 
+                      variable=self.audio_trigger_var, value="disabled", bg='black', fg='gray',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
+        
+        # === AUDIO 2 TRIGGER ===
+        audio2_trigger_frame = tk.LabelFrame(sensor_config_frame, text="🎵 AUDIO 2", 
+                                           font=('Arial', 12, 'bold'), fg='violet', bg='black', bd=2)
+        audio2_trigger_frame.pack(pady=5, padx=10, fill='x')
+        
+        self.audio2_trigger_var = tk.StringVar(value="disabled")
+        self.audio2_inside_label = tk.StringVar(value=f"Innerhalb ({DEFAULT_MIN_DIST}-{DEFAULT_MAX_DIST}cm)")
+        self.audio2_outside_label = tk.StringVar(value=f"Außerhalb (<{DEFAULT_MIN_DIST}cm oder >{DEFAULT_MAX_DIST}cm)")
+        
+        tk.Radiobutton(audio2_trigger_frame, textvariable=self.audio2_inside_label, 
+                      variable=self.audio2_trigger_var, value="inside", bg='black', fg='white',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
+        
+        tk.Radiobutton(audio2_trigger_frame, textvariable=self.audio2_outside_label, 
+                      variable=self.audio2_trigger_var, value="outside", bg='black', fg='white',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
+        
+        tk.Radiobutton(audio2_trigger_frame, text="Deaktiviert", 
+                      variable=self.audio2_trigger_var, value="disabled", bg='black', fg='gray',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
         
         # === BILD TRIGGER ===
         image_trigger_frame = tk.LabelFrame(sensor_config_frame, text="🖼️ BILD", 
@@ -283,27 +310,15 @@ class VLCMediaStationGUI:
         
         tk.Radiobutton(image_trigger_frame, textvariable=self.image_inside_label, 
                       variable=self.image_trigger_var, value="inside", bg='black', fg='white',
-                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
         
         tk.Radiobutton(image_trigger_frame, textvariable=self.image_outside_label, 
                       variable=self.image_trigger_var, value="outside", bg='black', fg='white',
-                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=20, pady=5)
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
         
-        # Sensor-Modus (welcher Medientyp wird getriggert)
-        sensor_mode_frame = tk.LabelFrame(main_frame, text="Aktiver Sensor-Modus", 
-                                        font=('Arial', 14, 'bold'), fg='lime', bg='black', bd=2)
-        sensor_mode_frame.pack(pady=10, padx=10, fill='x')
-        
-        self.sensor_mode_var = tk.StringVar(value="video")
-        tk.Radiobutton(sensor_mode_frame, text="VIDEO-Modus (spielt Videos ab)", 
-                      variable=self.sensor_mode_var, value="video", bg='black', fg='white',
-                      selectcolor='darkgray', font=('Arial', 12),
-                      command=self.update_sensor_mode).pack(anchor='w', padx=10, pady=5)
-        
-        tk.Radiobutton(sensor_mode_frame, text="AUDIO-Modus (spielt Audio + Bilder ab)", 
-                      variable=self.sensor_mode_var, value="audio", bg='black', fg='white',
-                      selectcolor='darkgray', font=('Arial', 12),
-                      command=self.update_sensor_mode).pack(anchor='w', padx=10, pady=5)
+        tk.Radiobutton(image_trigger_frame, text="Deaktiviert", 
+                      variable=self.image_trigger_var, value="disabled", bg='black', fg='gray',
+                      selectcolor='darkgray', font=('Arial', 11)).pack(side='left', padx=15, pady=5)
         
         # VLC-Steuerung
         control_frame = tk.LabelFrame(main_frame, text="VLC-Steuerung", 
@@ -345,6 +360,9 @@ class VLCMediaStationGUI:
         
         tk.Button(controls_row2, text="GUI-Vollbild (F11)", command=self.toggle_gui_fullscreen, 
                  bg='darkgreen', fg='white', font=('Arial', 11)).pack(side='left', padx=5)
+        
+        tk.Button(controls_row2, text="TEST BILD", command=self.test_show_image, 
+                 bg='orange', fg='black', font=('Arial', 11, 'bold')).pack(side='left', padx=5)
         
         # Playlist Editor
         playlist_frame = tk.LabelFrame(main_frame, text="Playlist Editor", 
@@ -575,9 +593,12 @@ class VLCMediaStationGUI:
         for widget in self.image_scroll_frame.winfo_children():
             widget.destroy()
         
-        # Initialisiere Variable beim ersten Mal (mit leerem Wert - Benutzer muss wählen)
+        # Initialisiere Variable beim ersten Mal - erstes Bild automatisch wählen
         if not self.selected_image_var:
-            self.selected_image_var = tk.StringVar(value="")
+            default_image = self.all_image_files[0] if self.all_image_files else ""
+            self.selected_image_var = tk.StringVar(value=default_image)
+            if default_image:
+                print(f"[FACES] Erstes Bild automatisch ausgewählt: {os.path.basename(default_image)}")
         
         for image_file in self.all_image_files:
             rb = tk.Radiobutton(self.image_scroll_frame, text=os.path.basename(image_file), 
@@ -637,6 +658,37 @@ class VLCMediaStationGUI:
             traceback.print_exc()
             self.media_player.show_black()
     
+    def test_show_image(self):
+        """TEST-BUTTON: Zeigt das ausgewählte Bild direkt an"""
+        print("\n" + "="*50)
+        print("[FACES TEST] TEST BILD Button gedrückt!")
+        print("="*50)
+        
+        # Hole ausgewählte Bilder
+        selected_images = self.get_selected_images()
+        print(f"[FACES TEST] get_selected_images() liefert: {selected_images}")
+        
+        if selected_images:
+            first_image = selected_images[0]
+            print(f"[FACES TEST] Versuche Bild anzuzeigen: {first_image}")
+            print(f"[FACES TEST] Datei existiert: {os.path.exists(first_image)}")
+            
+            # Direkt Media Player aufrufen
+            success = self.media_player.play_single_media(first_image)
+            print(f"[FACES TEST] play_single_media() Ergebnis: {success}")
+            
+            if success:
+                self.media_status_label.config(text=f"TEST: Bild angezeigt - {os.path.basename(first_image)}", fg='lime')
+                print("[FACES TEST] ✓ Bild erfolgreich angezeigt!")
+            else:
+                self.media_status_label.config(text="TEST: Bild-Anzeige FEHLGESCHLAGEN!", fg='red')
+                print("[FACES TEST] ✗ Bild konnte NICHT angezeigt werden!")
+        else:
+            print("[FACES TEST] ✗ KEINE Bilder ausgewählt!")
+            self.media_status_label.config(text="TEST: Kein Bild ausgewählt!", fg='orange')
+        
+        print("="*50 + "\n")
+    
     # ====== PARAMETER SPEICHERN METHODEN ======
     def save_min_dist(self):
         try:
@@ -670,9 +722,13 @@ class VLCMediaStationGUI:
             self.video_inside_label.set(f"Innerhalb ({min_val}-{max_val}cm)")
             self.video_outside_label.set(f"Außerhalb (<{min_val}cm oder >{max_val}cm)")
             
-            # Audio-Trigger Labels
+            # Audio 1-Trigger Labels
             self.audio_inside_label.set(f"Innerhalb ({min_val}-{max_val}cm)")
             self.audio_outside_label.set(f"Außerhalb (<{min_val}cm oder >{max_val}cm)")
+            
+            # Audio 2-Trigger Labels
+            self.audio2_inside_label.set(f"Innerhalb ({min_val}-{max_val}cm)")
+            self.audio2_outside_label.set(f"Außerhalb (<{min_val}cm oder >{max_val}cm)")
             
             # Bild-Trigger Labels
             self.image_inside_label.set(f"Innerhalb ({min_val}-{max_val}cm)")
@@ -1143,16 +1199,6 @@ class VLCMediaStationGUI:
         except Exception as e:
             print(f"[VLC-GUI] Fehler beim Synchronisieren der Entry-Felder: {e}")
     
-    def update_sensor_mode(self):
-        new_mode = self.sensor_mode_var.get()
-        self.sensor_mode = new_mode
-        print(f"[VLC-GUI] Sensor-Modus geändert zu: {self.sensor_mode}")
-        
-        if self.sensor_mode == "video":
-            print("[VLC-GUI] → Bei Sensor-Auslösung werden Videos abgespielt")
-        elif self.sensor_mode == "audio":
-            print("[VLC-GUI] → Bei Sensor-Auslösung werden Audio + Bilder abgespielt")
-    
     # ====== SENSOR INTEGRATION & STATUS UPDATE ======
     def update_status(self):
         """Status-Update-Schleife mit Sensor-Integration"""
@@ -1186,50 +1232,91 @@ class VLCMediaStationGUI:
                 # Prüfe ob innerhalb oder außerhalb des Bereichs
                 in_range = (min_dist <= distance <= max_dist)
                 
-                # Hole Trigger-Einstellung basierend auf aktuellem Modus
-                if self.sensor_mode == "video":
-                    trigger_mode = self.video_trigger_var.get()
-                elif self.sensor_mode == "audio":
-                    trigger_mode = self.audio_trigger_var.get()
-                else:
-                    trigger_mode = "inside"  # Fallback
-                
-                # Bild-Trigger separat prüfen
+                # Hole ALLE Trigger-Einstellungen
+                video_trigger_mode = self.video_trigger_var.get()
+                audio_trigger_mode = self.audio_trigger_var.get()
+                audio2_trigger_mode = self.audio2_trigger_var.get()
                 image_trigger_mode = self.image_trigger_var.get()
                 
-                # Bestimme ob Video/Audio getriggert werden soll
-                should_trigger = (trigger_mode == "inside" and in_range) or (trigger_mode == "outside" and not in_range)
+                # Bestimme ob Video getriggert werden soll (nur wenn nicht "disabled")
+                should_trigger_video = (video_trigger_mode != "disabled") and (
+                    (video_trigger_mode == "inside" and in_range) or 
+                    (video_trigger_mode == "outside" and not in_range)
+                )
                 
-                # Bestimme ob Bild gezeigt werden soll
-                should_show_image = (image_trigger_mode == "inside" and in_range) or (image_trigger_mode == "outside" and not in_range)
+                # Bestimme ob Audio 1 getriggert werden soll (nur wenn nicht "disabled")
+                should_trigger_audio = (audio_trigger_mode != "disabled") and (
+                    (audio_trigger_mode == "inside" and in_range) or 
+                    (audio_trigger_mode == "outside" and not in_range)
+                )
+                
+                # Bestimme ob Audio 2 getriggert werden soll (nur wenn nicht "disabled")
+                should_trigger_audio2 = (audio2_trigger_mode != "disabled") and (
+                    (audio2_trigger_mode == "inside" and in_range) or 
+                    (audio2_trigger_mode == "outside" and not in_range)
+                )
+                
+                # Bestimme ob Bild gezeigt werden soll (nur wenn nicht "disabled")
+                should_show_image = (image_trigger_mode != "disabled") and (
+                    (image_trigger_mode == "inside" and in_range) or 
+                    (image_trigger_mode == "outside" and not in_range)
+                )
                 
                 now = time.time()
                 
-                # TRIGGER: Video/Audio starten
-                if should_trigger and not self._sensor_in_range:
+                # PRIORITÄT 1: Video-Trigger
+                if should_trigger_video and not self._sensor_in_range:
                     if now >= self._cooldown_until_ts:
-                        # Flanke: Trigger-Bedingung erfüllt = Video/Audio starten
                         self._sensor_in_range = True
-                        self.handle_sensor_trigger()
+                        self.handle_video_trigger()
                         self._last_trigger_ts = now
                         self._play_started_ts = now
-                        # Cooldown bis mindestens zur minimalen Abspielzeit
-                        min_runtime = self.current_min_video_time if self.sensor_mode == "video" else self.current_min_audio_time
-                        self._cooldown_until_ts = now + max(0.5, float(min_runtime))
+                        self._cooldown_until_ts = now + max(0.5, float(self.current_min_video_time))
                 
-                # BILD ZEIGEN: Wenn Video/Audio-Trigger nicht mehr aktiv UND Bild-Trigger aktiv
-                elif not should_trigger and self._sensor_in_range:
-                    # Flanke: Trigger-Bedingung nicht mehr erfüllt
+                # PRIORITÄT 2: Audio 1-Trigger (wenn Video nicht aktiv)
+                elif should_trigger_audio and not should_trigger_video and not self._sensor_in_range:
+                    if now >= self._cooldown_until_ts:
+                        self._sensor_in_range = True
+                        self.handle_audio_trigger()
+                        self._last_trigger_ts = now
+                        self._play_started_ts = now
+                        self._cooldown_until_ts = now + max(0.5, float(self.current_min_audio_time))
+                
+                # PRIORITÄT 3: Audio 2-Trigger (wenn Video und Audio 1 nicht aktiv)
+                elif should_trigger_audio2 and not should_trigger_video and not should_trigger_audio and not self._sensor_in_range:
+                    if now >= self._cooldown_until_ts:
+                        self._sensor_in_range = True
+                        self.handle_audio2_trigger()
+                        self._last_trigger_ts = now
+                        self._play_started_ts = now
+                        self._cooldown_until_ts = now + max(0.5, float(self.current_min_audio_time))
+                
+                # Trigger nicht mehr aktiv
+                elif not should_trigger_video and not should_trigger_audio and not should_trigger_audio2 and self._sensor_in_range:
                     self._sensor_in_range = False
                     if self.media_player.is_playing:
-                        print(f"[FACES] Trigger nicht mehr aktiv - stoppe {self.sensor_mode.upper()}")
+                        print("[FACES] Video/Audio/Audio2-Trigger nicht mehr aktiv - stoppe Wiedergabe")
                         self.media_player.stop()
-                    # Zeige Bild nur wenn Bild-Trigger aktiv ist
-                    if should_show_image:
-                        print("[FACES] Zeige BILD (Bild-Trigger aktiv)")
-                        self.restore_image_preview()
+                
+                # BILD-TRIGGER: Unabhängig von Video/Audio - wird immer geprüft
+                if should_show_image:
+                    # Bild-Trigger ist aktiv - zeige Bild
+                    selected_images = self.get_selected_images()
+                    if selected_images:
+                        # Prüfe ob das richtige Bild schon angezeigt wird
+                        if self.media_player.current_file != selected_images[0]:
+                            print(f"[FACES] Bild-Trigger aktiv (mode={image_trigger_mode}) - zeige Bild")
+                            self.restore_image_preview()
                     else:
-                        print("[FACES] Kein Bild (Bild-Trigger nicht aktiv)")
+                        print("[FACES] WARNUNG: Bild-Trigger aktiv aber keine Bilder ausgewählt")
+                
+                # KEIN TRIGGER AKTIV: Schwarzer Bildschirm
+                elif not should_trigger_video and not should_trigger_audio and not should_trigger_audio2 and not should_show_image:
+                    # Weder Video/Audio/Audio2 noch Bild-Trigger aktiv
+                    if self.media_player.is_playing or self.media_player.current_file:
+                        print("[FACES] Alle Trigger inaktiv - schwarzer Bildschirm")
+                        self.media_player.show_black()
+                        self.media_status_label.config(text="Kein Trigger aktiv", fg='gray')
                         
             except ValueError:
                 self.media_status_label.config(text="Ungültige Sensor-Werte", fg='red')
@@ -1237,63 +1324,93 @@ class VLCMediaStationGUI:
         # Nächstes Update
         self.root.after(200, self.update_status)
     
-    def handle_sensor_trigger(self):
-        """Sensor ausgelöst - VLC-Playlist starten (überschreibt Bildvorschau)"""
+    def handle_video_trigger(self):
+        """Video-Trigger ausgelöst - Videos starten"""
         try:
-            if self.sensor_mode == "video":
-                selected_videos = self.get_selected_videos()
-                print(f"[VLC-GUI] Sensor ausgelöst - Video-Modus: {len(selected_videos)} Videos gefunden")
-                
-                if selected_videos:
-                    if self.media_player.is_playing:
-                        self.media_player.stop()
-                    
-                    print(f"[VLC-GUI] Starte Video-Wiedergabe (überschreibt Bildvorschau): {[os.path.basename(v) for v in selected_videos]}")
-                    success = self.media_player.play_media_list(selected_videos, shuffle=True)
-                    if success:
-                        self.media_status_label.config(
-                            text=f"Sensor → Video-Playlist: {len(selected_videos)} Videos", fg='lime'
-                        )
-                        print("[VLC-GUI] Video-Wiedergabe erfolgreich gestartet (Sensor)")
-                    else:
-                        self.media_status_label.config(
-                            text="Video-Start fehlgeschlagen!", fg='red'
-                        )
-                        print("[VLC-GUI] FEHLER: Video-Wiedergabe konnte nicht gestartet werden")
-                        self.restore_image_preview()
-                else:
-                    print("[VLC-GUI] WARNUNG: Keine Videos ausgewählt für Sensor-Auslösung")
-                    self.media_status_label.config(text="Keine Videos ausgewählt!", fg='orange')
+            selected_videos = self.get_selected_videos()
+            print(f"[FACES] Video-Trigger ausgelöst: {len(selected_videos)} Videos gefunden")
             
-            elif self.sensor_mode == "audio":
-                selected_audios = self.get_selected_audios()
-                selected_images = self.get_selected_images()
-                mixed_playlist = selected_audios + selected_images
+            if selected_videos:
+                if self.media_player.is_playing:
+                    self.media_player.stop()
                 
-                print(f"[VLC-GUI] Sensor ausgelöst - Audio-Modus: {len(selected_audios)} Audio + {len(selected_images)} Bilder")
-                
-                if mixed_playlist:
-                    if self.media_player.is_playing:
-                        self.media_player.stop()
-                    
-                    print(f"[VLC-GUI] Starte Audio+Bild-Wiedergabe (überschreibt Bildvorschau): {[os.path.basename(f) for f in mixed_playlist]}")
-                    success = self.media_player.play_media_list(mixed_playlist, shuffle=True)
-                    if success:
-                        self.media_status_label.config(
-                            text=f"Sensor → Audio+Bild: {len(selected_audios)}A + {len(selected_images)}B", fg='lime'
-                        )
-                        print("[VLC-GUI] Audio+Bild-Wiedergabe erfolgreich gestartet (Sensor)")
-                    else:
-                        self.media_status_label.config(
-                            text="Audio+Bild-Start fehlgeschlagen!", fg='red'
-                        )
+                print(f"[FACES] Starte Video-Wiedergabe: {[os.path.basename(v) for v in selected_videos]}")
+                success = self.media_player.play_media_list(selected_videos, shuffle=True)
+                if success:
+                    self.media_status_label.config(
+                        text=f"Video-Trigger → {len(selected_videos)} Videos", fg='lime'
+                    )
+                    print("[FACES] Video-Wiedergabe erfolgreich gestartet")
                 else:
-                    print("[VLC-GUI] WARNUNG: Keine Audio/Bild-Dateien ausgewählt für Sensor-Auslösung")
-                    self.media_status_label.config(text="Keine Audio/Bild-Dateien ausgewählt!", fg='orange')
-                    
+                    self.media_status_label.config(text="Video-Start fehlgeschlagen!", fg='red')
+                    print("[FACES] FEHLER: Video-Wiedergabe konnte nicht gestartet werden")
+            else:
+                print("[FACES] WARNUNG: Keine Videos ausgewählt für Video-Trigger")
+                self.media_status_label.config(text="Keine Videos ausgewählt!", fg='orange')
+                
         except Exception as e:
-            print(f"[VLC-GUI] FEHLER in handle_sensor_trigger: {e}")
-            self.media_status_label.config(text=f"Sensor-Trigger-Fehler: {e}", fg='red')
+            print(f"[FACES] FEHLER in handle_video_trigger: {e}")
+            self.media_status_label.config(text=f"Video-Trigger-Fehler: {e}", fg='red')
+    
+    def handle_audio_trigger(self):
+        """Audio-Trigger ausgelöst - Audio + Bilder starten"""
+        try:
+            selected_audios = self.get_selected_audios()
+            selected_images = self.get_selected_images()
+            mixed_playlist = selected_audios + selected_images
+            
+            print(f"[FACES] Audio-Trigger ausgelöst: {len(selected_audios)} Audio + {len(selected_images)} Bilder")
+            
+            if mixed_playlist:
+                if self.media_player.is_playing:
+                    self.media_player.stop()
+                
+                print(f"[FACES] Starte Audio+Bild-Wiedergabe: {[os.path.basename(f) for f in mixed_playlist]}")
+                success = self.media_player.play_media_list(mixed_playlist, shuffle=True)
+                if success:
+                    self.media_status_label.config(
+                        text=f"Audio-Trigger → {len(selected_audios)}A + {len(selected_images)}B", fg='lime'
+                    )
+                    print("[FACES] Audio+Bild-Wiedergabe erfolgreich gestartet")
+                else:
+                    self.media_status_label.config(text="Audio+Bild-Start fehlgeschlagen!", fg='red')
+            else:
+                print("[FACES] WARNUNG: Keine Audio/Bild-Dateien ausgewählt für Audio-Trigger")
+                self.media_status_label.config(text="Keine Audio/Bild-Dateien ausgewählt!", fg='orange')
+                
+        except Exception as e:
+            print(f"[FACES] FEHLER in handle_audio_trigger: {e}")
+            self.media_status_label.config(text=f"Audio-Trigger-Fehler: {e}", fg='red')
+    
+    def handle_audio2_trigger(self):
+        """Audio 2-Trigger ausgelöst - Audio + Bilder starten"""
+        try:
+            selected_audios = self.get_selected_audios()
+            selected_images = self.get_selected_images()
+            mixed_playlist = selected_audios + selected_images
+            
+            print(f"[FACES] Audio2-Trigger ausgelöst: {len(selected_audios)} Audio + {len(selected_images)} Bilder")
+            
+            if mixed_playlist:
+                if self.media_player.is_playing:
+                    self.media_player.stop()
+                
+                print(f"[FACES] Starte Audio2+Bild-Wiedergabe: {[os.path.basename(f) for f in mixed_playlist]}")
+                success = self.media_player.play_media_list(mixed_playlist, shuffle=True)
+                if success:
+                    self.media_status_label.config(
+                        text=f"Audio2-Trigger → {len(selected_audios)}A + {len(selected_images)}B", fg='lime'
+                    )
+                    print("[FACES] Audio2+Bild-Wiedergabe erfolgreich gestartet")
+                else:
+                    self.media_status_label.config(text="Audio2+Bild-Start fehlgeschlagen!", fg='red')
+            else:
+                print("[FACES] WARNUNG: Keine Audio/Bild-Dateien ausgewählt für Audio2-Trigger")
+                self.media_status_label.config(text="Keine Audio/Bild-Dateien ausgewählt!", fg='orange')
+                
+        except Exception as e:
+            print(f"[FACES] FEHLER in handle_audio2_trigger: {e}")
+            self.media_status_label.config(text=f"Audio2-Trigger-Fehler: {e}", fg='red')
     
     # ====== HAUPTMETHODEN ======
     def run(self):
