@@ -1264,59 +1264,103 @@ class VLCMediaStationGUI:
                 
                 now = time.time()
                 
-                # PRIORITÄT 1: Video-Trigger
-                if should_trigger_video and not self._sensor_in_range:
-                    if now >= self._cooldown_until_ts:
-                        self._sensor_in_range = True
-                        self.handle_video_trigger()
-                        self._last_trigger_ts = now
-                        self._play_started_ts = now
-                        self._cooldown_until_ts = now + max(0.5, float(self.current_min_video_time))
+                # EINFACHE LOGIK: Jeder Trigger ist völlig unabhängig!
+                # Jeder Trigger hat eigenen Cooldown um Race Conditions zu vermeiden
                 
-                # PRIORITÄT 2: Audio 1-Trigger (wenn Video nicht aktiv)
-                elif should_trigger_audio and not should_trigger_video and not self._sensor_in_range:
-                    if now >= self._cooldown_until_ts:
-                        self._sensor_in_range = True
-                        self.handle_audio_trigger()
-                        self._last_trigger_ts = now
-                        self._play_started_ts = now
-                        self._cooldown_until_ts = now + max(0.5, float(self.current_min_audio_time))
+                # Initialisiere Cooldowns beim ersten Mal
+                if not hasattr(self, '_video_cooldown_ts'):
+                    self._video_cooldown_ts = 0
+                    self._audio_cooldown_ts = 0
+                    self._audio2_cooldown_ts = 0
+                    self._image_cooldown_ts = 0
                 
-                # PRIORITÄT 3: Audio 2-Trigger (wenn Video und Audio 1 nicht aktiv)
-                elif should_trigger_audio2 and not should_trigger_video and not should_trigger_audio and not self._sensor_in_range:
-                    if now >= self._cooldown_until_ts:
-                        self._sensor_in_range = True
-                        self.handle_audio2_trigger()
-                        self._last_trigger_ts = now
-                        self._play_started_ts = now
-                        self._cooldown_until_ts = now + max(0.5, float(self.current_min_audio_time))
+                # VIDEO-TRIGGER: Unabhängig, nur eigenen Cooldown beachten
+                if should_trigger_video:
+                    if not hasattr(self, '_video_is_triggered') or not self._video_is_triggered:
+                        if now >= self._video_cooldown_ts:
+                            print("[FACES] Video-Trigger AKTIVIERT")
+                            self._video_is_triggered = True
+                            try:
+                                self.handle_video_trigger()
+                                self._video_cooldown_ts = now + max(0.5, float(self.current_min_video_time))
+                            except Exception as e:
+                                print(f"[FACES] FEHLER beim Video-Start: {e}")
+                                self._video_is_triggered = False
+                else:
+                    if hasattr(self, '_video_is_triggered') and self._video_is_triggered:
+                        print("[FACES] Video-Trigger DEAKTIVIERT")
+                        self._video_is_triggered = False
+                        try:
+                            if self.media_player.is_playing:
+                                self.media_player.stop()
+                        except Exception as e:
+                            print(f"[FACES] FEHLER beim Video-Stop: {e}")
                 
-                # Trigger nicht mehr aktiv
-                elif not should_trigger_video and not should_trigger_audio and not should_trigger_audio2 and self._sensor_in_range:
-                    self._sensor_in_range = False
-                    if self.media_player.is_playing:
-                        print("[FACES] Video/Audio/Audio2-Trigger nicht mehr aktiv - stoppe Wiedergabe")
-                        self.media_player.stop()
+                # AUDIO 1-TRIGGER: Unabhängig
+                if should_trigger_audio:
+                    if not hasattr(self, '_audio_is_triggered') or not self._audio_is_triggered:
+                        if now >= self._audio_cooldown_ts:
+                            print("[FACES] Audio 1-Trigger AKTIVIERT")
+                            self._audio_is_triggered = True
+                            try:
+                                self.handle_audio_trigger()
+                                self._audio_cooldown_ts = now + max(0.5, float(self.current_min_audio_time))
+                            except Exception as e:
+                                print(f"[FACES] FEHLER beim Audio-Start: {e}")
+                                self._audio_is_triggered = False
+                else:
+                    if hasattr(self, '_audio_is_triggered') and self._audio_is_triggered:
+                        print("[FACES] Audio 1-Trigger DEAKTIVIERT")
+                        self._audio_is_triggered = False
+                        try:
+                            if self.media_player.is_playing:
+                                self.media_player.stop()
+                        except Exception as e:
+                            print(f"[FACES] FEHLER beim Audio-Stop: {e}")
                 
-                # BILD-TRIGGER: Unabhängig von Video/Audio - wird immer geprüft
+                # AUDIO 2-TRIGGER: Unabhängig
+                if should_trigger_audio2:
+                    if not hasattr(self, '_audio2_is_triggered') or not self._audio2_is_triggered:
+                        if now >= self._audio2_cooldown_ts:
+                            print("[FACES] Audio 2-Trigger AKTIVIERT")
+                            self._audio2_is_triggered = True
+                            try:
+                                self.handle_audio2_trigger()
+                                self._audio2_cooldown_ts = now + max(0.5, float(self.current_min_audio_time))
+                            except Exception as e:
+                                print(f"[FACES] FEHLER beim Audio2-Start: {e}")
+                                self._audio2_is_triggered = False
+                else:
+                    if hasattr(self, '_audio2_is_triggered') and self._audio2_is_triggered:
+                        print("[FACES] Audio 2-Trigger DEAKTIVIERT")
+                        self._audio2_is_triggered = False
+                        try:
+                            if self.media_player.is_playing:
+                                self.media_player.stop()
+                        except Exception as e:
+                            print(f"[FACES] FEHLER beim Audio2-Stop: {e}")
+                
+                # BILD-TRIGGER: Unabhängig
                 if should_show_image:
-                    # Bild-Trigger ist aktiv - zeige Bild
-                    selected_images = self.get_selected_images()
-                    if selected_images:
-                        # Prüfe ob das richtige Bild schon angezeigt wird
-                        if self.media_player.current_file != selected_images[0]:
-                            print(f"[FACES] Bild-Trigger aktiv (mode={image_trigger_mode}) - zeige Bild")
-                            self.restore_image_preview()
-                    else:
-                        print("[FACES] WARNUNG: Bild-Trigger aktiv aber keine Bilder ausgewählt")
-                
-                # KEIN TRIGGER AKTIV: Schwarzer Bildschirm
-                elif not should_trigger_video and not should_trigger_audio and not should_trigger_audio2 and not should_show_image:
-                    # Weder Video/Audio/Audio2 noch Bild-Trigger aktiv
-                    if self.media_player.is_playing or self.media_player.current_file:
-                        print("[FACES] Alle Trigger inaktiv - schwarzer Bildschirm")
-                        self.media_player.show_black()
-                        self.media_status_label.config(text="Kein Trigger aktiv", fg='gray')
+                    if not hasattr(self, '_image_is_triggered') or not self._image_is_triggered:
+                        if now >= self._image_cooldown_ts:
+                            print("[FACES] Bild-Trigger AKTIVIERT")
+                            self._image_is_triggered = True
+                            try:
+                                self.restore_image_preview()
+                                self._image_cooldown_ts = now + 0.5
+                            except Exception as e:
+                                print(f"[FACES] FEHLER beim Bild-Anzeigen: {e}")
+                                self._image_is_triggered = False
+                else:
+                    if hasattr(self, '_image_is_triggered') and self._image_is_triggered:
+                        print("[FACES] Bild-Trigger DEAKTIVIERT")
+                        self._image_is_triggered = False
+                        try:
+                            if self.media_player.current_file:
+                                self.media_player.show_black()
+                        except Exception as e:
+                            print(f"[FACES] FEHLER beim Bild-Ausblenden: {e}")
                         
             except ValueError:
                 self.media_status_label.config(text="Ungültige Sensor-Werte", fg='red')
