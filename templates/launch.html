@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FACES Media Station</title>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #080818;
+            color: #e0e0f0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .container { text-align: center; max-width: 720px; padding: 40px 20px; }
+        .logo { font-size: 4rem; color: #00d4ff; margin-bottom: 10px; }
+        h1 { font-size: 1.6rem; font-weight: 600; margin-bottom: 4px; }
+        .subtitle { color: #6060a0; margin-bottom: 6px; font-size: 0.95rem; }
+        .ip { font-size: 0.85rem; color: #6060a0; margin-bottom: 30px; }
+        .ip strong { color: #00d4ff; }
+        .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        @media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }
+        .card {
+            background: #0f0f2a;
+            border: 1px solid #1a1a40;
+            border-radius: 12px;
+            padding: 24px 16px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.2s;
+            cursor: pointer;
+            display: block;
+        }
+        .card:hover { transform: translateY(-3px); border-color: #00d4ff; box-shadow: 0 8px 30px rgba(0,212,255,0.1); }
+        .card .icon { font-size: 2rem; margin-bottom: 10px; }
+        .card h2 { font-size: 1rem; margin-bottom: 6px; }
+        .card p { font-size: 0.8rem; color: #6060a0; line-height: 1.4; }
+        .card code {
+            display: block; margin-top: 8px; padding: 6px;
+            background: rgba(255,255,255,0.04); border-radius: 6px;
+            font-size: 0.8rem; color: #00d4ff; word-break: break-all;
+            user-select: all;
+        }
+        .countdown { margin-top: 10px; font-size: 0.75rem; color: #ffab00; }
+        .card-present:hover { border-color: #00e676; box-shadow: 0 8px 30px rgba(0,230,118,0.15); }
+        .card-present .icon { color: #00e676; }
+        .card-config .icon { color: #00d4ff; }
+        .card-remote .icon { color: #ffab00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">&#9673;</div>
+        <h1>FACES Media Station</h1>
+        <p class="subtitle" id="sys-name"></p>
+        <p class="ip">Adresse: <strong id="ip-addr"></strong></p>
+        <div class="cards">
+            <a href="/display" class="card card-present" id="card-present">
+                <div class="icon">&#9654;</div>
+                <h2>Pr&auml;sentation</h2>
+                <p>Vollbild-Anzeige starten</p>
+                <div class="countdown" id="countdown">Auto-Start in <span id="timer">15</span>s</div>
+            </a>
+            <a href="/admin" class="card card-config">
+                <div class="icon">&#9881;</div>
+                <h2>Konfiguration</h2>
+                <p>Medien, Sensor &amp; Zonen einrichten</p>
+            </a>
+            <div class="card card-remote">
+                <div class="icon">&#128225;</div>
+                <h2>Remote</h2>
+                <p>Von anderem Ger&auml;t konfigurieren:</p>
+                <code id="remote-url"></code>
+            </div>
+        </div>
+    </div>
+    <script>
+        var t = 15;
+        var tmr = setInterval(function () {
+            if (--t <= 0) { clearInterval(tmr); window.location.href = '/display'; }
+            document.getElementById('timer').textContent = t;
+        }, 1000);
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('#card-present')) {
+                clearInterval(tmr);
+                var c = document.getElementById('countdown');
+                if (c) c.style.display = 'none';
+            }
+        });
+        fetch('/api/status').then(function (r) { return r.json(); }).then(function (d) {
+            document.getElementById('sys-name').textContent = d.config.system_name || '';
+            document.getElementById('ip-addr').textContent = location.host;
+            document.getElementById('remote-url').textContent = location.origin + '/admin';
+        }).catch(function () {});
+    </script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FACES Admin</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <div class="nav-brand">
+            <a href="/" class="logo-link"><span class="logo">◉</span></a>
+            <h1>FACES Admin</h1>
+        </div>
+        <div class="nav-right">
+            <span id="system-name">Station</span>
+            <span class="status-dot" id="status-dot"></span>
+        </div>
+    </nav>
+
+    <main>
+        <!-- Status -->
+        <section class="card">
+            <div class="status-row">
+                <div class="distance-compact">
+                    <span id="dist-value">--</span>
+                    <span class="unit">m</span>
+                </div>
+                <div class="distance-bar-mini">
+                    <div class="fill" id="dist-fill"></div>
+                    <div class="marker" id="dist-marker"></div>
+                </div>
+                <span class="badge" id="state-badge">Inaktiv</span>
+                <div class="controls">
+                    <button class="btn btn-start" onclick="api('start')">&#9654; Start</button>
+                    <button class="btn btn-stop" onclick="api('stop')">&#9724; Stop</button>
+                    <a href="/display" target="_blank" class="btn btn-display">Display &#8599;</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Zonen-Übersicht -->
+        <section class="card">
+            <h2>Zonen-&Uuml;bersicht</h2>
+            <div class="zones-grid">
+                <div class="zone zone-near">
+                    <h3><span class="dot near"></span> Nah <small>&le; <span class="threshold-val">1.0</span>m</small></h3>
+                    <div id="zone-near-media" class="zone-media"></div>
+                </div>
+                <div class="zone zone-far">
+                    <h3><span class="dot far"></span> Fern <small>&gt; <span class="threshold-val">1.0</span>m</small></h3>
+                    <div id="zone-far-media" class="zone-media"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Medienbibliothek -->
+        <section class="card">
+            <h2>Medienbibliothek</h2>
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('videos', this)">&#127916; Videos</button>
+                <button class="tab" onclick="switchTab('images', this)">&#128444; Bilder</button>
+                <button class="tab" onclick="switchTab('audio', this)">&#127925; Audio</button>
+            </div>
+
+            <div id="tab-videos" class="tab-content active">
+                <div id="list-videos" class="media-list"></div>
+                <div class="upload-area" data-type="videos">
+                    <input type="file" accept="video/*" multiple hidden>
+                    <span class="upload-text">&#128193; Videos hochladen (Klick oder Drag&amp;Drop)</span>
+                    <div class="progress" hidden>
+                        <div class="progress-bar"><div class="progress-fill"></div></div>
+                        <span class="progress-text">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-images" class="tab-content">
+                <div id="list-images" class="media-list"></div>
+                <div class="upload-area" data-type="images">
+                    <input type="file" accept="image/*" multiple hidden>
+                    <span class="upload-text">&#128193; Bilder hochladen (Klick oder Drag&amp;Drop)</span>
+                    <div class="progress" hidden>
+                        <div class="progress-bar"><div class="progress-fill"></div></div>
+                        <span class="progress-text">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-audio" class="tab-content">
+                <div id="list-audio" class="media-list"></div>
+                <div class="upload-area" data-type="audio">
+                    <input type="file" accept="audio/*" multiple hidden>
+                    <span class="upload-text">&#128193; Audio hochladen (Klick oder Drag&amp;Drop)</span>
+                    <div class="progress" hidden>
+                        <div class="progress-bar"><div class="progress-fill"></div></div>
+                        <span class="progress-text">0%</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Einstellungen -->
+        <section class="card">
+            <h2>Einstellungen</h2>
+            <div class="settings-grid">
+                <div class="form-group span-2">
+                    <label for="cfg-name">Stationsname</label>
+                    <input type="text" id="cfg-name" placeholder="FACES Station 1">
+                </div>
+                <div class="form-group span-2">
+                    <label>Schwelle: <strong id="threshold-display">1.00</strong> m</label>
+                    <input type="range" id="cfg-threshold" min="0.1" max="4.0" step="0.05" value="1.0">
+                </div>
+                <div class="form-group">
+                    <label>Verz&ouml;gerung: <strong id="delay-display">1.5</strong> s</label>
+                    <input type="range" id="cfg-delay" min="0.5" max="10" step="0.5" value="1.5">
+                </div>
+                <div class="form-group">
+                    <label>Bildwechsel: <strong id="imgint-display">5</strong> s</label>
+                    <input type="range" id="cfg-imginterval" min="1" max="30" step="1" value="5">
+                </div>
+                <div class="form-group">
+                    <label>Audio-Lautst&auml;rke: <strong id="vol-display">80</strong>%</label>
+                    <input type="range" id="cfg-volume" min="0" max="100" step="5" value="80">
+                </div>
+                <div class="form-group">
+                    <label for="cfg-gpio-trigger">GPIO Trigger</label>
+                    <input type="number" id="cfg-gpio-trigger" value="23" min="1" max="40">
+                </div>
+                <div class="form-group">
+                    <label for="cfg-gpio-echo">GPIO Echo</label>
+                    <input type="number" id="cfg-gpio-echo" value="24" min="1" max="40">
+                </div>
+            </div>
+            <button class="btn btn-save" onclick="saveConfig()">Einstellungen speichern</button>
+            <div id="save-feedback" class="feedback"></div>
+        </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

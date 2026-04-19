@@ -1,22 +1,19 @@
-# Systemd Service für Auto-Start beim Boot
-# Datei: /etc/systemd/system/pi-media-station.service
-
 [Unit]
-Description=Raspberry Pi Media Station
-After=graphical-session.target
+Description=FACES Media Station
+After=network.target
 
 [Service]
 Type=simple
 User=pi
 Group=pi
 WorkingDirectory=/home/pi/pi_media_station
-Environment=DISPLAY=:0
 ExecStart=/usr/bin/python3 /home/pi/pi_media_station/main.py
 Restart=always
-RestartSec=10
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=multi-user.target
 
 # Installation:
 # sudo cp pi-media-station.service /etc/systemd/system/
