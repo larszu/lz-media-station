@@ -53,7 +53,9 @@ function updateStatusUI(d) {
     if (!a || a.id !== 'cfg-threshold') { el('cfg-threshold').value = cfg.threshold_m; el('threshold-display').textContent = cfg.threshold_m.toFixed(2); }
     if (!a || a.id !== 'cfg-delay') { el('cfg-delay').value = cfg.delay_s; el('delay-display').textContent = cfg.delay_s.toFixed(1); }
     if (!a || a.id !== 'cfg-imginterval') { el('cfg-imginterval').value = cfg.image_interval_s; el('imgint-display').textContent = cfg.image_interval_s; }
-    if (!a || a.id !== 'cfg-volume') { el('cfg-volume').value = cfg.audio_volume; el('vol-display').textContent = cfg.audio_volume; }
+    if (!a || a.id !== 'cfg-mastervol') { el('cfg-mastervol').value = cfg.master_volume; el('mastervol-display').textContent = cfg.master_volume; }
+    if (!a || a.id !== 'cfg-vidvol') { el('cfg-vidvol').value = cfg.video_volume; el('vidvol-display').textContent = cfg.video_volume; }
+    if (!a || a.id !== 'cfg-audvol') { el('cfg-audvol').value = cfg.audio_volume; el('audvol-display').textContent = cfg.audio_volume; }
     if (!a || a.id !== 'cfg-gpio-trigger') el('cfg-gpio-trigger').value = cfg.gpio_trigger;
     if (!a || a.id !== 'cfg-gpio-echo') el('cfg-gpio-echo').value = cfg.gpio_echo;
 
@@ -80,7 +82,9 @@ function setupSliders() {
     slider('cfg-threshold', 'threshold-display', function (v) { return v.toFixed(2); });
     slider('cfg-delay', 'delay-display', function (v) { return v.toFixed(1); });
     slider('cfg-imginterval', 'imgint-display', function (v) { return String(v); });
-    slider('cfg-volume', 'vol-display', function (v) { return String(v); });
+    slider('cfg-mastervol', 'mastervol-display', function (v) { return String(v); });
+    slider('cfg-vidvol', 'vidvol-display', function (v) { return String(v); });
+    slider('cfg-audvol', 'audvol-display', function (v) { return String(v); });
 }
 
 function slider(id, displayId, fmt) {
@@ -183,7 +187,9 @@ async function saveConfig() {
         threshold_m: parseFloat(el('cfg-threshold').value),
         delay_s: parseFloat(el('cfg-delay').value),
         image_interval_s: parseInt(el('cfg-imginterval').value),
-        audio_volume: parseInt(el('cfg-volume').value),
+        master_volume: parseInt(el('cfg-mastervol').value),
+        video_volume: parseInt(el('cfg-vidvol').value),
+        audio_volume: parseInt(el('cfg-audvol').value),
         gpio_trigger: parseInt(el('cfg-gpio-trigger').value),
         gpio_echo: parseInt(el('cfg-gpio-echo').value),
     };

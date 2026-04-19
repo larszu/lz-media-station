@@ -38,7 +38,12 @@
             var zd = scene[zone] || { videos: [], images: [], audio: [] };
             var hash = zone + JSON.stringify(zd);
 
-            audioEl.volume = (scene.audio_volume || 80) / 100;
+            var master = (scene.master_volume || 100) / 100;
+            var vidVol = ((scene.video_volume || 100) / 100) * master;
+            var audVol = ((scene.audio_volume || 80) / 100) * master;
+            videoA.volume = vidVol;
+            videoB.volume = vidVol;
+            audioEl.volume = audVol;
 
             if (hash === currentHash) return;
             currentHash = hash;

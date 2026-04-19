@@ -22,6 +22,8 @@ DEFAULT_CONFIG = {
     "gpio_echo": 24,
     "web_port": 5000,
     "image_interval_s": 5,
+    "master_volume": 100,
+    "video_volume": 100,
     "audio_volume": 80,
     "near": {"videos": [], "images": [], "audio": []},
     "far": {"videos": [], "images": [], "audio": []},
@@ -57,6 +59,8 @@ class Controller:
             "near": self.config.get("near", {"videos": [], "images": [], "audio": []}),
             "far": self.config.get("far", {"videos": [], "images": [], "audio": []}),
             "image_interval_s": self.config.get("image_interval_s", 5),
+            "master_volume": self.config.get("master_volume", 100),
+            "video_volume": self.config.get("video_volume", 100),
             "audio_volume": self.config.get("audio_volume", 80),
         }
 
