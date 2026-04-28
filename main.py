@@ -26,6 +26,7 @@ DEFAULT_CONFIG = {
     "video_volume": 100,
     "audio_volume": 80,
     "video_resume": False,
+    "display_ip": "",
     "near": {"videos": [], "images": [], "audio": []},
     "far": {"videos": [], "images": [], "audio": []},
 }

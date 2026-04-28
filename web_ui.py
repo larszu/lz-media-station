@@ -1,5 +1,6 @@
 """Flask Web-UI + Media-Server für FACES Media Station"""
 import os
+import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
@@ -14,6 +15,40 @@ ALLOWED_EXT = {
     "images": {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"},
     "audio": {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"},
 }
+
+
+def _detect_lan_ip():
+    """Beste Schätzung der LAN-IP."""
+    # 1) UDP-Trick (funktioniert wenn Default-Route da ist)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        ip = s.getsockname()[0]
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+    finally:
+        s.close()
+    # 2) Fallback: alle aufgelösten IPs prüfen, erste nicht-Loopback nehmen
+    try:
+        host = socket.gethostname()
+        for info in socket.getaddrinfo(host, None, socket.AF_INET):
+            ip = info[4][0]
+            if ip and not ip.startswith("127."):
+                return ip
+    except Exception:
+        pass
+    # 3) Letzter Ausweg: Linux 'hostname -I'
+    try:
+        import subprocess
+        out = subprocess.check_output(["hostname", "-I"], timeout=2).decode().strip()
+        for ip in out.split():
+            if ip and not ip.startswith("127.") and ":" not in ip:
+                return ip
+    except Exception:
+        pass
+    return "127.0.0.1"
 
 
 def create_app(controller):
@@ -36,11 +71,17 @@ def create_app(controller):
     # --- API ---
     @app.route("/api/status")
     def api_status():
+        cfg_ip = (controller.config.get("display_ip") or "").strip()
+        port = controller.config.get("web_port", 5000)
+        host_ip = cfg_ip or _detect_lan_ip()
         return jsonify({
             "distance": round(controller.sensor.distance, 3),
             "state": controller.state,
             "active": controller.active,
             "dummy_sensor": controller.sensor.use_dummy,
+            "host_ip": host_ip,
+            "web_port": port,
+            "remote_url": "http://" + host_ip + ":" + str(port) + "/admin",
             "config": controller.config,
         })
 
@@ -59,6 +100,7 @@ def create_app(controller):
             "image_interval_s": float, "master_volume": int,
             "video_volume": int, "audio_volume": int,
             "video_resume": bool,
+            "display_ip": str,
         }
         for key, cast in simple.items():
             if key in data:
