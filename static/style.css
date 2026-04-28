@@ -145,6 +145,8 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
     font-size: 0.85rem;
 }
 .form-group input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+.checkbox-label { display: flex !important; align-items: center; gap: 10px; cursor: pointer; color: var(--text); font-size: 0.85rem; padding: 6px 0; }
+.checkbox-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
 
 input[type="range"] {
     -webkit-appearance: none;

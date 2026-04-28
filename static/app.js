@@ -58,6 +58,7 @@ function updateStatusUI(d) {
     if (!a || a.id !== 'cfg-audvol') { el('cfg-audvol').value = cfg.audio_volume; el('audvol-display').textContent = cfg.audio_volume; }
     if (!a || a.id !== 'cfg-gpio-trigger') el('cfg-gpio-trigger').value = cfg.gpio_trigger;
     if (!a || a.id !== 'cfg-gpio-echo') el('cfg-gpio-echo').value = cfg.gpio_echo;
+    if (!a || a.id !== 'cfg-video-resume') el('cfg-video-resume').checked = !!cfg.video_resume;
 
     document.querySelectorAll('.threshold-val').forEach(function (e) { e.textContent = cfg.threshold_m.toFixed(1); });
 
@@ -192,6 +193,7 @@ async function saveConfig() {
         audio_volume: parseInt(el('cfg-audvol').value),
         gpio_trigger: parseInt(el('cfg-gpio-trigger').value),
         gpio_echo: parseInt(el('cfg-gpio-echo').value),
+        video_resume: el('cfg-video-resume').checked,
     };
     var fb = el('save-feedback');
     try {

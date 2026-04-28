@@ -22,6 +22,8 @@
 
     var hintEl = document.getElementById('hint');
     var startAttempted = false;
+    var resumeEnabled = false;
+    var videoPositions = {}; // { filename: seconds }
 
     // ESC -> zurück zur Admin-Seite
     document.addEventListener('keydown', function (e) {
@@ -78,6 +80,8 @@
             videoB.volume = vidVol;
             audioEl.volume = audVol;
 
+            resumeEnabled = !!scene.video_resume;
+
             if (hash === currentHash) return;
             currentHash = hash;
             applyScene(zd, scene.image_interval_s || 5);
@@ -122,6 +126,11 @@
     /* ---- Video ---- */
 
     function crossfadeVideo(file) {
+        // Aktuelle Position des laufenden Videos merken (für Resume bei Zonenwechsel)
+        if (resumeEnabled && currentVideoFile && activeVideoEl && !activeVideoEl.paused) {
+            var t = activeVideoEl.currentTime;
+            if (isFinite(t) && t > 0) videoPositions[currentVideoFile] = t;
+        }
         currentVideoFile = file;
         var el = standbyVideoEl;
         el.src = '/media/videos/' + encodeURIComponent(file);
@@ -130,6 +139,9 @@
 
         function onReady() {
             el.removeEventListener('canplay', onReady);
+            if (resumeEnabled && videoPositions[file]) {
+                try { el.currentTime = videoPositions[file]; } catch (e) { /* ignore */ }
+            }
             el.play().catch(function () {});
             el.classList.add('active');
             activeVideoEl.classList.remove('active');
@@ -146,6 +158,8 @@
         el.addEventListener('canplay', onReady);
 
         el.onended = function () {
+            // Komplett durchgespielt -> Position vergessen, damit beim nächsten Mal von vorn
+            delete videoPositions[file];
             if (zoneVideos.length > 1) {
                 videoIndex = (videoIndex + 1) % zoneVideos.length;
                 crossfadeVideo(zoneVideos[videoIndex]);
@@ -154,6 +168,11 @@
     }
 
     function hideVideos() {
+        // Position merken bevor wir das Video stoppen
+        if (resumeEnabled && currentVideoFile && activeVideoEl && !activeVideoEl.paused) {
+            var t = activeVideoEl.currentTime;
+            if (isFinite(t) && t > 0) videoPositions[currentVideoFile] = t;
+        }
         [videoA, videoB].forEach(function (v) {
             v.classList.remove('active');
             v.pause();

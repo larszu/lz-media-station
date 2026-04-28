@@ -58,6 +58,7 @@ def create_app(controller):
             "gpio_trigger": int, "gpio_echo": int, "web_port": int,
             "image_interval_s": float, "master_volume": int,
             "video_volume": int, "audio_volume": int,
+            "video_resume": bool,
         }
         for key, cast in simple.items():
             if key in data:

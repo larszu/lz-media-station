@@ -25,6 +25,7 @@ DEFAULT_CONFIG = {
     "master_volume": 100,
     "video_volume": 100,
     "audio_volume": 80,
+    "video_resume": False,
     "near": {"videos": [], "images": [], "audio": []},
     "far": {"videos": [], "images": [], "audio": []},
 }
@@ -62,6 +63,7 @@ class Controller:
             "master_volume": self.config.get("master_volume", 100),
             "video_volume": self.config.get("video_volume", 100),
             "audio_volume": self.config.get("audio_volume", 80),
+            "video_resume": bool(self.config.get("video_resume", False)),
         }
 
     def start(self):
