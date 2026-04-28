@@ -152,19 +152,19 @@ def create_app(controller):
 
     @app.route("/api/media/<media_type>/<name>", methods=["DELETE"])
     def api_delete_media(media_type, name):
+        """Entfernt eine Datei nur aus den Zonen-Zuordnungen, löscht sie NICHT vom Pi."""
         if media_type not in MEDIA_DIRS:
             return jsonify({"error": "Ungültiger Typ"}), 400
         safe = secure_filename(name)
-        path = os.path.join(MEDIA_DIRS[media_type], safe)
-        if os.path.isfile(path):
-            os.remove(path)
-            for zone in ("near", "far"):
-                zc = controller.config.get(zone, {})
-                if media_type in zc and safe in zc[media_type]:
-                    zc[media_type].remove(safe)
+        removed = False
+        for zone in ("near", "far"):
+            zc = controller.config.get(zone, {})
+            if media_type in zc and safe in zc[media_type]:
+                zc[media_type].remove(safe)
+                removed = True
+        if removed:
             controller.save_config()
-            return jsonify({"ok": True})
-        return jsonify({"error": "Nicht gefunden"}), 404
+        return jsonify({"ok": True, "removed_from_zones": removed})
 
     @app.route("/api/start", methods=["POST"])
     def api_start():
@@ -175,6 +175,110 @@ def create_app(controller):
     def api_stop():
         controller.stop()
         return jsonify({"ok": True})
+
+    # --- System / Network ---
+    @app.route("/api/system/network", methods=["GET"])
+    def api_system_network_get():
+        import subprocess
+        info = {"connection": None, "interface": None, "method": None,
+                "addresses": [], "gateway": None, "dns": [], "available_connections": []}
+        try:
+            out = subprocess.check_output(
+                ["nmcli", "-t", "-f", "NAME,TYPE,DEVICE,STATE", "connection", "show"],
+                timeout=5).decode()
+            for line in out.strip().splitlines():
+                parts = line.split(":")
+                if len(parts) >= 4:
+                    name, ctype, dev, state = parts[0], parts[1], parts[2], parts[3]
+                    if ctype in ("802-3-ethernet", "ethernet") or "wifi" in ctype:
+                        info["available_connections"].append(
+                            {"name": name, "type": ctype, "device": dev, "state": state})
+                        if state == "activated" and not info["connection"]:
+                            info["connection"] = name
+                            info["interface"] = dev
+        except Exception as e:
+            info["error"] = "nmcli nicht verfügbar: " + str(e)
+            return jsonify(info), 200
+        if info["connection"]:
+            try:
+                out = subprocess.check_output(
+                    ["nmcli", "-t", "-f",
+                     "ipv4.method,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS",
+                     "connection", "show", info["connection"]],
+                    timeout=5).decode()
+                for line in out.strip().splitlines():
+                    if ":" not in line:
+                        continue
+                    k, _, v = line.partition(":")
+                    if k == "ipv4.method":
+                        info["method"] = v
+                    elif k.startswith("IP4.ADDRESS"):
+                        if v:
+                            info["addresses"].append(v)
+                    elif k == "IP4.GATEWAY":
+                        info["gateway"] = v or None
+                    elif k.startswith("IP4.DNS"):
+                        if v:
+                            info["dns"].append(v)
+            except Exception as e:
+                info["error"] = str(e)
+        return jsonify(info)
+
+    @app.route("/api/system/network", methods=["POST"])
+    def api_system_network_set():
+        import subprocess, re
+        data = request.get_json() or {}
+        connection = data.get("connection")
+        method = data.get("method")  # "auto" oder "manual"
+        if not connection or method not in ("auto", "manual"):
+            return jsonify({"error": "connection und method (auto|manual) erforderlich"}), 400
+        ip_re = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(/\d{1,2})?$")
+        try:
+            if method == "auto":
+                cmd = ["sudo", "-n", "nmcli", "connection", "modify", connection,
+                       "ipv4.method", "auto",
+                       "ipv4.addresses", "",
+                       "ipv4.gateway", "",
+                       "ipv4.dns", ""]
+                subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=10)
+            else:
+                addr = (data.get("address") or "").strip()
+                gw = (data.get("gateway") or "").strip()
+                dns = (data.get("dns") or "").strip()
+                if not ip_re.match(addr):
+                    return jsonify({"error": "Adresse muss CIDR sein, z.B. 192.168.1.50/24"}), 400
+                if "/" not in addr:
+                    addr = addr + "/24"
+                cmd = ["sudo", "-n", "nmcli", "connection", "modify", connection,
+                       "ipv4.method", "manual",
+                       "ipv4.addresses", addr,
+                       "ipv4.gateway", gw,
+                       "ipv4.dns", dns]
+                subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=10)
+            # Verbindung neu aktivieren
+            try:
+                subprocess.check_output(
+                    ["sudo", "-n", "nmcli", "connection", "down", connection],
+                    stderr=subprocess.STDOUT, timeout=10)
+            except subprocess.CalledProcessError:
+                pass
+            subprocess.check_output(
+                ["sudo", "-n", "nmcli", "connection", "up", connection],
+                stderr=subprocess.STDOUT, timeout=15)
+            return jsonify({"ok": True})
+        except subprocess.CalledProcessError as e:
+            return jsonify({"error": "nmcli: " + e.output.decode(errors="ignore")}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/system/reboot", methods=["POST"])
+    def api_system_reboot():
+        import subprocess
+        try:
+            subprocess.Popen(["sudo", "-n", "reboot"])
+            return jsonify({"ok": True})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     # --- Media file serving ---
     @app.route("/media/<media_type>/<path:filename>")

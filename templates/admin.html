@@ -154,6 +154,49 @@
             <button class="btn btn-save" onclick="saveConfig()">Einstellungen speichern</button>
             <div id="save-feedback" class="feedback"></div>
         </section>
+
+        <!-- Systemeinstellungen -->
+        <section class="card">
+            <h2>Systemeinstellungen</h2>
+            <div id="net-info" class="zone-empty">Lade Netzwerkstatus...</div>
+            <div class="settings-grid" style="margin-top:12px">
+                <div class="form-group span-2">
+                    <label for="net-connection">Verbindung</label>
+                    <select id="net-connection"></select>
+                </div>
+                <div class="form-group span-2">
+                    <label>Modus</label>
+                    <label class="checkbox-label" style="margin-top:4px">
+                        <input type="radio" name="net-method" value="auto" id="net-method-auto" checked>
+                        <span>DHCP (automatisch)</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="radio" name="net-method" value="manual" id="net-method-manual">
+                        <span>Statische IP</span>
+                    </label>
+                </div>
+                <div class="form-group span-2">
+                    <label for="net-address">IP-Adresse / CIDR</label>
+                    <input type="text" id="net-address" placeholder="z.B. 192.168.1.50/24">
+                </div>
+                <div class="form-group">
+                    <label for="net-gateway">Gateway</label>
+                    <input type="text" id="net-gateway" placeholder="192.168.1.1">
+                </div>
+                <div class="form-group">
+                    <label for="net-dns">DNS (kommagetrennt)</label>
+                    <input type="text" id="net-dns" placeholder="1.1.1.1,8.8.8.8">
+                </div>
+            </div>
+            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+                <button class="btn btn-save" onclick="saveNetwork()">Netzwerk übernehmen</button>
+                <button class="btn btn-stop" onclick="rebootPi()">Pi neu starten</button>
+            </div>
+            <div id="net-feedback" class="feedback"></div>
+            <p style="margin-top:8px; font-size:0.75rem; color:#6060a0">
+                Hinweis: Eine geänderte IP unterbricht die Verbindung. Die neue Adresse danach im Browser eingeben.
+            </p>
+        </section>
     </main>
 
     <script src="/static/app.js"></script>

@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fetchStatus();
     setupSliders();
     setupUploads();
+    loadNetwork();
 });
 
 /* ---- Status Polling ---- */
@@ -167,7 +168,7 @@ function makeZonePayload(zone, type, list) {
 }
 
 async function deleteMedia(type, name) {
-    if (!confirm('"' + name + '" l\u00f6schen?')) return;
+    if (!confirm('"' + name + '" aus allen Zonen entfernen?\n(Die Datei bleibt auf dem Pi erhalten.)')) return;
     await fetch('/api/media/' + type + '/' + encodeURIComponent(name), { method: 'DELETE' });
     await loadAllMedia();
 }
@@ -272,6 +273,89 @@ async function uploadFiles(type, files, area) {
 
 async function api(action) {
     await fetch('/api/' + action, { method: 'POST' });
+}
+
+/* ---- Network ---- */
+
+async function loadNetwork() {
+    var info = el('net-info');
+    try {
+        var r = await fetch('/api/system/network');
+        var d = await r.json();
+        if (d.error && (!d.available_connections || !d.available_connections.length)) {
+            info.textContent = d.error;
+            return;
+        }
+        var lines = [];
+        if (d.connection) lines.push('Aktive Verbindung: <strong>' + esc(d.connection) + '</strong> auf ' + esc(d.interface || '?'));
+        if (d.method)     lines.push('Modus: <strong>' + (d.method === 'auto' ? 'DHCP' : 'Statisch') + '</strong>');
+        if (d.addresses && d.addresses.length) lines.push('IP: <strong>' + d.addresses.map(esc).join(', ') + '</strong>');
+        if (d.gateway)    lines.push('Gateway: ' + esc(d.gateway));
+        if (d.dns && d.dns.length) lines.push('DNS: ' + d.dns.map(esc).join(', '));
+        info.innerHTML = lines.length ? lines.join('<br>') : 'Kein aktiver Adapter gefunden.';
+
+        var sel = el('net-connection');
+        sel.innerHTML = '';
+        (d.available_connections || []).forEach(function (c) {
+            var opt = document.createElement('option');
+            opt.value = c.name;
+            opt.textContent = c.name + ' (' + c.device + ', ' + c.state + ')';
+            if (c.name === d.connection) opt.selected = true;
+            sel.appendChild(opt);
+        });
+        if (d.method === 'manual') {
+            el('net-method-manual').checked = true;
+        } else {
+            el('net-method-auto').checked = true;
+        }
+        if (d.addresses && d.addresses.length) el('net-address').value = d.addresses[0];
+        if (d.gateway) el('net-gateway').value = d.gateway;
+        if (d.dns && d.dns.length) el('net-dns').value = d.dns.join(',');
+    } catch (e) {
+        info.textContent = 'Netzwerk-API nicht erreichbar.';
+    }
+}
+
+async function saveNetwork() {
+    var fb = el('net-feedback');
+    var method = document.querySelector('input[name="net-method"]:checked').value;
+    var body = {
+        connection: el('net-connection').value,
+        method: method,
+        address: el('net-address').value,
+        gateway: el('net-gateway').value,
+        dns: el('net-dns').value,
+    };
+    if (!body.connection) { fb.textContent = 'Keine Verbindung gewählt.'; fb.className = 'feedback error'; return; }
+    if (method === 'manual' && !body.address) { fb.textContent = 'IP-Adresse fehlt.'; fb.className = 'feedback error'; return; }
+    if (!confirm('Netzwerk-Einstellungen jetzt anwenden?\nDie Verbindung wird kurz unterbrochen.')) return;
+    fb.textContent = 'Wende an...';
+    fb.className = 'feedback';
+    try {
+        var r = await fetch('/api/system/network', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        var d = await r.json();
+        if (r.ok) {
+            fb.textContent = '✓ Übernommen. Neue IP ggf. im Browser eingeben.';
+            fb.className = 'feedback success';
+            setTimeout(loadNetwork, 2000);
+        } else {
+            fb.textContent = '✗ ' + (d.error || 'Fehler');
+            fb.className = 'feedback error';
+        }
+    } catch (e) {
+        fb.textContent = '✗ Verbindung verloren (evtl. neue IP aktiv).';
+        fb.className = 'feedback error';
+    }
+}
+
+async function rebootPi() {
+    if (!confirm('Pi wirklich neu starten?')) return;
+    try { await fetch('/api/system/reboot', { method: 'POST' }); } catch (e) { /* expected */ }
+    el('net-feedback').textContent = 'Pi wird neu gestartet...';
 }
 
 /* ---- Helpers ---- */

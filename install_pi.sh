@@ -94,6 +94,14 @@ if [ -f "$HOME/.config/autostart/Start_Simple_Faces.desktop" ]; then
        "$HOME/.config/autostart/Start_Simple_Faces.desktop.disabled"
 fi
 
+# 8) Sudoers: nmcli + reboot ohne Passwort (für Netzwerk-Konfiguration aus Web-UI)
+log "Konfiguriere passwortloses sudo für nmcli/reboot ..."
+SUDO_USER_NAME="$(id -un)"
+sudo tee /etc/sudoers.d/faces-media-station >/dev/null <<EOF
+$SUDO_USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /sbin/reboot, /usr/sbin/reboot
+EOF
+sudo chmod 0440 /etc/sudoers.d/faces-media-station
+
 cat <<EOF
 
 ${GREEN}========================================================${NC}
