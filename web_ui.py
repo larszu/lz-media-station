@@ -89,6 +89,30 @@ def create_app(controller):
     def api_scene():
         return jsonify(controller.get_scene())
 
+    @app.route("/api/identity")
+    def api_identity():
+        """Station-Identität für Discovery / Manager-App."""
+        import uuid, platform
+        id_path = os.path.join(BASE_DIR, ".station_id")
+        try:
+            if os.path.exists(id_path):
+                with open(id_path, "r") as f:
+                    sid = f.read().strip()
+            else:
+                sid = uuid.uuid4().hex
+                with open(id_path, "w") as f:
+                    f.write(sid)
+        except Exception:
+            sid = "unknown"
+        return jsonify({
+            "id": sid,
+            "name": controller.config.get("system_name", "FACES Station"),
+            "version": "2.1.0",
+            "hostname": platform.node(),
+            "active": controller.active,
+            "state": controller.state,
+        })
+
     @app.route("/api/config", methods=["POST"])
     def api_config():
         data = request.get_json()

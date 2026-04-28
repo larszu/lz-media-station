@@ -27,7 +27,7 @@ log "Installiere Systempakete (Python, Chromium, git)..."
 sudo apt update -qq
 sudo apt install -y --no-install-recommends \
     python3 python3-pip python3-flask python3-gpiozero \
-    chromium-browser git curl
+    chromium-browser git curl avahi-daemon
 
 # 2) Quellcode
 if [ -d "$APP_DIR/.git" ]; then
@@ -101,6 +101,14 @@ sudo tee /etc/sudoers.d/faces-media-station >/dev/null <<EOF
 $SUDO_USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /sbin/reboot, /usr/sbin/reboot
 EOF
 sudo chmod 0440 /etc/sudoers.d/faces-media-station
+
+# 9) mDNS / Avahi: Station als _faces._tcp ankündigen
+log "Registriere Avahi-Service _faces._tcp ..."
+if [ -f "$APP_DIR/faces.service" ]; then
+    sudo cp "$APP_DIR/faces.service" /etc/avahi/services/faces.service
+    sudo systemctl enable avahi-daemon >/dev/null 2>&1 || true
+    sudo systemctl restart avahi-daemon || true
+fi
 
 cat <<EOF
 
