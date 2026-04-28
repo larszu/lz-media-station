@@ -132,18 +132,6 @@
                     <label>Audio: <strong id="audvol-display">80</strong>%</label>
                     <input type="range" id="cfg-audvol" min="0" max="100" step="5" value="80">
                 </div>
-                <div class="form-group">
-                    <label for="cfg-gpio-trigger">GPIO Trigger</label>
-                    <input type="number" id="cfg-gpio-trigger" value="23" min="1" max="40">
-                </div>
-                <div class="form-group">
-                    <label for="cfg-gpio-echo">GPIO Echo</label>
-                    <input type="number" id="cfg-gpio-echo" value="24" min="1" max="40">
-                </div>
-                <div class="form-group span-2">
-                    <label for="cfg-display-ip">Anzeige-IP f&uuml;r Fernsteuerung (leer = Auto-Erkennung)</label>
-                    <input type="text" id="cfg-display-ip" placeholder="z.B. 192.168.1.50">
-                </div>
                 <div class="form-group span-2">
                     <label class="checkbox-label">
                         <input type="checkbox" id="cfg-video-resume">
@@ -187,8 +175,21 @@
                     <label for="net-dns">DNS (kommagetrennt)</label>
                     <input type="text" id="net-dns" placeholder="1.1.1.1,8.8.8.8">
                 </div>
+                <div class="form-group span-2" style="border-top:1px solid #2a2a4a; padding-top:10px; margin-top:6px">
+                    <label for="cfg-display-ip">Anzeige-IP f&uuml;r Fernsteuerung (leer = Auto-Erkennung)</label>
+                    <input type="text" id="cfg-display-ip" placeholder="z.B. 192.168.1.50">
+                </div>
+                <div class="form-group">
+                    <label for="cfg-gpio-trigger">GPIO Trigger</label>
+                    <input type="number" id="cfg-gpio-trigger" value="23" min="1" max="40">
+                </div>
+                <div class="form-group">
+                    <label for="cfg-gpio-echo">GPIO Echo</label>
+                    <input type="number" id="cfg-gpio-echo" value="24" min="1" max="40">
+                </div>
             </div>
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+                <button class="btn btn-save" onclick="saveConfig()">Anzeige &amp; GPIO speichern</button>
                 <button class="btn btn-save" onclick="saveNetwork()">Netzwerk übernehmen</button>
                 <button class="btn btn-stop" onclick="rebootPi()">Pi neu starten</button>
             </div>
