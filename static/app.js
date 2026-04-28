@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setupSliders();
     setupUploads();
     loadNetwork();
+    loadWifi();
 });
 
 /* ---- Status Polling ---- */
@@ -356,6 +357,103 @@ async function rebootPi() {
     if (!confirm('Pi wirklich neu starten?')) return;
     try { await fetch('/api/system/reboot', { method: 'POST' }); } catch (e) { /* expected */ }
     el('net-feedback').textContent = 'Pi wird neu gestartet...';
+}
+
+/* ---- WLAN ---- */
+
+async function loadWifi() {
+    var info = el('wifi-info');
+    var list = el('wifi-list');
+    info.textContent = 'Lade WLAN-Status...';
+    list.innerHTML = '';
+    try {
+        var r = await fetch('/api/system/wifi');
+        var d = await r.json();
+        if (d.error && d.enabled === undefined) {
+            info.textContent = d.error;
+            return;
+        }
+        el('wifi-enabled').checked = !!d.enabled;
+        if (!d.enabled) {
+            info.textContent = 'WLAN ist deaktiviert.';
+            return;
+        }
+        info.innerHTML = d.current_ssid
+            ? 'Verbunden mit: <strong>' + esc(d.current_ssid) + '</strong>'
+            : 'WLAN aktiv, keine Verbindung.';
+        (d.networks || []).forEach(function (n) {
+            var card = document.createElement('div');
+            card.className = 'form-group';
+            var lock = (n.security && n.security !== '--') ? '🔒 ' : '';
+            var act = n.active ? ' ✓' : '';
+            card.innerHTML = '<button class="btn" style="text-align:left" onclick="pickWifi(\'' +
+                escAttr(n.ssid) + '\')">' + lock + esc(n.ssid) +
+                ' <small>(' + n.signal + '%)' + act + '</small></button>';
+            list.appendChild(card);
+        });
+    } catch (e) {
+        info.textContent = 'WLAN-API nicht erreichbar.';
+    }
+}
+
+function pickWifi(ssid) {
+    el('wifi-ssid').value = ssid;
+    el('wifi-password').focus();
+}
+
+async function toggleWifi() {
+    var enabled = el('wifi-enabled').checked;
+    var fb = el('wifi-feedback');
+    fb.textContent = enabled ? 'Aktiviere WLAN...' : 'Deaktiviere WLAN...';
+    fb.className = 'feedback';
+    try {
+        var r = await fetch('/api/system/wifi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: enabled }),
+        });
+        var d = await r.json();
+        if (r.ok) {
+            fb.textContent = '✓ ' + (enabled ? 'WLAN aktiv' : 'WLAN aus');
+            fb.className = 'feedback success';
+            setTimeout(loadWifi, 1500);
+        } else {
+            fb.textContent = '✗ ' + (d.error || 'Fehler');
+            fb.className = 'feedback error';
+        }
+    } catch (e) {
+        fb.textContent = '✗ ' + e.message;
+        fb.className = 'feedback error';
+    }
+}
+
+async function connectWifi() {
+    var ssid = el('wifi-ssid').value.trim();
+    var password = el('wifi-password').value;
+    var fb = el('wifi-feedback');
+    if (!ssid) { fb.textContent = 'SSID fehlt.'; fb.className = 'feedback error'; return; }
+    fb.textContent = 'Verbinde mit ' + ssid + '...';
+    fb.className = 'feedback';
+    try {
+        var r = await fetch('/api/system/wifi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ssid: ssid, password: password }),
+        });
+        var d = await r.json();
+        if (r.ok) {
+            fb.textContent = '✓ Verbunden mit ' + ssid;
+            fb.className = 'feedback success';
+            el('wifi-password').value = '';
+            setTimeout(function () { loadWifi(); loadNetwork(); }, 2500);
+        } else {
+            fb.textContent = '✗ ' + (d.error || 'Verbindung fehlgeschlagen');
+            fb.className = 'feedback error';
+        }
+    } catch (e) {
+        fb.textContent = '✗ ' + e.message;
+        fb.className = 'feedback error';
+    }
 }
 
 /* ---- Helpers ---- */

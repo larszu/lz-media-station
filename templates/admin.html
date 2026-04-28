@@ -197,6 +197,29 @@
             <p style="margin-top:8px; font-size:0.75rem; color:#6060a0">
                 Hinweis: Eine geänderte IP unterbricht die Verbindung. Die neue Adresse danach im Browser eingeben.
             </p>
+
+            <h3 style="margin-top:18px">WLAN</h3>
+            <div id="wifi-info" class="zone-empty">Lade WLAN-Status...</div>
+            <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="wifi-enabled" onchange="toggleWifi()">
+                    <span>WLAN aktiviert</span>
+                </label>
+                <button class="btn" onclick="loadWifi()">&#x21bb; Netzwerke scannen</button>
+            </div>
+            <div id="wifi-list" class="settings-grid" style="margin-top:10px"></div>
+            <div class="settings-grid" style="margin-top:8px">
+                <div class="form-group">
+                    <label for="wifi-ssid">SSID (manuell)</label>
+                    <input type="text" id="wifi-ssid" placeholder="MeinNetzwerk">
+                </div>
+                <div class="form-group">
+                    <label for="wifi-password">Passwort</label>
+                    <input type="password" id="wifi-password" placeholder="(leer = offen)">
+                </div>
+            </div>
+            <button class="btn btn-save" style="margin-top:8px" onclick="connectWifi()">Mit WLAN verbinden</button>
+            <div id="wifi-feedback" class="feedback"></div>
         </section>
     </main>
 

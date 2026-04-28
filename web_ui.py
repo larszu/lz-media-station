@@ -280,6 +280,69 @@ def create_app(controller):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/api/system/wifi", methods=["GET"])
+    def api_system_wifi_get():
+        import subprocess
+        info = {"enabled": False, "current_ssid": None, "networks": []}
+        try:
+            out = subprocess.check_output(
+                ["nmcli", "-t", "-f", "WIFI", "radio"], timeout=5).decode().strip()
+            info["enabled"] = (out.lower() == "enabled")
+        except Exception as e:
+            info["error"] = "nmcli nicht verfügbar: " + str(e)
+            return jsonify(info), 200
+        if info["enabled"]:
+            try:
+                out = subprocess.check_output(
+                    ["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY", "device", "wifi", "list"],
+                    timeout=8).decode()
+                seen = set()
+                for line in out.strip().splitlines():
+                    parts = line.split(":")
+                    if len(parts) < 4:
+                        continue
+                    active, ssid, signal, security = parts[0], parts[1], parts[2], ":".join(parts[3:])
+                    if not ssid or ssid in seen:
+                        continue
+                    seen.add(ssid)
+                    if active == "yes":
+                        info["current_ssid"] = ssid
+                    info["networks"].append({
+                        "ssid": ssid,
+                        "signal": int(signal) if signal.isdigit() else 0,
+                        "security": security,
+                        "active": active == "yes",
+                    })
+                info["networks"].sort(key=lambda n: -n["signal"])
+            except Exception as e:
+                info["error"] = str(e)
+        return jsonify(info)
+
+    @app.route("/api/system/wifi", methods=["POST"])
+    def api_system_wifi_set():
+        import subprocess
+        data = request.get_json() or {}
+        try:
+            if "enabled" in data:
+                state = "on" if data["enabled"] else "off"
+                subprocess.check_output(
+                    ["sudo", "-n", "nmcli", "radio", "wifi", state],
+                    stderr=subprocess.STDOUT, timeout=10)
+                return jsonify({"ok": True})
+            ssid = (data.get("ssid") or "").strip()
+            password = data.get("password") or ""
+            if not ssid:
+                return jsonify({"error": "ssid erforderlich"}), 400
+            cmd = ["sudo", "-n", "nmcli", "device", "wifi", "connect", ssid]
+            if password:
+                cmd += ["password", password]
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=30)
+            return jsonify({"ok": True})
+        except subprocess.CalledProcessError as e:
+            return jsonify({"error": "nmcli: " + e.output.decode(errors="ignore")}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # --- Media file serving ---
     @app.route("/media/<media_type>/<path:filename>")
     def serve_media(media_type, filename):
