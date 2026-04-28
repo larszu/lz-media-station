@@ -31,9 +31,15 @@ if [ -n "$CHROME_BIN" ]; then
         --noerrdialogs \
         --disable-infobars \
         --disable-session-crashed-bubble \
-        --disable-features=Translate,TranslateUI \
+        --disable-features=Translate,TranslateUI,MediaRouter,DialMediaRouteProvider \
         --disable-translate \
         --lang=de-DE \
+        --password-store=basic \
+        --use-mock-keychain \
+        --no-first-run \
+        --no-default-browser-check \
+        --disable-component-update \
+        --disable-background-networking \
         --check-for-update-interval=31536000 \
         --autoplay-policy=no-user-gesture-required \
         --incognito \

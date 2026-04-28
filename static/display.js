@@ -23,6 +23,13 @@
     var hintEl = document.getElementById('hint');
     var startAttempted = false;
 
+    // ESC -> zurück zur Admin-Seite
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.keyCode === 27) {
+            window.location.href = '/admin';
+        }
+    });
+
     setInterval(poll, 500);
     poll();
 
