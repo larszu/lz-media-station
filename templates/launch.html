@@ -79,22 +79,38 @@
         </div>
     </div>
     <script>
+        // Auto-Start nur wenn Medien konfiguriert sind
         var t = 15;
-        var tmr = setInterval(function () {
-            if (--t <= 0) { clearInterval(tmr); window.location.href = '/display'; }
-            document.getElementById('timer').textContent = t;
-        }, 1000);
+        var tmr = null;
+        function stopCountdown() {
+            if (tmr) { clearInterval(tmr); tmr = null; }
+            var c = document.getElementById('countdown');
+            if (c) c.style.display = 'none';
+        }
+        function startCountdown() {
+            tmr = setInterval(function () {
+                if (--t <= 0) { clearInterval(tmr); window.location.href = '/display'; }
+                document.getElementById('timer').textContent = t;
+            }, 1000);
+        }
         document.addEventListener('click', function (e) {
-            if (!e.target.closest('#card-present')) {
-                clearInterval(tmr);
-                var c = document.getElementById('countdown');
-                if (c) c.style.display = 'none';
-            }
+            if (!e.target.closest('#card-present')) stopCountdown();
         });
         fetch('/api/status').then(function (r) { return r.json(); }).then(function (d) {
             document.getElementById('sys-name').textContent = d.config.system_name || '';
             document.getElementById('ip-addr').textContent = location.host;
             document.getElementById('remote-url').textContent = location.origin + '/admin';
+            // Nur Auto-Start wenn near oder far Medien hat
+            var n = d.config.near || {}, f = d.config.far || {};
+            var hasMedia = (n.videos||[]).length || (n.images||[]).length || (n.audio||[]).length
+                        || (f.videos||[]).length || (f.images||[]).length || (f.audio||[]).length;
+            if (hasMedia) {
+                startCountdown();
+            } else {
+                stopCountdown();
+                var c = document.getElementById('countdown');
+                if (c) { c.style.display = 'block'; c.style.color = '#ff6b6b'; c.innerHTML = 'Keine Medien konfiguriert &mdash; bitte erst Konfiguration &ouml;ffnen'; }
+            }
         }).catch(function () {});
     </script>
 </body>

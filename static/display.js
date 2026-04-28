@@ -20,8 +20,20 @@
     var audioIndex = 0;
     var zoneAudioList = [];
 
+    var hintEl = document.getElementById('hint');
+    var startAttempted = false;
+
     setInterval(poll, 500);
     poll();
+
+    function showHint(html) {
+        if (!hintEl) return;
+        hintEl.innerHTML = html;
+        hintEl.classList.add('show');
+    }
+    function hideHint() {
+        if (hintEl) hintEl.classList.remove('show');
+    }
 
     async function poll() {
         try {
@@ -30,12 +42,26 @@
 
             if (!scene.active) {
                 if (currentHash) { fadeAllOut(); currentHash = ''; }
+                if (!startAttempted) {
+                    startAttempted = true;
+                    fetch('/api/start', { method: 'POST' }).catch(function () {});
+                }
+                showHint('<strong>Starte Sensor-Steuerung...</strong>');
                 return;
             }
 
             var zone = scene.zone;
-            if (!zone) return;
+            if (!zone) {
+                showHint('<strong>Warte auf Sensor</strong><br><br>Bewege etwas vor den Sensor um eine Zone auszuwählen.');
+                return;
+            }
             var zd = scene[zone] || { videos: [], images: [], audio: [] };
+            var hasMedia = (zd.videos && zd.videos.length) || (zd.images && zd.images.length) || (zd.audio && zd.audio.length);
+            if (!hasMedia) {
+                showHint('<strong>Zone "' + zone + '" ist leer</strong><br><br>Konfiguriere Medien im Admin-Panel:<br><code>/admin</code>');
+                return;
+            }
+            hideHint();
             var hash = zone + JSON.stringify(zd);
 
             var master = (scene.master_volume || 100) / 100;

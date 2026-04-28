@@ -27,3 +27,23 @@ html, body {
 
 video.layer { z-index: 1; }
 img.layer { z-index: 2; }
+
+.hint {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    color: #6060a0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 1.2rem;
+    text-align: center;
+    padding: 30px 50px;
+    background: rgba(15, 15, 42, 0.7);
+    border: 1px solid #1a1a40;
+    border-radius: 12px;
+    max-width: 80%;
+    display: none;
+}
+.hint.show { display: block; }
+.hint strong { color: #00d4ff; }

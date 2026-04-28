@@ -161,6 +161,9 @@ def main():
 
     app = create_app(controller)
 
+    # Controller automatisch starten (Kiosk-Betrieb)
+    controller.start()
+
     print(f"\n  FACES Media Station")
     print(f"  http://0.0.0.0:{port}")
     print(f"  Sensor: {'Dummy' if controller.sensor.use_dummy else 'HC-SR04'}\n")
