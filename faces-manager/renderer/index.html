@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>FACES Manager</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="brand"><span class="logo">◉</span> FACES Manager</div>
+        <div class="actions">
+            <button id="btn-rescan">↻ Neu scannen</button>
+            <button id="btn-add">+ Station hinzufügen</button>
+        </div>
+    </header>
+
+    <main>
+        <aside class="sidebar">
+            <div class="bulk">
+                <h3>Bulk-Aktionen <small id="sel-count">(0)</small></h3>
+                <div class="btn-row">
+                    <button id="bulk-start">▶ Start</button>
+                    <button id="bulk-stop">■ Stop</button>
+                </div>
+                <div class="btn-row">
+                    <button id="bulk-reboot" class="danger">⟲ Reboot</button>
+                </div>
+                <h4>Medien hochladen</h4>
+                <div class="btn-row">
+                    <button data-upload="videos">📹 Videos</button>
+                    <button data-upload="images">🖼 Bilder</button>
+                    <button data-upload="audio">🎵 Audio</button>
+                </div>
+                <h4>Config-Push</h4>
+                <label>Stationsname<input id="bulk-name" placeholder="(leer = behalten)"></label>
+                <label>Schwelle (m)<input id="bulk-threshold" type="number" step="0.05" placeholder="z.B. 1.0"></label>
+                <label>Verzögerung (s)<input id="bulk-delay" type="number" step="0.5" placeholder="z.B. 1.5"></label>
+                <button id="bulk-push-config">Config pushen</button>
+                <div id="bulk-feedback"></div>
+            </div>
+        </aside>
+
+        <section class="grid" id="station-grid"></section>
+    </main>
+
+    <!-- Detail / Iframe overlay -->
+    <div id="detail" class="hidden">
+        <header>
+            <span id="detail-title"></span>
+            <button id="detail-close">×</button>
+        </header>
+        <webview id="detail-frame" src="about:blank"></webview>
+    </div>
+
+    <!-- Add dialog -->
+    <div id="add-dialog" class="hidden">
+        <div class="modal">
+            <h3>Station hinzufügen</h3>
+            <label>IP / Hostname<input id="add-host" placeholder="192.168.1.50"></label>
+            <label>Port<input id="add-port" type="number" value="5000"></label>
+            <div class="btn-row">
+                <button id="add-ok">Hinzufügen</button>
+                <button id="add-cancel">Abbrechen</button>
+            </div>
+            <div id="add-feedback"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
