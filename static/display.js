@@ -24,6 +24,10 @@
     var startAttempted = false;
     var resumeEnabled = false;
     var videoPositions = {}; // { filename: seconds }
+    var redirectTimer = null;
+    var redirected = false;
+    var expectedPlayable = false;
+    var lastPlayableAt = Date.now();
 
     // ESC -> zurück zur Admin-Seite
     document.addEventListener('keydown', function (e) {
@@ -55,12 +59,14 @@
                     startAttempted = true;
                     fetch('/api/start', { method: 'POST' }).catch(function () {});
                 }
+                clearRedirect();
                 showHint('<strong>Starte Sensor-Steuerung...</strong>');
                 return;
             }
 
             var zone = scene.zone;
             if (!zone) {
+                clearRedirect();
                 showHint('<strong>Warte auf Sensor</strong><br><br>Bewege etwas vor den Sensor um eine Zone auszuwählen.');
                 return;
             }
@@ -68,9 +74,11 @@
             var hasMedia = (zd.videos && zd.videos.length) || (zd.images && zd.images.length) || (zd.audio && zd.audio.length);
             if (!hasMedia) {
                 showHint('<strong>Zone "' + zone + '" ist leer</strong><br><br>Konfiguriere Medien im Admin-Panel:<br><code>/admin</code>');
+                scheduleAdminRedirect(5000);
                 return;
             }
             hideHint();
+            clearRedirect();
             var hash = zone + JSON.stringify(zd);
 
             var master = (scene.master_volume || 100) / 100;
@@ -84,8 +92,16 @@
 
             if (hash === currentHash) return;
             currentHash = hash;
+            expectedPlayable = true;
+            lastPlayableAt = Date.now();
             applyScene(zd, scene.image_interval_s || 5);
         } catch (e) { /* server unreachable */ }
+
+        // Watchdog: es gibt Medien-Zuweisung, aber es wurde nichts abspielbar geladen.
+        if (expectedPlayable && (Date.now() - lastPlayableAt) > 12000) {
+            showHint('<strong>Medien konnten nicht geladen werden</strong><br><br>Zur Admin-Seite...');
+            scheduleAdminRedirect(1200);
+        }
     }
 
     function applyScene(zd, imgInterval) {
@@ -139,6 +155,8 @@
 
         function onReady() {
             el.removeEventListener('canplay', onReady);
+            el.onerror = null;
+            touchPlayable();
             if (resumeEnabled && videoPositions[file]) {
                 try { el.currentTime = videoPositions[file]; } catch (e) { /* ignore */ }
             }
@@ -156,6 +174,18 @@
             standbyVideoEl = tmp;
         }
         el.addEventListener('canplay', onReady);
+        el.onerror = function () {
+            // Ungültige/fehlende Datei -> nächsten Kandidaten testen.
+            if (zoneVideos.length > 1) {
+                videoIndex = (videoIndex + 1) % zoneVideos.length;
+                if (zoneVideos[videoIndex] !== file) {
+                    crossfadeVideo(zoneVideos[videoIndex]);
+                    return;
+                }
+            }
+            showHint('<strong>Video nicht abspielbar</strong><br><br>Zur Admin-Seite...');
+            scheduleAdminRedirect(1200);
+        };
 
         el.onended = function () {
             // Komplett durchgespielt -> Position vergessen, damit beim nächsten Mal von vorn
@@ -189,7 +219,11 @@
         var idx = 0;
 
         activeImgEl.src = '/media/images/' + encodeURIComponent(images[0]);
-        activeImgEl.onload = function () { activeImgEl.classList.add('active'); };
+        activeImgEl.onload = function () { activeImgEl.classList.add('active'); touchPlayable(); };
+        activeImgEl.onerror = function () {
+            showHint('<strong>Bild nicht ladbar</strong><br><br>Zur Admin-Seite...');
+            scheduleAdminRedirect(1200);
+        };
         standbyImgEl.classList.remove('active');
 
         if (images.length > 1) {
@@ -198,11 +232,16 @@
                 var el = standbyImgEl;
                 el.src = '/media/images/' + encodeURIComponent(images[idx]);
                 el.onload = function () {
+                    touchPlayable();
                     el.classList.add('active');
                     activeImgEl.classList.remove('active');
                     var tmp = activeImgEl;
                     activeImgEl = standbyImgEl;
                     standbyImgEl = tmp;
+                };
+                el.onerror = function () {
+                    showHint('<strong>Bild nicht ladbar</strong><br><br>Zur Admin-Seite...');
+                    scheduleAdminRedirect(1200);
                 };
             }, interval * 1000);
         }
@@ -223,6 +262,18 @@
         currentAudioFile = file;
         audioEl.src = '/media/audio/' + encodeURIComponent(file);
         audioEl.loop = zoneAudioList.length <= 1;
+        audioEl.onloadeddata = touchPlayable;
+        audioEl.onerror = function () {
+            if (zoneAudioList.length > 1) {
+                audioIndex = (audioIndex + 1) % zoneAudioList.length;
+                if (zoneAudioList[audioIndex] !== file) {
+                    playAudio(zoneAudioList[audioIndex]);
+                    return;
+                }
+            }
+            showHint('<strong>Audio nicht abspielbar</strong><br><br>Zur Admin-Seite...');
+            scheduleAdminRedirect(1200);
+        };
         audioEl.play().catch(function () {});
         audioEl.onended = function () {
             if (zoneAudioList.length > 1) {
@@ -253,5 +304,27 @@
         hideVideos();
         hideImages();
         fadeOutAudio();
+        expectedPlayable = false;
+        clearRedirect();
+    }
+
+    function touchPlayable() {
+        lastPlayableAt = Date.now();
+    }
+
+    function scheduleAdminRedirect(ms) {
+        if (redirected) return;
+        if (redirectTimer) return;
+        redirectTimer = setTimeout(function () {
+            redirected = true;
+            window.location.href = '/admin';
+        }, ms || 1000);
+    }
+
+    function clearRedirect() {
+        if (redirectTimer) {
+            clearTimeout(redirectTimer);
+            redirectTimer = null;
+        }
     }
 })();
