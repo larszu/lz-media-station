@@ -1,32 +1,52 @@
 #!/bin/bash
-# FACES Media Station - Startskript für Raspberry Pi
+# FACES Media Station - Robustes Startskript für Raspberry Pi Kiosk
+
 cd "$(dirname "$0")"
+echo "[FACES] Starte Media Station..."
 
-echo "FACES Media Station wird gestartet..."
+# Diese Umgebung hat sich im SSH-Test als stabil erwiesen.
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export WAYLAND_DISPLAY="wayland-0"
 
-# Wayland-Umgebung sicherstellen (falls Skript ohne DE-Session-Vars läuft)
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-if [ -z "$WAYLAND_DISPLAY" ] && [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
-    export WAYLAND_DISPLAY=wayland-0
+# Beim Login kann Autostart vor dem Wayland-Socket laufen.
+for i in $(seq 1 30); do
+    [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] && break
+    sleep 1
+done
+if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+    echo "[FACES] Wayland-Socket nicht verfügbar, Chromium-Start übersprungen."
+    exit 0
 fi
 
-# Server starten (Hintergrund)
-python3 main.py >/tmp/faces_main.log 2>&1 &
-SERVER_PID=$!
-
-# Warten bis Server bereit ist
-sleep 3
-
-# Chromium im Kiosk-Modus öffnen
-CHROME_BIN=""
-if command -v chromium-browser &> /dev/null; then CHROME_BIN=chromium-browser
-elif command -v chromium &> /dev/null; then CHROME_BIN=chromium
+# Flask-Server nur starten, wenn er noch nicht läuft
+if ! curl -fsS http://127.0.0.1:5000/api/status >/dev/null 2>&1; then
+    setsid nohup python3 main.py >/tmp/faces_main.log 2>&1 < /dev/null &
 fi
+
+# Warten bis API erreichbar ist (max. 30s)
+for i in $(seq 1 30); do
+    if curl -fsS http://127.0.0.1:5000/api/status >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+# Vorherigen Kiosk-Browser schließen
+pkill -f 'chromium.*--kiosk' >/dev/null 2>&1 || true
+sleep 1
+
+# Chromium wie im funktionierenden manuellen Start starten
+if command -v chromium-browser >/dev/null 2>&1; then
+    CHROME_BIN="chromium-browser"
+elif command -v chromium >/dev/null 2>&1; then
+    CHROME_BIN="chromium"
+else
+    CHROME_BIN=""
+fi
+
 if [ -n "$CHROME_BIN" ]; then
-    OZONE_ARG=""
-    if [ -n "$WAYLAND_DISPLAY" ]; then OZONE_ARG="--ozone-platform=wayland"; fi
-    "$CHROME_BIN" \
-        $OZONE_ARG \
+    setsid "$CHROME_BIN" \
+        --ozone-platform=wayland \
         --kiosk \
         --noerrdialogs \
         --disable-infobars \
@@ -40,15 +60,13 @@ if [ -n "$CHROME_BIN" ]; then
         --no-default-browser-check \
         --disable-component-update \
         --disable-background-networking \
-        --check-for-update-interval=31536000 \
         --autoplay-policy=no-user-gesture-required \
         --incognito \
-        http://localhost:5000/ &
-    echo "Chromium gestartet ($CHROME_BIN)"
+        http://localhost:5000/admin \
+        </dev/null >/tmp/chromium.log 2>&1 &
+    echo "[FACES] Chromium gestartet ($CHROME_BIN)"
 else
-    echo "Chromium nicht gefunden."
-    echo "Web-UI erreichbar unter: http://$(hostname -I | awk '{print $1}'):5000"
+    echo "[FACES] Chromium nicht gefunden."
 fi
 
-# Auf Beendigung des Servers warten
-wait $SERVER_PID
+exit 0

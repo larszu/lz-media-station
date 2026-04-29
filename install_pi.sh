@@ -56,13 +56,14 @@ Version=1.0
 Type=Application
 Name=FACES Media Station
 Comment=Startet die FACES Media Station
-Exec=$APP_DIR/start.sh
+Exec=/bin/bash -lc '$APP_DIR/start.sh'
 Icon=/usr/share/pixmaps/python.xpm
 Terminal=false
 Categories=AudioVideo;
 StartupNotify=true
 Path=$APP_DIR/
 X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=5
 EOF
 
 # 5) Chromium-Policy: kein Übersetzungs-Hinweis
