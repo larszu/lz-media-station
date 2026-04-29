@@ -102,7 +102,9 @@ POL
 log "Deaktiviere störende Autostart-Dialoge ..."
 for f in /etc/xdg/autostart/gnome-keyring-pkcs11.desktop \
          /etc/xdg/autostart/gnome-keyring-secrets.desktop \
-         /etc/xdg/autostart/gnome-keyring-ssh.desktop; do
+         /etc/xdg/autostart/gnome-keyring-ssh.desktop \
+         /etc/xdg/autostart/pprompt.desktop \
+         /etc/xdg/autostart/piwiz.desktop; do
     [ -f "$f" ] || continue
     n=$(basename "$f")
     cat > "$HOME/.config/autostart/$n" <<EOF

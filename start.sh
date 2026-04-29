@@ -20,6 +20,19 @@ if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
     exit 0
 fi
 
+# Labwc/pcmanfm Desktop-Session braucht nach dem Wayland-Socket noch ein paar
+# Sekunden, bis sie bereit ist und keine Pi-Standarddialoge mehr aufpoppen.
+sleep 5
+
+# Pi-Standard-Dialoge entsorgen, damit sie nicht über dem Kiosk landen:
+# - pprompt.sh: SSH/Default-Passwort-Warnung
+# - piwiz: Welcome-Wizard
+# - zenity/yad: generische Modaldialoge der Session
+pkill -f 'pprompt'   2>/dev/null || true
+pkill -f 'piwiz'     2>/dev/null || true
+pkill -f 'zenity'    2>/dev/null || true
+pkill -f 'yad'       2>/dev/null || true
+
 # Flask-Server nur starten, wenn er noch nicht läuft
 if ! curl -fsS http://127.0.0.1:5000/api/status >/dev/null 2>&1; then
     setsid nohup python3 main.py >/tmp/faces_main.log 2>&1 < /dev/null &
