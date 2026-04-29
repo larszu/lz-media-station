@@ -66,6 +66,31 @@ X-GNOME-Autostart-enabled=true
 X-GNOME-Autostart-Delay=5
 EOF
 
+# 4b) Desktop-Startskript (manueller Neustart vom Pi-Desktop)
+log "Schreibe Desktop-Startskript ..."
+mkdir -p "$HOME/Desktop"
+cat > "$HOME/Desktop/FACES_Starten.sh" <<EOF
+#!/bin/bash
+cd "$APP_DIR"
+/bin/bash -lc "$APP_DIR/start.sh"
+EOF
+chmod +x "$HOME/Desktop/FACES_Starten.sh"
+
+cat > "$HOME/Desktop/FACES_Media_Station.desktop" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=FACES Media Station starten
+Comment=Startet/öffnet FACES im Kiosk erneut
+Exec=/bin/bash -lc '$HOME/Desktop/FACES_Starten.sh'
+Icon=/usr/share/pixmaps/python.xpm
+Terminal=false
+Categories=AudioVideo;
+Path=$APP_DIR/
+StartupNotify=true
+EOF
+chmod +x "$HOME/Desktop/FACES_Media_Station.desktop"
+
 # 5) Chromium-Policy: kein Übersetzungs-Hinweis
 log "Chromium-Policy: Translate aus ..."
 sudo mkdir -p /etc/chromium/policies/managed
