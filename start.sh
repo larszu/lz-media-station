@@ -37,19 +37,32 @@ done
 pkill -f 'chromium.*--kiosk' >/dev/null 2>&1 || true
 sleep 1
 
-# Chromium wie im funktionierenden manuellen Start starten
-if command -v chromium-browser >/dev/null 2>&1; then
-    CHROME_BIN="chromium-browser"
+# Chromium direkt aus /usr/lib/chromium starten, um den chromium-browser
+# Wrapper und dessen /etc/chromium.d/* Flags zu umgehen, die auf Pi/Wayland
+# zu grauem Renderer-Bild führen (--enable-gpu-rasterization, --use-angle=gles,
+# --force-renderer-accessibility, --enable-remote-extensions). Wir setzen
+# nur die Flags, die wir wirklich wollen.
+if [ -x /usr/lib/chromium/chromium ]; then
+    CHROME_BIN="/usr/lib/chromium/chromium"
 elif command -v chromium >/dev/null 2>&1; then
-    CHROME_BIN="chromium"
+    CHROME_BIN="$(command -v chromium)"
+elif command -v chromium-browser >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v chromium-browser)"
 else
     CHROME_BIN=""
 fi
 
 if [ -n "$CHROME_BIN" ]; then
+    # Sauberer Start: Wrapper-Variablen entfernen, eigenes Profil nutzen.
+    unset CHROMIUM_FLAGS
+    PROFILE_DIR="${HOME}/.faces-chromium-profile"
+    mkdir -p "$PROFILE_DIR"
+
     setsid "$CHROME_BIN" \
         --ozone-platform=wayland \
+        --enable-features=UseOzonePlatform \
         --kiosk \
+        --start-fullscreen \
         --noerrdialogs \
         --disable-infobars \
         --disable-session-crashed-bubble \
@@ -63,7 +76,8 @@ if [ -n "$CHROME_BIN" ]; then
         --disable-component-update \
         --disable-background-networking \
         --autoplay-policy=no-user-gesture-required \
-        --incognito \
+        --user-data-dir="$PROFILE_DIR" \
+        --disable-gpu-driver-bug-workarounds \
         http://localhost:5000/ \
         </dev/null >/tmp/chromium.log 2>&1 &
     echo "[FACES] Chromium gestartet ($CHROME_BIN)"
