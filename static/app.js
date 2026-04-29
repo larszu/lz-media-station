@@ -8,6 +8,13 @@ document.addEventListener('DOMContentLoaded', function () {
     loadWifi();
 });
 
+// ESC -> zurück zum Home-Menü (von Admin aus)
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' || e.keyCode === 27) {
+        window.location.href = '/';
+    }
+});
+
 /* ---- Status Polling ---- */
 
 var allMedia = { videos: [], images: [], audio: [] };

@@ -64,7 +64,7 @@ if [ -n "$CHROME_BIN" ]; then
         --disable-background-networking \
         --autoplay-policy=no-user-gesture-required \
         --incognito \
-        http://localhost:5000/admin \
+        http://localhost:5000/ \
         </dev/null >/tmp/chromium.log 2>&1 &
     echo "[FACES] Chromium gestartet ($CHROME_BIN)"
 else
