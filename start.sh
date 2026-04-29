@@ -15,6 +15,8 @@ for i in $(seq 1 30); do
 done
 if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
     echo "[FACES] Wayland-Socket nicht verfügbar, Chromium-Start übersprungen."
+    # Boot-Race: Session ist oft noch nicht komplett oben. Einmal verzögert neu versuchen.
+    nohup /bin/bash -lc 'sleep 25; /home/pi/pi_media_station/start.sh' >/tmp/faces_retry.log 2>&1 &
     exit 0
 fi
 
