@@ -1,4 +1,4 @@
-# FACES Media Station
+# Pi Media Station
 
 > Sensor-gesteuerte Medien-Station mit Web-Admin, Display-Modus und Multi-Station Manager.
 > Läuft auf **Raspberry Pi** (HC-SR04 Ultraschallsensor) und für Tests auf **Windows** (Dummy-Sensor).
