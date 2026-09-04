@@ -1,0 +1,35 @@
+name: verify
+
+# Dieses Repo hatte bis 2026-09-04 ueberhaupt keine CI. Eine Aenderung, die
+# nicht einmal kompiliert, waere unbemerkt auf einem Geraet gelandet, das
+# unbeaufsichtigt in einer Ausstellung steht.
+#
+# Geprueft wird, was ohne Hardware pruefbar ist: Syntax aller Module, die
+# Shell-Skripte, und die beiden reinen Logikstuecke -- die Schema-Heilung der
+# Konfiguration (`load_config`) und das Filterfenster des Sensors.
+#
+# `flask` wird installiert, weil `main.py` und `web_ui.py` es zum Import
+# brauchen; es steht ohnehin in requirements.txt und laeuft so auch auf dem Pi.
+# `gpiozero` wird NICHT installiert: `sensor.py` faellt dann auf den
+# Dummy-Modus zurueck, und genau das soll der Test auch pruefen.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Abhaengigkeiten
+        run: pip install -r requirements.txt
+      - name: Compile Python services
+        run: python -m compileall -q main.py web_ui.py sensor.py
+      - name: Check shell scripts
+        run: for f in *.sh; do bash -n "$f"; done
+      - name: Tests (Config-Heilung, Sensor-Filter)
+        run: python -m unittest discover -s tests -v
