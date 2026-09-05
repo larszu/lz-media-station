@@ -1,5 +1,5 @@
-// FACES Manager – Electron main process
-// Handles: window, mDNS discovery (_faces._tcp), HTTP calls to stations, multi-upload.
+// LZ Station Manager – Electron main process
+// Handles: window, mDNS discovery (_lzstation._tcp), HTTP calls to stations, multi-upload.
 
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
@@ -102,7 +102,7 @@ async function pollAll() {
 function startDiscovery() {
     try {
         bonjour = new Bonjour();
-        browser = bonjour.find({ type: 'faces' }, (svc) => {
+        browser = bonjour.find({ type: 'lzstation' }, (svc) => {
             const host = (svc.referer && svc.referer.address) || (svc.addresses && svc.addresses[0]) || svc.host;
             const port = svc.port || 5000;
             // Probe to get identity
@@ -122,7 +122,7 @@ function startDiscovery() {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1280, height: 800,
-        title: 'FACES Manager',
+        title: 'LZ Station Manager',
         backgroundColor: '#1a1a2e',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -218,7 +218,7 @@ ipcMain.handle('config:pushToStations', async (_e, ids, partialConfig) => {
 // Multipart uploader (raw, no extra deps)
 function uploadFile(host, port, type, filePath) {
     return new Promise((resolve, reject) => {
-        const boundary = '----faces' + Date.now();
+        const boundary = '----lzstation' + Date.now();
         const filename = path.basename(filePath);
         const head = Buffer.from(
             `--${boundary}\r\n` +

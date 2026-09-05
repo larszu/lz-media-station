@@ -5,6 +5,8 @@
 
 [![Release](https://img.shields.io/badge/release-v2.1.0-blue)](https://github.com/larszu/pi-media-station/releases)
 
+![Web-Admin der LZ Media Station](docs/screenshot-admin.png)
+
 ---
 
 ## Inhalt
@@ -57,9 +59,9 @@
 - ESC öffnet `/admin`
 - Auto-Verstecken des Cursors
 
-### Manager Desktop-App (`faces-manager/`)
+### Manager Desktop-App (`station-manager/`)
 - Verwaltet **mehrere Pi-Stationen** zentral
-- **Auto-Discovery** via mDNS (`_faces._tcp` über Avahi)
+- **Auto-Discovery** via mDNS (`_lzstation._tcp` über Avahi)
 - **Manuelles Hinzufügen** per IP/Hostname
 - Live-Polling: Online-Status, Distanz, Zone
 - **Bulk-Aktionen**: Start / Stop / Reboot
@@ -83,11 +85,11 @@ Der Installer erledigt automatisch:
 1. Systempakete (`python3-flask`, `python3-gpiozero`, `chromium-browser`, `avahi-daemon`, `git`)
 2. Klont das Repo nach `~/pi_media_station`
 3. Erstellt Medien-Ordner (`videos/`, `images/`, `audio/`)
-4. Schreibt `~/.config/autostart/FACES_Media_Station.desktop`
+4. Schreibt `~/.config/autostart/LZ_Media_Station.desktop`
 5. Chromium-Policy: deaktiviert Translate-Banner
 6. Unterdrückt störende Login-Dialoge (`gnome-keyring*`)
 7. **Sudoers-Regel** für `nmcli` und `reboot` (passwortlos für `pi`)
-8. **Avahi-Service** `_faces._tcp` für mDNS-Discovery durch den Manager
+8. **Avahi-Service** `_lzstation._tcp` für mDNS-Discovery durch den Manager
 
 Nach Installation:
 
@@ -131,7 +133,7 @@ sudo reboot
 
 ```powershell
 # Windows PowerShell
-cd "c:\Users\<user>\Documents\FACES Raspberry\pi_media_station"
+cd "c:\Users\<user>\Documents\LZ Media Station\pi_media_station"
 scp web_ui.py templates/admin.html static/app.js pi@<pi-ip>:/tmp/
 ssh pi@<pi-ip> "cp /tmp/web_ui.py ~/pi_media_station/web_ui.py && \
                 cp /tmp/admin.html ~/pi_media_station/templates/ && \
@@ -194,12 +196,12 @@ In `/admin` → **Systemeinstellungen** → **WLAN**:
 
 ## Multi-Station Manager (Desktop-App)
 
-Im Ordner `faces-manager/` liegt eine Electron-App für Win/Mac/Linux.
+Im Ordner `station-manager/` liegt eine Electron-App für Win/Mac/Linux.
 
 ### Entwicklung
 
 ```bash
-cd faces-manager
+cd station-manager
 npm install
 npm start
 ```
@@ -212,7 +214,7 @@ npm run dist:mac    # macOS: DMG für Intel + Apple Silicon
 npm run dist        # plus Linux AppImage
 ```
 
-Artefakte in `faces-manager/dist/`.
+Artefakte in `station-manager/dist/`.
 
 ### Workflow
 
@@ -222,7 +224,7 @@ Artefakte in `faces-manager/dist/`.
 4. **Bulk**: Start / Stop / Reboot, Media-Upload, Config-Push
 5. **Admin öffnen**: pro Karte öffnet `/admin` im System-Browser
 
-Persistente Daten der App: `%APPDATA%\faces-manager\stations.json` (Win) bzw. `~/Library/Application Support/faces-manager/` (Mac).
+Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. `~/Library/Application Support/station-manager/` (Mac).
 
 ---
 
@@ -230,7 +232,7 @@ Persistente Daten der App: `%APPDATA%\faces-manager\stations.json` (Win) bzw. `~
 
 ```
                 ┌─────────────────────────────┐
-                │   FACES Manager (Electron)  │
+                │   LZ Station Manager (Electron)  │
                 │   Win / macOS / Linux       │
                 └──────────────┬──────────────┘
                                │ HTTP/JSON (LAN oder Tailscale)
@@ -250,7 +252,7 @@ Persistente Daten der App: `%APPDATA%\faces-manager\stations.json` (Win) bzw. `~
 - `sensor.py` – `gpiozero.DistanceSensor` mit Dummy-Fallback
 - `media_player.py` – Player
 - `static/`, `templates/` – Frontend
-- `faces.service` – Avahi mDNS
+- `lzstation.service` – Avahi mDNS
 
 **Manager-Stack:**
 - `main.js` – Electron-Hauptprozess, mDNS (`bonjour-service`), HTTP-Multipart-Upload
@@ -295,7 +297,7 @@ ps -ef | grep main.py          # läuft Prozess?
 ### Manager findet Pi nicht
 
 - Avahi prüfen: `systemctl status avahi-daemon`
-- Service registriert? `ls /etc/avahi/services/faces.service`
+- Service registriert? `ls /etc/avahi/services/lzstation.service`
 - Fallback: manuell mit IP adden
 - Firewall: Port 5000 freigegeben?
 
@@ -303,7 +305,7 @@ ps -ef | grep main.py          # läuft Prozess?
 
 Sudoers-Regel fehlt:
 ```bash
-cat /etc/sudoers.d/faces-media-station
+cat /etc/sudoers.d/lz-media-station
 # Sollte enthalten:
 # pi ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /sbin/reboot, /usr/sbin/reboot
 ```

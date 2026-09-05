@@ -1,9 +1,9 @@
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
-  <name replace-wildcards="yes">FACES Station %h</name>
+  <name replace-wildcards="yes">LZ Station %h</name>
   <service>
-    <type>_faces._tcp</type>
+    <type>_lzstation._tcp</type>
     <port>5000</port>
     <txt-record>version=2.1.0</txt-record>
     <txt-record>path=/admin</txt-record>

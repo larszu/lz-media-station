@@ -1,10 +1,10 @@
-# FACES Manager – Desktop App
+# LZ Station Manager – Desktop App
 
-Verwaltet mehrere FACES Media Stations (Raspberry Pi) im LAN über eine Electron-Oberfläche.
+Verwaltet mehrere LZ Media Stations (Raspberry Pi) im LAN über eine Electron-Oberfläche.
 
 ## Features
 
-- **Auto-Discovery** via mDNS (Avahi auf den Pis: `_faces._tcp`)
+- **Auto-Discovery** via mDNS (Avahi auf den Pis: `_lzstation._tcp`)
 - **Manuelles Hinzufügen** per IP/Hostname
 - Live-Status pro Station (Distanz, Zone, Online)
 - **Bulk-Aktionen**: Start / Stop / Reboot mehrerer Stationen
@@ -16,12 +16,12 @@ Verwaltet mehrere FACES Media Stations (Raspberry Pi) im LAN über eine Electron
 
 - `pi-media-station` ≥ v2.1.0 (`/api/identity` Endpoint)
 - `avahi-daemon` läuft (wird vom `install_pi.sh` mitinstalliert)
-- Datei `/etc/avahi/services/faces.service` vorhanden
+- Datei `/etc/avahi/services/lzstation.service` vorhanden
 
 ## Entwicklung
 
 ```bash
-cd faces-manager
+cd station-manager
 npm install
 npm start
 ```

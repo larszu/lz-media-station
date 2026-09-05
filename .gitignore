@@ -73,3 +73,6 @@ audio/*.aac
 
 # Embedded repo artifact
 pi-media-station/
+
+# lokale venv
+.venv/

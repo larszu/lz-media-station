@@ -1,4 +1,4 @@
-"""Flask Web-UI + Media-Server für FACES Media Station"""
+"""Flask Web-UI + Media-Server für LZ Media Station"""
 import os
 import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
@@ -106,7 +106,7 @@ def create_app(controller):
             sid = "unknown"
         return jsonify({
             "id": sid,
-            "name": controller.config.get("system_name", "FACES Station"),
+            "name": controller.config.get("system_name", "LZ Station"),
             "version": "2.1.0",
             "hostname": platform.node(),
             "active": controller.active,

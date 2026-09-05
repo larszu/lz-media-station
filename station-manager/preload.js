@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('faces', {
+contextBridge.exposeInMainWorld('station', {
     listStations: () => ipcRenderer.invoke('stations:list'),
     addStation: (host, port) => ipcRenderer.invoke('stations:addManual', host, port),
     removeStation: (id) => ipcRenderer.invoke('stations:remove', id),

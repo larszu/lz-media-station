@@ -1,5 +1,5 @@
 #!/bin/bash
-# FACES Media Station - One-Shot Installer für Raspberry Pi
+# LZ Media Station - One-Shot Installer für Raspberry Pi
 # Verwendung:  curl -sSL https://raw.githubusercontent.com/larszu/pi-media-station/main/install_pi.sh | bash
 # oder lokal:  bash install_pi.sh
 
@@ -17,7 +17,7 @@ err()  { echo -e "${RED}[X]${NC} $1"; }
 
 cat <<'BANNER'
 ========================================================
-   FACES Media Station - Installer
+   LZ Media Station - Installer
    github.com/larszu/pi-media-station
 ========================================================
 BANNER
@@ -50,12 +50,12 @@ mkdir -p "$APP_DIR/videos" "$APP_DIR/images" "$APP_DIR/audio"
 # 4) Autostart-Eintrag
 log "Schreibe Autostart-Datei ..."
 mkdir -p "$HOME/.config/autostart"
-cat > "$HOME/.config/autostart/FACES_Media_Station.desktop" <<EOF
+cat > "$HOME/.config/autostart/LZ_Media_Station.desktop" <<EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=FACES Media Station
-Comment=Startet die FACES Media Station
+Name=LZ Media Station
+Comment=Startet die LZ Media Station
 Exec=/bin/bash -lc '$APP_DIR/start.sh'
 Icon=/usr/share/pixmaps/python.xpm
 Terminal=false
@@ -69,27 +69,27 @@ EOF
 # 4b) Desktop-Startskript (manueller Neustart vom Pi-Desktop)
 log "Schreibe Desktop-Startskript ..."
 mkdir -p "$HOME/Desktop"
-cat > "$HOME/Desktop/FACES_Starten.sh" <<EOF
+cat > "$HOME/Desktop/LZ_Starten.sh" <<EOF
 #!/bin/bash
 cd "$APP_DIR"
 /bin/bash -lc "$APP_DIR/start.sh"
 EOF
-chmod +x "$HOME/Desktop/FACES_Starten.sh"
+chmod +x "$HOME/Desktop/LZ_Starten.sh"
 
-cat > "$HOME/Desktop/FACES_Media_Station.desktop" <<EOF
+cat > "$HOME/Desktop/LZ_Media_Station.desktop" <<EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=FACES Media Station starten
-Comment=Startet/öffnet FACES im Kiosk erneut
-Exec=/bin/bash -lc '$HOME/Desktop/FACES_Starten.sh'
+Name=LZ Media Station starten
+Comment=Startet/öffnet LZ Media Station im Kiosk erneut
+Exec=/bin/bash -lc '$HOME/Desktop/LZ_Starten.sh'
 Icon=/usr/share/pixmaps/python.xpm
 Terminal=false
 Categories=AudioVideo;
 Path=$APP_DIR/
 StartupNotify=true
 EOF
-chmod +x "$HOME/Desktop/FACES_Media_Station.desktop"
+chmod +x "$HOME/Desktop/LZ_Media_Station.desktop"
 
 # 5) Chromium-Policy: kein Übersetzungs-Hinweis
 log "Chromium-Policy: Translate aus ..."
@@ -125,15 +125,15 @@ fi
 # 8) Sudoers: nmcli + reboot ohne Passwort (für Netzwerk-Konfiguration aus Web-UI)
 log "Konfiguriere passwortloses sudo für nmcli/reboot ..."
 SUDO_USER_NAME="$(id -un)"
-sudo tee /etc/sudoers.d/faces-media-station >/dev/null <<EOF
+sudo tee /etc/sudoers.d/lz-media-station >/dev/null <<EOF
 $SUDO_USER_NAME ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /sbin/reboot, /usr/sbin/reboot
 EOF
-sudo chmod 0440 /etc/sudoers.d/faces-media-station
+sudo chmod 0440 /etc/sudoers.d/lz-media-station
 
-# 9) mDNS / Avahi: Station als _faces._tcp ankündigen
-log "Registriere Avahi-Service _faces._tcp ..."
-if [ -f "$APP_DIR/faces.service" ]; then
-    sudo cp "$APP_DIR/faces.service" /etc/avahi/services/faces.service
+# 9) mDNS / Avahi: Station als _lzstation._tcp ankündigen
+log "Registriere Avahi-Service _lzstation._tcp ..."
+if [ -f "$APP_DIR/lzstation.service" ]; then
+    sudo cp "$APP_DIR/lzstation.service" /etc/avahi/services/lzstation.service
     sudo systemctl enable avahi-daemon >/dev/null 2>&1 || true
     sudo systemctl restart avahi-daemon || true
 fi

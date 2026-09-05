@@ -1,5 +1,5 @@
 [Unit]
-Description=FACES Media Station
+Description=LZ Media Station
 After=network.target
 
 [Service]

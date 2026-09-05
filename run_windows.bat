@@ -1,12 +1,12 @@
 @echo off
-REM FACES Media Station - Windows Launcher
+REM LZ Media Station - Windows Launcher
 REM Doppelklick: startet Server + öffnet Browser
 SETLOCAL ENABLEDELAYEDEXPANSION
 
 cd /d "%~dp0"
 
 echo ========================================================
-echo   FACES Media Station - Windows
+echo   LZ Media Station - Windows
 echo ========================================================
 echo.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FACES Media Station - Headless Pi mit Chromium-basierter Anzeige"""
+"""LZ Media Station - Headless Pi mit Chromium-basierter Anzeige"""
 import os
 import sys
 import json
@@ -15,7 +15,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
 DEFAULT_CONFIG = {
-    "system_name": "FACES Station 1",
+    "system_name": "LZ Station 1",
     "threshold_m": 1.0,
     "delay_s": 1.5,
     "gpio_trigger": 23,
@@ -145,7 +145,7 @@ def load_config():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FACES Media Station")
+    parser = argparse.ArgumentParser(description="LZ Media Station")
     parser.add_argument("--dummy", action="store_true", help="Dummy-Sensor (kein GPIO)")
     parser.add_argument("--port", type=int, help="Web-UI Port (Standard: 5000)")
     args = parser.parse_args()
@@ -167,7 +167,7 @@ def main():
     # Controller automatisch starten (Kiosk-Betrieb)
     controller.start()
 
-    print(f"\n  FACES Media Station")
+    print(f"\n  LZ Media Station")
     print(f"  http://0.0.0.0:{port}")
     print(f"  Sensor: {'Dummy' if controller.sensor.use_dummy else 'HC-SR04'}\n")
 

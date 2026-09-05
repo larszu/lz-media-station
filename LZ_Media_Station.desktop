@@ -1,8 +1,8 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=FACES Media Station
-Comment=Startet die FACES Media Station (V2)
+Name=LZ Media Station
+Comment=Startet die LZ Media Station (V2)
 Exec=/bin/bash -lc '/home/pi/pi_media_station/start.sh'
 Icon=/usr/share/pixmaps/python.xpm
 Terminal=false

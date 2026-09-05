@@ -1,8 +1,8 @@
 #!/bin/bash
-# FACES Media Station - Robustes Startskript für Raspberry Pi Kiosk
+# LZ Media Station - Robustes Startskript für Raspberry Pi Kiosk
 
 cd "$(dirname "$0")"
-echo "[FACES] Starte Media Station..."
+echo "[LZ] Starte Media Station..."
 
 # Diese Umgebung hat sich im SSH-Test als stabil erwiesen.
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
@@ -14,9 +14,9 @@ for i in $(seq 1 30); do
     sleep 1
 done
 if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
-    echo "[FACES] Wayland-Socket nicht verfügbar, Chromium-Start übersprungen."
+    echo "[LZ] Wayland-Socket nicht verfügbar, Chromium-Start übersprungen."
     # Boot-Race: Session ist oft noch nicht komplett oben. Einmal verzögert neu versuchen.
-    nohup /bin/bash -lc 'sleep 25; /home/pi/pi_media_station/start.sh' >/tmp/faces_retry.log 2>&1 &
+    nohup /bin/bash -lc 'sleep 25; /home/pi/pi_media_station/start.sh' >/tmp/lz_retry.log 2>&1 &
     exit 0
 fi
 
@@ -35,7 +35,7 @@ pkill -f 'yad'       2>/dev/null || true
 
 # Flask-Server nur starten, wenn er noch nicht läuft
 if ! curl -fsS http://127.0.0.1:5000/api/status >/dev/null 2>&1; then
-    setsid nohup python3 main.py >/tmp/faces_main.log 2>&1 < /dev/null &
+    setsid nohup python3 main.py >/tmp/lz_main.log 2>&1 < /dev/null &
 fi
 
 # Warten bis API erreichbar ist (max. 30s)
@@ -68,7 +68,7 @@ fi
 if [ -n "$CHROME_BIN" ]; then
     # Sauberer Start: Wrapper-Variablen entfernen, eigenes Profil nutzen.
     unset CHROMIUM_FLAGS
-    PROFILE_DIR="${HOME}/.faces-chromium-profile"
+    PROFILE_DIR="${HOME}/.lz-chromium-profile"
     mkdir -p "$PROFILE_DIR"
 
     setsid "$CHROME_BIN" \
@@ -93,9 +93,9 @@ if [ -n "$CHROME_BIN" ]; then
         --disable-gpu-driver-bug-workarounds \
         http://localhost:5000/ \
         </dev/null >/tmp/chromium.log 2>&1 &
-    echo "[FACES] Chromium gestartet ($CHROME_BIN)"
+    echo "[LZ] Chromium gestartet ($CHROME_BIN)"
 else
-    echo "[FACES] Chromium nicht gefunden."
+    echo "[LZ] Chromium nicht gefunden."
 fi
 
 exit 0

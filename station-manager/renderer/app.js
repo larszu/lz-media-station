@@ -1,4 +1,4 @@
-// Renderer for FACES Manager
+// Renderer for LZ Station Manager
 const grid = document.getElementById('station-grid');
 const selCount = document.getElementById('sel-count');
 const feedback = document.getElementById('bulk-feedback');
@@ -62,16 +62,16 @@ function esc(s) {
 }
 
 async function handleAction(s, action) {
-    if (action === 'start') await window.faces.api(s.id, 'start', 'POST');
-    else if (action === 'stop') await window.faces.api(s.id, 'stop', 'POST');
-    else if (action === 'open') await window.faces.openAdmin(s.id);
+    if (action === 'start') await window.station.api(s.id, 'start', 'POST');
+    else if (action === 'stop') await window.station.api(s.id, 'stop', 'POST');
+    else if (action === 'open') await window.station.openAdmin(s.id);
     else if (action === 'reboot') {
         if (confirm(`Station "${s.name}" neu starten?`))
-            await window.faces.api(s.id, 'system/reboot', 'POST');
+            await window.station.api(s.id, 'system/reboot', 'POST');
     }
     else if (action === 'remove') {
         if (confirm(`Station "${s.name}" aus der Liste entfernen?`))
-            await window.faces.removeStation(s.id);
+            await window.station.removeStation(s.id);
     }
 }
 
@@ -83,7 +83,7 @@ function setFeedback(msg, cls) {
 // Bulk handlers
 el('btn-rescan').onclick = async () => {
     setFeedback('Scanne...');
-    await window.faces.rescan();
+    await window.station.rescan();
     setFeedback('');
 };
 el('btn-add').onclick = () => el('add-dialog').classList.remove('hidden');
@@ -94,7 +94,7 @@ el('add-ok').onclick = async () => {
     if (!host) return;
     el('add-feedback').textContent = 'Prüfe...';
     el('add-feedback').className = '';
-    const ok = await window.faces.addStation(host, port);
+    const ok = await window.station.addStation(host, port);
     if (ok) {
         el('add-feedback').textContent = '✓ Hinzugefügt';
         el('add-feedback').className = 'success';
@@ -111,18 +111,18 @@ el('add-ok').onclick = async () => {
 
 el('bulk-start').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
-    for (const id of selected) await window.faces.api(id, 'start', 'POST');
+    for (const id of selected) await window.station.api(id, 'start', 'POST');
     setFeedback(`✓ ${selected.size} gestartet`, 'success');
 };
 el('bulk-stop').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
-    for (const id of selected) await window.faces.api(id, 'stop', 'POST');
+    for (const id of selected) await window.station.api(id, 'stop', 'POST');
     setFeedback(`✓ ${selected.size} gestoppt`, 'success');
 };
 el('bulk-reboot').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
     if (!confirm(`${selected.size} Stationen neu starten?`)) return;
-    for (const id of selected) await window.faces.api(id, 'system/reboot', 'POST');
+    for (const id of selected) await window.station.api(id, 'system/reboot', 'POST');
     setFeedback(`✓ Reboot an ${selected.size}`, 'success');
 };
 
@@ -130,10 +130,10 @@ document.querySelectorAll('[data-upload]').forEach(btn => {
     btn.onclick = async () => {
         if (!selected.size) return setFeedback('Keine Auswahl', 'error');
         const type = btn.dataset.upload;
-        const files = await window.faces.pickFiles(type);
+        const files = await window.station.pickFiles(type);
         if (!files.length) return;
         setFeedback(`Lade ${files.length} ${type} an ${selected.size} hoch...`);
-        const r = await window.faces.uploadTo(Array.from(selected), type, files);
+        const r = await window.station.uploadTo(Array.from(selected), type, files);
         const fails = r.filter(x => !x.ok);
         setFeedback(fails.length
             ? `✗ ${fails.length} Fehler von ${r.length}`
@@ -152,13 +152,13 @@ el('bulk-push-config').onclick = async () => {
     if (thr) cfg.threshold_m = parseFloat(thr);
     if (dly) cfg.delay_s = parseFloat(dly);
     if (!Object.keys(cfg).length) return setFeedback('Keine Felder gesetzt', 'error');
-    const r = await window.faces.pushConfig(Array.from(selected), cfg);
+    const r = await window.station.pushConfig(Array.from(selected), cfg);
     const fails = r.filter(x => !x.ok);
     setFeedback(fails.length ? `✗ ${fails.length} Fehler` : `✓ Config an ${r.length} gepusht`,
         fails.length ? 'error' : 'success');
 };
 
-window.faces.onStations((list) => {
+window.station.onStations((list) => {
     stations = list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     // prune selections that vanished
     for (const id of selected) if (!stations.find(s => s.id === id)) selected.delete(id);
@@ -166,7 +166,7 @@ window.faces.onStations((list) => {
 });
 
 // Initial fetch
-window.faces.listStations().then(list => {
+window.station.listStations().then(list => {
     stations = list;
     render();
 });

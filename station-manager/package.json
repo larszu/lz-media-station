@@ -1,9 +1,9 @@
 {
-  "name": "faces-manager",
+  "name": "station-manager",
   "version": "1.0.0",
-  "description": "FACES Media Station Manager – discover and control multiple Pi stations on the LAN",
+  "description": "LZ Media Station Manager – discover and control multiple Pi stations on the LAN",
   "main": "main.js",
-  "author": "FACES",
+  "author": "Lars Zumpe Medienproduktion",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
@@ -19,8 +19,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "io.faces.manager",
-    "productName": "FACES Manager",
+    "appId": "de.zumpelars.station-manager",
+    "productName": "LZ Station Manager",
     "files": [
       "main.js",
       "preload.js",
