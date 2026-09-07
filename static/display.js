@@ -81,12 +81,24 @@
             clearRedirect();
             var hash = zone + JSON.stringify(zd);
 
-            var master = (scene.master_volume || 100) / 100;
-            var vidVol = ((scene.video_volume || 100) / 100) * master;
-            var audVol = ((scene.audio_volume || 80) / 100) * master;
-            videoA.volume = vidVol;
-            videoB.volume = vidVol;
-            audioEl.volume = audVol;
+            // Die Lautstaerken kommen FERTIG aus `/api/scene`:
+            // `Controller.get_scene()` setzt die Vorgaben aus `DEFAULT_CONFIG`
+            // bereits ein. Hier stand trotzdem `(scene.master_volume || 100)`
+            // -- dieselbe Vorgabe ein zweites Mal, und in einer Form, die die
+            // Null nicht kennt: `0 || 100` ist 100. Wer den Gesamt-Regler auf
+            // 0 % zog, bekam volle Lautstaerke; der Regler geht bis 0, und er
+            // ist der einzige Stumm-Schalter, den die Station hat. Fuer Video
+            // und Audio galt dasselbe.
+            var master = anteil(scene.master_volume);
+            var vid = anteil(scene.video_volume);
+            var aud = anteil(scene.audio_volume);
+            if (master !== null && vid !== null) {
+                videoA.volume = vid * master;
+                videoB.volume = vid * master;
+            }
+            if (master !== null && aud !== null) {
+                audioEl.volume = aud * master;
+            }
 
             resumeEnabled = !!scene.video_resume;
 
@@ -102,6 +114,17 @@
             showHint('<strong>Medien konnten nicht geladen werden</strong><br><br>Zur Admin-Seite...');
             scheduleAdminRedirect(1200);
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // Zahlen aus `/api/scene` uebernehmen, ohne eine zweite Vorgabe zu
+    // erfinden. `null` heisst hier „der Kern hat nichts Brauchbares gesagt" --
+    // dann wird der vorhandene Wert nicht angefasst, statt einen zu raten.
+    // ---------------------------------------------------------------------
+    function anteil(wert) {
+        var n = Number(wert);
+        if (!isFinite(n)) return null;
+        return Math.min(100, Math.max(0, n)) / 100;
     }
 
     function applyScene(zd, imgInterval) {
