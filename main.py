@@ -46,6 +46,9 @@ class Controller:
         self.state = "idle"
         self._pending_since = None
         self._thread = None
+        # Startwert True, damit der erste Ausfall gemeldet wird und nicht der
+        # erste Erfolg.
+        self._sensor_misst = True
 
     def get_scene(self):
         """Aktueller Zustand für die Display-Seite"""
@@ -82,6 +85,22 @@ class Controller:
         self._pending_since = None
         print("[Controller] Gestoppt")
 
+    def _melde_sensorlage(self, dist):
+        """Einmal melden, wenn die Messung ausfaellt — und einmal, wenn sie
+        wiederkommt.
+
+        Ohne diese Meldung ist ein toter Sensor am Verhalten nicht von einem
+        leeren Raum zu unterscheiden: die Station spielt einfach die
+        Fern-Szene weiter. Bei jedem Durchlauf zu melden waere das Gegenteil
+        — zehn Zeilen je Sekunde liest niemand.
+        """
+        misst = dist is not None
+        if misst == self._sensor_misst:
+            return
+        self._sensor_misst = misst
+        print("[Sensor] Messung wieder da" if misst
+              else "[Sensor] KEINE Messung — es wird nicht ausgeloest")
+
     def save_config(self):
         try:
             with open(CONFIG_FILE, "w") as f:
@@ -95,7 +114,16 @@ class Controller:
             dist = self.sensor.distance
             threshold = self.config.get("threshold_m", 1.0)
             delay = self.config.get("delay_s", 1.5)
-            is_near = dist <= threshold
+            # `None` heisst „kein gueltiger Messwert" — noch nie gemessen oder
+            # der Sensor antwortet nicht mehr. Das ist KEIN „jemand steht
+            # davor": ohne Messung wird nicht ausgeloest.
+            #
+            # Frueher startete `distance` bei 0.0, und `0.0 <= threshold` ist
+            # wahr. Die Station ging deshalb beim Start in die Nah-Szene, ohne
+            # dass jemand da war — und blieb dauerhaft dort, wenn der Sensor
+            # gar nicht erst antwortete.
+            is_near = dist is not None and dist <= threshold
+            self._melde_sensorlage(dist)
             now = time.time()
 
             if self.state == "far":
