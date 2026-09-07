@@ -14,6 +14,7 @@ Lauf: `python3 -m unittest discover -s tests -v`
 """
 
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -47,10 +48,20 @@ class Aufbau(unittest.TestCase):
         # Sonst haengt der Prozess beim Beenden am Sensor-Thread.
         self.assertTrue(sensor.SensorThread().daemon)
 
-    def test_startwert_ist_null_nicht_none(self):
-        # `distance` wird ohne Pruefung in Vergleiche gesteckt; None waere ein
-        # TypeError im ersten Zehntelsekunden-Fenster nach dem Start.
-        self.assertEqual(sensor.SensorThread().distance, 0.0)
+    def test_vor_der_ersten_messung_gibt_es_keinen_abstand(self):
+        # HIER STAND DAS GEGENTEIL, und die Begruendung war ehrlich gemeint:
+        # „`distance` wird ohne Pruefung in Vergleiche gesteckt; None waere
+        # ein TypeError im ersten Zehntelsekunden-Fenster nach dem Start."
+        #
+        # Der Satz stimmte — und beschrieb damit den Defekt, statt ihn zu
+        # verhindern. Der ungeprueft verglichene Wert war 0.0, und 0,0 m
+        # heisst „jemand steht direkt vor dem Sensor". Der Test hielt also
+        # fest, dass die Station beim Start einen Besucher meldet.
+        #
+        # Die Pruefung gehoert an die Auswertung (`main.py` behandelt `None`
+        # jetzt als „nicht nah"), nicht in einen Startwert, der zufaellig auch
+        # eine Bedeutung hat.
+        self.assertIsNone(sensor.SensorThread().distance)
 
 
 class Filterfenster(unittest.TestCase):
@@ -63,11 +74,12 @@ class Filterfenster(unittest.TestCase):
     """
 
     def push(self, s, raw):
-        s._values.append(raw)
-        if len(s._values) > s._filter_size:
-            s._values.pop(0)
-        with s._lock:
-            s._distance = sum(s._values) / len(s._values)
+        # Ruft die PRODUKTIONS-Methode auf, statt Fenster und Mittelwert
+        # nachzubauen. Der Nachbau stand hier vorher und war bereits
+        # auseinandergelaufen: als `run()` einen Zeitstempel setzte, kannte
+        # ihn nur die Schleife, und der Test pruefte einen Zustand, den es im
+        # Betrieb nicht gibt.
+        s._uebernimm(raw)
 
     def test_fenstergroesse_ist_fuenf(self):
         self.assertEqual(sensor.SensorThread()._filter_size, 5)
@@ -108,3 +120,89 @@ class Anhalten(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KeinMesswertIstEinEigenerZustand(unittest.TestCase):
+    """Der Befund aus dem Defektformen-Sweep (Backlog B-36), Form
+    `zustand-nach-fehler`.
+
+    `SensorThread._distance` startete bei **0.0**, und `distance` gab diese
+    Null als Messwert aus. Null Meter heisst aber nicht „noch nichts
+    gemessen", sondern „jemand steht direkt vor dem Sensor" — und die
+    Auswertung in `main.py` fragt genau `dist <= threshold`.
+
+    Damit war `is_near` ab dem allerersten Schleifendurchlauf wahr:
+
+    * Beim Start ging die Station nach `delay_s` in die Nah-Szene, ohne dass
+      jemand da war.
+    * Antwortete der Sensor gar nicht (GPIO-Fehler in jeder Runde), blieb sie
+      dauerhaft dort — ein toter Sensor sah aus wie ein Besucher, der sich
+      nicht vom Fleck ruehrt.
+    * Fiel er im Betrieb aus, blieb der zuletzt gemessene Wert stehen, ohne
+      Ablauf: die Anzeige im Admin zeigte weiter eine plausible Zahl.
+
+    Deshalb ist „kein Messwert" jetzt ein eigener Wert (`None`) und kein
+    Zahlenwert, der zufaellig auch etwas bedeutet.
+    """
+
+    def test_ohne_messung_ist_der_abstand_unbekannt(self):
+        s = sensor.SensorThread(use_dummy=True)
+        self.assertIsNone(s.distance, 'vor der ersten Messung gibt es keinen Abstand')
+
+    def test_null_ist_kein_ersatz_fuer_unbekannt(self):
+        # Der eigentliche Defekt in einem Satz: 0.0 ist ein gueltiger, sehr
+        # naher Abstand. Wer ihn als Startwert nimmt, meldet einen Besucher.
+        s = sensor.SensorThread(use_dummy=True)
+        self.assertNotEqual(s.distance, 0.0)
+
+    def test_ein_messwert_wird_gemeldet(self):
+        s = sensor.SensorThread(use_dummy=True)
+        s._values = [1.2, 1.4]
+        s._distance = 1.3
+        s._measured_at = time.monotonic()
+        self.assertAlmostEqual(s.distance, 1.3)
+
+    def test_ein_alter_messwert_gilt_nicht_mehr(self):
+        # Ohne Ablauf blieb der letzte Wert ewig stehen. Ein Sensor, der
+        # aufhoert zu antworten, haette die Station in ihrem Zustand
+        # eingefroren, und nichts haette es gesagt.
+        s = sensor.SensorThread(use_dummy=True)
+        s._distance = 1.3
+        s._measured_at = time.monotonic() - (sensor.STALE_AFTER_S + 0.5)
+        self.assertIsNone(s.distance, 'ein veralteter Messwert ist keiner')
+
+    def test_vor_der_ersten_messung_gibt_es_auch_keinen_zeitstempel(self):
+        # `_measured_at = 0.0` waere kein „nie gemessen", sondern „vor sehr
+        # langer Zeit gemessen". Das faellt heute nicht auf, weil der Ablauf
+        # es abfaengt — aber es waere ein Startwert, der wieder etwas
+        # bedeutet, und genau davon handelt dieser Befund.
+        self.assertIsNone(sensor.SensorThread(use_dummy=True)._measured_at)
+
+    def test_nur_eine_stelle_setzt_den_zeitstempel(self):
+        """Der Zeitstempel wird an GENAU EINER Stelle gesetzt: `_uebernimm`.
+
+        Ohne diese Zusicherung ist der Fix eine Zeile weit von seiner
+        Umkehrung entfernt. Wer den Zeitstempel auch im `except`-Zweig
+        fortschreibt — etwa um eine laute Log-Zeile ruhigzustellen —, macht
+        den Ablauf wirkungslos: der letzte Wert gilt dann wieder ewig, und
+        ein toter Sensor sieht aus wie ein ruhiger Besucher. Das ist keine
+        hypothetische Sorge, sondern die Gegenprobe zu diesem Fix.
+        """
+        quelle = (Path(__file__).resolve().parent.parent / 'sensor.py').read_text()
+        zuweisungen = [
+            z.strip() for z in quelle.splitlines()
+            if 'self._measured_at =' in z and 'None' not in z
+        ]
+        self.assertEqual(
+            zuweisungen, ['self._measured_at = time.monotonic()'],
+            'der Zeitstempel darf nur in `_uebernimm` fortgeschrieben werden',
+        )
+
+    def test_die_grenze_ist_grosszuegig_genug_fuer_einen_aussetzer(self):
+        # Ein einzelner verschluckter Messwert darf die Station nicht
+        # umschalten — die Schleife misst alle 0,1 s.
+        s = sensor.SensorThread(use_dummy=True)
+        s._distance = 1.3
+        s._measured_at = time.monotonic() - 0.5
+        self.assertAlmostEqual(s.distance, 1.3)
+        self.assertGreaterEqual(sensor.STALE_AFTER_S, 1.0)

@@ -75,7 +75,13 @@ def create_app(controller):
         port = controller.config.get("web_port", 5000)
         host_ip = cfg_ip or _detect_lan_ip()
         return jsonify({
-            "distance": round(controller.sensor.distance, 3),
+            # `None`, wenn keine gueltige Messung vorliegt. Frueher stand
+            # hier 0.0 — eine Zahl, die aussieht wie „Besucher steht direkt
+            # davor", und die Oberflaeche konnte nicht zwischen „ganz nah"
+            # und „Sensor tot" unterscheiden.
+            "distance": (None if controller.sensor.distance is None
+                         else round(controller.sensor.distance, 3)),
+            "sensor_ok": controller.sensor.distance is not None,
             "state": controller.state,
             "active": controller.active,
             "dummy_sensor": controller.sensor.use_dummy,

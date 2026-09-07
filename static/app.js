@@ -39,10 +39,20 @@ function updateStatusUI(d) {
     document.getElementById('status-dot').className = 'status-dot' + (d.active ? ' active' : ' connected');
     document.getElementById('system-name').textContent = cfg.system_name || 'Station';
 
-    document.getElementById('dist-value').textContent = dist.toFixed(2);
-    var pct = Math.min(dist / 4, 1) * 100;
-    document.getElementById('dist-fill').style.width = pct + '%';
-    document.getElementById('dist-fill').className = 'fill' + (dist <= threshold && d.active ? ' near' : '');
+    // `null` heisst „keine gueltige Messung" — noch nie gemessen oder der
+    // Sensor antwortet nicht mehr. Frueher kam hier 0.00 an, also die Zahl,
+    // die auch „Besucher steht direkt davor" bedeutet: die Oberflaeche konnte
+    // einen toten Sensor nicht von einem sehr nahen Besucher unterscheiden.
+    if (dist === null || dist === undefined) {
+        document.getElementById('dist-value').textContent = '--';
+        document.getElementById('dist-fill').style.width = '0%';
+        document.getElementById('dist-fill').className = 'fill';
+    } else {
+        document.getElementById('dist-value').textContent = dist.toFixed(2);
+        var pct = Math.min(dist / 4, 1) * 100;
+        document.getElementById('dist-fill').style.width = pct + '%';
+        document.getElementById('dist-fill').className = 'fill' + (dist <= threshold && d.active ? ' near' : '');
+    }
     document.getElementById('dist-marker').style.left = Math.min(threshold / 4, 1) * 100 + '%';
 
     var badge = document.getElementById('state-badge');
