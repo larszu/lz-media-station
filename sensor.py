@@ -84,12 +84,31 @@ class SensorThread(threading.Thread):
         als der Zeitstempel dazukam, kannte ihn nur die Schleife, und der
         Nachbau lieferte Werte, die es im Betrieb nicht gibt.
         """
+        jetzt = time.monotonic()
+
+        # BEFUND (Defektformen-Sweep, Form `fixture-erreicht-grenze-nicht`,
+        # gemessen 2026-09-08): Der Ablauf bewachte den ZEITSTEMPEL, das
+        # Mittelwertfenster aber niemand. Nach einem Ausfall lagen die alten
+        # Werte noch im Fenster: der erste neue Messwert wurde mit vier
+        # Werten von VOR dem Ausfall gemittelt und galt sofort als frisch.
+        #
+        # Ein halbe Sekunde lang stand damit ein Abstand im Umlauf, den es nie
+        # gegeben hat — und zwar genau in dem Moment, in dem die Station
+        # entscheidet, ob jemand davorsteht. Wer waehrend des Ausfalls
+        # herangetreten ist, wird dadurch spaeter erkannt, nicht frueher.
+        #
+        # Die Grenze ist dieselbe wie beim Ablauf: was aelter ist als
+        # STALE_AFTER_S, gehoert nicht in denselben Mittelwert. Zwei Fenster
+        # mit zwei Regeln waeren wieder zwei Rechnungen.
+        if self._measured_at is None or jetzt - self._measured_at > STALE_AFTER_S:
+            self._values.clear()
+
         self._values.append(raw)
         if len(self._values) > self._filter_size:
             self._values.pop(0)
         with self._lock:
             self._distance = sum(self._values) / len(self._values)
-            self._measured_at = time.monotonic()
+            self._measured_at = jetzt
 
     @property
     def distance(self):
