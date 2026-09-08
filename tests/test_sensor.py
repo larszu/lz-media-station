@@ -193,10 +193,54 @@ class KeinMesswertIstEinEigenerZustand(unittest.TestCase):
             z.strip() for z in quelle.splitlines()
             if 'self._measured_at =' in z and 'None' not in z
         ]
-        self.assertEqual(
-            zuweisungen, ['self._measured_at = time.monotonic()'],
-            'der Zeitstempel darf nur in `_uebernimm` fortgeschrieben werden',
-        )
+        # Geprueft wird die ANZAHL und der ORT, nicht der Wortlaut. Die erste
+        # Fassung verlangte woertlich `= time.monotonic()` und ging kaputt,
+        # als die Zeit einmal vorher in eine Variable gelegt wurde — an der
+        # Zusicherung hatte sich dabei nichts geaendert. Ein Waechter, der bei
+        # einer folgenlosen Umschreibung rot wird, wird beim naechsten Mal
+        # angepasst statt gelesen.
+        self.assertEqual(len(zuweisungen), 1,
+                         f'genau eine Stelle darf fortschreiben: {zuweisungen}')
+        koerper = quelle.split('def _uebernimm(')[1].split('\n    @')[0]
+        self.assertIn(zuweisungen[0], koerper,
+                      'der Zeitstempel darf nur in `_uebernimm` fortgeschrieben werden')
+
+    def test_nach_einem_ausfall_faengt_der_mittelwert_neu_an(self):
+        """Der Ablauf bewachte den Zeitstempel — das Mittelwertfenster nicht.
+
+        BEFUND (Defektformen-Sweep, Form `fixture-erreicht-grenze-nicht`,
+        gemessen 2026-09-08). Nach einem Ausfall lagen die alten Werte noch im
+        Fenster: der erste neue Messwert wurde mit vier Werten von VOR dem
+        Ausfall gemittelt und galt sofort als frisch. Eine halbe Sekunde lang
+        stand damit ein Abstand im Umlauf, den es nie gegeben hat — genau in
+        dem Moment, in dem die Station entscheidet, ob jemand davorsteht.
+        """
+        s = sensor.SensorThread(use_dummy=True)
+        for _ in range(5):
+            s._uebernimm(3.0)          # der Raum ist leer
+        self.assertAlmostEqual(s.distance, 3.0)
+
+        # Der Sensor faellt aus; waehrenddessen tritt jemand heran.
+        s._measured_at = time.monotonic() - (sensor.STALE_AFTER_S + 0.1)
+        self.assertIsNone(s.distance, 'waehrend des Ausfalls gibt es keinen Wert')
+
+        s._uebernimm(0.5)
+        self.assertAlmostEqual(
+            s.distance, 0.5,
+            msg='der erste Wert nach dem Ausfall darf nicht mit den alten '
+                'gemittelt werden — vorher kamen hier 2,5 m heraus')
+
+    def test_ein_aussetzer_INNERHALB_der_grenze_leert_das_fenster_NICHT(self):
+        # Die Gegenprobe. Waere jede Luecke ein Neuanfang, waere der
+        # Mittelwertfilter wirkungslos — ein einzelner Ausreisser schluege
+        # dann voll durch, und genau dagegen gibt es ihn.
+        s = sensor.SensorThread(use_dummy=True)
+        for _ in range(4):
+            s._uebernimm(3.0)
+        s._measured_at = time.monotonic() - (sensor.STALE_AFTER_S - 0.5)
+        s._uebernimm(0.5)
+        self.assertAlmostEqual(s.distance, (3.0 * 4 + 0.5) / 5,
+                               msg='innerhalb der Grenze wird weiter gemittelt')
 
     def test_die_grenze_ist_grosszuegig_genug_fuer_einen_aussetzer(self):
         # Ein einzelner verschluckter Messwert darf die Station nicht
