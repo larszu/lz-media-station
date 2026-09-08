@@ -14,22 +14,16 @@ from web_ui import create_app
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
-DEFAULT_CONFIG = {
-    "system_name": "LZ Station 1",
-    "threshold_m": 1.0,
-    "delay_s": 1.5,
-    "gpio_trigger": 23,
-    "gpio_echo": 24,
-    "web_port": 5000,
-    "image_interval_s": 5,
-    "master_volume": 100,
-    "video_volume": 100,
-    "audio_volume": 80,
-    "video_resume": False,
-    "display_ip": "",
-    "near": {"videos": [], "images": [], "audio": []},
-    "far": {"videos": [], "images": [], "audio": []},
-}
+# Vorgaben und Grenzen stehen in `config_schema`; hier weiterhin unter ihrem
+# alten Namen erreichbar, weil Tests und Aufrufer `main.DEFAULT_CONFIG` kennen.
+from config_schema import (  # noqa: E402  (nach den Standard-Imports, absichtlich)
+    DEFAULT_CONFIG, GRENZEN, NUTZBARE_BCM,
+    pruefe_patch, pruefe_pins, heile_config,
+)
+
+__all__ = ["DEFAULT_CONFIG", "GRENZEN", "NUTZBARE_BCM",
+           "pruefe_patch", "pruefe_pins", "heile_config",
+           "Controller", "load_config", "main"]
 
 
 class Controller:
@@ -166,7 +160,7 @@ def load_config():
                     cfg[zone] = {"videos": [], "images": [], "audio": []}
                 for key in ("videos", "images", "audio"):
                     cfg[zone].setdefault(key, [])
-            return cfg
+            return heile_config(cfg)
         except Exception as e:
             print(f"[Config] Lesefehler: {e}")
     return json.loads(json.dumps(DEFAULT_CONFIG))
