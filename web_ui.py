@@ -3,6 +3,7 @@ import os
 import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
+from config_schema import pruefe_patch, pruefe_pins
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEDIA_DIRS = {
@@ -124,20 +125,18 @@ def create_app(controller):
         data = request.get_json()
         if not data:
             return jsonify({"error": "Keine Daten"}), 400
-        simple = {
-            "system_name": str, "threshold_m": float, "delay_s": float,
-            "gpio_trigger": int, "gpio_echo": int, "web_port": int,
-            "image_interval_s": float, "master_volume": int,
-            "video_volume": int, "audio_volume": int,
-            "video_resume": bool,
-            "display_ip": str,
-        }
-        for key, cast in simple.items():
-            if key in data:
-                try:
-                    controller.config[key] = cast(data[key])
-                except (ValueError, TypeError):
-                    pass
+        # Hier stand eine Tabelle aus FELDNAME -> Typ, und damit war die
+        # Pruefung zu Ende: `gpio_trigger: 99`, `threshold_m: -5`,
+        # `web_port: 0` gingen durch, weil der Name stimmte und `int()` nicht
+        # warf. Die Bedeutung steht jetzt in `main.GRENZEN` — eine Tabelle,
+        # zwei Politiken (ablehnen beim Schreiben, heilen beim Laden). Siehe
+        # den Kopf dieses Abschnitts in `main.py`.
+        try:
+            geprueft = pruefe_patch(data)
+            pruefe_pins(controller.config, geprueft)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        controller.config.update(geprueft)
         for zone in ("near", "far"):
             if zone in data and isinstance(data[zone], dict):
                 if not isinstance(controller.config.get(zone), dict):
