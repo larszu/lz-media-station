@@ -1,0 +1,11 @@
+# Was NICHT auf die Projektseite gehoert — ein Pfad je Zeile, dahinter `#`
+# und der GRUND. Der Grund ist Pflicht; `build-site.py` bricht ohne ihn ab,
+# und ebenso bei einem Eintrag, dessen Datei es nicht mehr gibt.
+#
+# Alle vier Eintraege hier sind derselbe Fall: Oberflaechen-Dateien, die nach
+# Doku aussehen, weil sie .html heissen. Keine davon steht fuer sich.
+
+templates/admin.html    # Jinja-Vorlage der Flask-Oberflaeche, nicht eine Seite. Ohne den Server rendern die {{ }}-Platzhalter als roher Text, und die Bedienelemente zeigen ins Leere.
+templates/display.html  # Jinja-Vorlage der Anzeige, siehe admin.html. Sie wird von web_ui.py mit Zustand gefuellt; statisch ist sie ein Geruest ohne Inhalt.
+templates/launch.html   # Jinja-Vorlage der Startseite, siehe admin.html.
+station-manager/renderer/index.html  # Die Electron-Oberflaeche des Station-Managers. Sie erwartet ihren eigenen Hauptprozess; im Browser ohne ihn ist sie ein leeres Fenster, das aussieht wie das Werkzeug.
