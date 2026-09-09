@@ -162,17 +162,78 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 .checkbox-label { display: flex !important; align-items: center; gap: 10px; cursor: pointer; color: var(--text); font-size: 0.85rem; padding: 6px 0; }
 .checkbox-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
 
+/* Schieberegler: 24 px Trefferflaeche (WCAG 2.2 SC 2.5.8, Stufe AA).
+ *
+ * Nutzer-Meldung 2026-09-09: „Passe auch die Ui von allen slidern an sodass
+ * man sie gut bedienen kann."
+ *
+ * GEMESSEN VORHER: `height: 5px` am ELEMENT — fuenf Pixel waren die GANZE
+ * Trefferflaeche in der Hoehe, denn das Element war so hoch wie seine Bahn.
+ * Der Griff war 16 px. Die Norm nennt 24.
+ *
+ * Diese Seite wird von einem HANDY bedient — genau dafuer ist sie da, sie ist
+ * die Verwaltung neben dem Aufbau. Ein 5 px hoher Streifen ist mit dem Daumen
+ * nicht zu treffen, und wer danebengreift, verstellt die Ausloese-Schwelle
+ * des Sensors oder die Lautstaerke einer laufenden Wiedergabe.
+ *
+ * Das ELEMENT wird 24 px hoch, die BAHN bleibt schmal und wird von den
+ * Pseudo-Elementen in die Mitte gezeichnet — die restlichen 18 px sind
+ * unsichtbare Trefferflaeche. Ein 24 px hoher Balken waere die naheliegende
+ * und falsche Loesung: die Regler stehen hier unter ihrer Beschriftung in
+ * einem engen Raster.
+ *
+ * Der Griff bleibt ECKIG (Guide S. 10, `--radius: 0`), und der Fokusring
+ * liegt AUSSEN: `outline: none` stand vorher hier und nahm der Tastatur die
+ * einzige Rueckmeldung. */
 input[type="range"] {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
-    height: 5px;
-    background: rgba(255,255,255,0.08);
-    border-radius: 0;
-    outline: none;
+    height: 24px;            /* Trefferflaeche, nicht Bahnhoehe */
+    background: transparent; /* die Bahn zeichnen die Pseudo-Elemente */
+    cursor: pointer;
+    touch-action: manipulation;
     margin-top: 4px;
 }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--accent); border-radius: 0; cursor: pointer; }
-input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: var(--accent); border-radius: 0; border: none; cursor: pointer; }
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent);
+    border: 2px solid var(--surface);
+    border-radius: 0;
+    /* Der Griff sitzt auf der Bahn: (6 px Bahn - 18 px Griff) / 2 = -6 px,
+       plus 1 px Rahmen der Bahn. */
+    margin-top: -7px;
+    cursor: pointer;
+}
+input[type="range"]::-moz-range-track {
+    height: 6px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+}
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--accent);
+    border: 2px solid var(--surface);
+    border-radius: 0;
+    cursor: pointer;
+}
+input[type="range"]:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 3px;
+}
+input[type="range"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
 
 .feedback { text-align: center; font-size: 0.8rem; margin-top: 6px; min-height: 18px; }
 .feedback.success { color: var(--near); }

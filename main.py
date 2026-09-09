@@ -9,7 +9,7 @@ import threading
 import argparse
 
 from sensor import SensorThread
-from web_ui import create_app
+from web_ui import create_app, lan_adresse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
@@ -170,6 +170,16 @@ def main():
     parser = argparse.ArgumentParser(description="LZ Media Station")
     parser.add_argument("--dummy", action="store_true", help="Dummy-Sensor (kein GPIO)")
     parser.add_argument("--port", type=int, help="Web-UI Port (Standard: 5000)")
+    # Die Bind-Adresse war fest auf 0.0.0.0 verdrahtet — also auf ALLEN
+    # Schnittstellen, ohne dass es eine Moeglichkeit gab, das zu lassen. Auf
+    # einem Rechner in einem fremden Netz (Hotel-WLAN, Messe, Kundennetz)
+    # steht damit die Verwaltungsoberflaeche offen, und niemand hat es
+    # entschieden. Die Vorgabe bleibt 0.0.0.0, weil genau das der Zweck der
+    # Station ist — aber jetzt ist es eine Entscheidung und keine
+    # Unvermeidbarkeit.
+    parser.add_argument("--host", default="0.0.0.0",
+                        help="Bind-Adresse. Vorgabe 0.0.0.0 = im ganzen "
+                             "Netz erreichbar; 127.0.0.1 = nur dieser Rechner.")
     args = parser.parse_args()
 
     config = load_config()
@@ -189,9 +199,32 @@ def main():
     # Controller automatisch starten (Kiosk-Betrieb)
     controller.start()
 
-    print(f"\n  LZ Media Station")
-    print(f"  http://0.0.0.0:{port}")
-    print(f"  Sensor: {'Dummy' if controller.sensor.use_dummy else 'HC-SR04'}\n")
+    # DIE ADRESSEN, DIE MAN WIRKLICH EINTIPPEN KANN.
+    #
+    # Hier stand `http://0.0.0.0:5000`. Das ist keine Adresse, sondern die
+    # Bind-Angabe „alle Schnittstellen" — in einen Browser getippt landet sie
+    # je nach System nirgends. Der Server war also die ganze Zeit im Netz
+    # erreichbar und niemand erfuhr, unter welcher Adresse.
+    #
+    # Und die drei Ansichten werden benannt, weil sie unterschiedliche Leute
+    # brauchen: die Anzeige gehoert auf den Schirm am Aufbau, die Verwaltung
+    # auf das Geraet in der Hand, und beide koennen gleichzeitig offen sein.
+    lan = lan_adresse()
+    print()
+    print("  LZ Media Station")
+    print(f"    hier:            http://127.0.0.1:{port}/")
+    if args.host == "0.0.0.0" and lan and not lan.startswith("127."):
+        print(f"    im selben Netz:  http://{lan}:{port}/")
+        print()
+        print("    Anzeige (Schirm am Aufbau):   " f"http://{lan}:{port}/display")
+        print("    Verwaltung (Handy/Notebook):  " f"http://{lan}:{port}/admin")
+    elif args.host != "0.0.0.0":
+        print(f"    gebunden an {args.host} — andere Geraete kommen NICHT dran.")
+    else:
+        print("    kein Netz gefunden — nur dieser Rechner kommt dran.")
+    print()
+    print(f"    Sensor: {'Dummy (kein GPIO)' if controller.sensor.use_dummy else 'HC-SR04'}")
+    print()
 
     def shutdown(sig, frame):
         controller.stop()
@@ -201,7 +234,7 @@ def main():
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    app.run(host=args.host, port=port, threaded=True)
 
 
 if __name__ == "__main__":

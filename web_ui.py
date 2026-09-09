@@ -18,8 +18,22 @@ ALLOWED_EXT = {
 }
 
 
-def _detect_lan_ip():
-    """Beste Schätzung der LAN-IP."""
+def lan_adresse():
+    """
+    Beste Schätzung der LAN-IP.
+
+    ÖFFENTLICH seit 2026-09-09, weil `main.py` sie beim Start ausgeben muss.
+    Vorher stand dort `http://0.0.0.0:5000` — und `0.0.0.0` ist keine
+    Adresse, die jemand eintippen kann. Es ist die Bind-Angabe „alle
+    Schnittstellen"; wer sie in einen Browser tippt, landet je nach System
+    nirgends. Der Server war also im Netz erreichbar, und niemand erfuhr,
+    unter welcher Adresse.
+
+    Eine zweite Erkennung in `main.py` wäre die naheliegende und falsche
+    Lösung gewesen: zwei Funktionen, die dieselbe Frage beantworten, geben
+    irgendwann zwei Antworten — und dann steht auf dem Schirm eine andere
+    Adresse als in `/api/status`.
+    """
     # 1) UDP-Trick (funktioniert wenn Default-Route da ist)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -74,7 +88,7 @@ def create_app(controller):
     def api_status():
         cfg_ip = (controller.config.get("display_ip") or "").strip()
         port = controller.config.get("web_port", 5000)
-        host_ip = cfg_ip or _detect_lan_ip()
+        host_ip = cfg_ip or lan_adresse()
         return jsonify({
             # `None`, wenn keine gueltige Messung vorliegt. Frueher stand
             # hier 0.0 — eine Zahl, die aussieht wie „Besucher steht direkt
@@ -89,6 +103,12 @@ def create_app(controller):
             "host_ip": host_ip,
             "web_port": port,
             "remote_url": "http://" + host_ip + ":" + str(port) + "/admin",
+            # Die zweite Adresse, und sie fehlte. `remote_url` zeigte nur auf
+            # die Konfiguration — der haeufigste Fall eines zweiten Geraets
+            # ist aber, die ANZEIGE zu holen: ein Tablet im Foyer, ein
+            # Notebook an einem zweiten Aufbau. Eine Adresse, die nirgends
+            # steht, kann niemand erraten.
+            "display_url": "http://" + host_ip + ":" + str(port) + "/display",
             "config": controller.config,
         })
 
