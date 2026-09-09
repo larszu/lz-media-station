@@ -72,6 +72,64 @@
 
 ---
 
+## Auf dem eigenen Rechner starten — ohne Pi
+
+```bash
+./run-local.sh          # Linux / macOS
+run_windows.bat         # Windows (Doppelklick)
+```
+
+Mehr braucht es nicht: Python 3.10+. Das Skript legt beim ersten Lauf eine
+`.venv` an, installiert `requirements.txt` und startet den Server.
+
+**Der Sensor wird nicht abgeschaltet, er fehlt einfach.** `sensor.py`
+prüft selbst, ob `gpiozero` und ein GPIO-Chip da sind, und fällt sonst auf
+den Dummy zurück. `run-local.sh` setzt deshalb **kein** `--dummy` — dieser
+Schalter würde auf einem Pi den echten Sensor abschalten, und das Skript
+soll auch dort laufen.
+
+`start.sh` ist etwas anderes und bleibt es: der **Kiosk**-Start auf dem
+Pi. Er wartet auf einen Wayland-Socket, erschießt `piwiz` und `zenity` und
+startet Chromium im Vollbild. Auf einem Notebook läuft davon nichts, und
+der Abbruch kommt beim Wayland-Socket — also mit einer Meldung über ein
+fehlendes Fenster statt über die Sache.
+
+### Andere Geräte im selben Netz
+
+Der Server bindet auf alle Schnittstellen, und **beim Start steht jetzt die
+Adresse da, die man eintippen kann**:
+
+```
+  LZ Media Station
+    hier:            http://127.0.0.1:5000/
+    im selben Netz:  http://192.168.1.42:5000/
+
+    Anzeige (Schirm am Aufbau):   http://192.168.1.42:5000/display
+    Verwaltung (Handy/Notebook):  http://192.168.1.42:5000/admin
+```
+
+Vorher stand dort `http://0.0.0.0:5000`. Der Server war die ganze Zeit im
+Netz erreichbar — nur ist `0.0.0.0` keine Adresse, sondern die Bind-Angabe
+„alle Schnittstellen"; in einen Browser getippt landet sie je nach System
+nirgends. Wer die Station aufbaute, bekam nie zu sehen, was er der Crew
+sagen soll. Dieselben zwei Adressen stehen auch auf der Startseite der
+Station.
+
+Beliebig viele Geräte können gleichzeitig `/display` öffnen — ein zweiter
+Schirm am Aufbau, ein Tablet im Foyer. `/admin` ist die Verwaltung.
+
+**`--host 127.0.0.1` sperrt das ab.** Die Bind-Adresse war fest auf
+`0.0.0.0` verdrahtet, ohne Möglichkeit, es zu lassen: auf einem Rechner in
+einem fremden Netz (Hotel-WLAN, Messe, Kundennetz) stand die Verwaltung
+damit offen, und niemand hatte es entschieden. Die Vorgabe bleibt
+`0.0.0.0`, weil genau das der Zweck der Station ist — aber jetzt ist es
+eine Entscheidung.
+
+`tests/test_web_clients.py` fragt über die **LAN-Adresse** dieses Rechners
+an, nicht über `localhost` — das ist derselbe Weg, den ein Handy nimmt —
+und prüft die Gegenprobe mit: bindet `--host 127.0.0.1` wirklich nur lokal?
+Ohne sie wäre der Schalter eine Beschriftung ohne Wirkung.
+
 ## Schnellstart Raspberry Pi
 
 Frischer Pi (Raspberry Pi OS Bookworm, Wayland/labwc-Session, User `pi`):

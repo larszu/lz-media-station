@@ -70,10 +70,19 @@
                 <h2>Konfiguration</h2>
                 <p>Medien, Sensor &amp; Zonen einrichten</p>
             </a>
+            <!-- ZWEI Adressen, nicht eine. Hier stand nur die Konfiguration,
+                 und damit fehlte genau der Fall, den ein zweites Geraet am
+                 haeufigsten hat: einen weiteren Schirm zeigen. Ein Tablet im
+                 Foyer, ein Notebook an einem zweiten Aufbau, ein Handy zum
+                 Kontrollieren -- alle drei holen dieselbe Anzeige, und
+                 keiner von ihnen kann sie erraten, wenn sie hier nicht
+                 steht. -->
             <div class="card card-remote">
                 <div class="icon">&#128225;</div>
-                <h2>Remote</h2>
-                <p>Von anderem Ger&auml;t konfigurieren:</p>
+                <h2>Andere Ger&auml;te</h2>
+                <p>Im selben Netz, Anzeige:</p>
+                <code id="remote-display"></code>
+                <p style="margin-top:8px">Konfiguration:</p>
                 <code id="remote-url"></code>
             </div>
         </div>
@@ -110,6 +119,7 @@
             var hostStr = hostIp + (port === 80 ? '' : ':' + port);
             document.getElementById('ip-addr').textContent = hostStr;
             document.getElementById('remote-url').textContent = d.remote_url || ('http://' + hostStr + '/admin');
+            document.getElementById('remote-display').textContent = d.display_url || ('http://' + hostStr + '/display');
             // Nur Auto-Start wenn near oder far Medien hat
             var n = d.config.near || {}, f = d.config.far || {};
             var hasMedia = (n.videos||[]).length || (n.images||[]).length || (n.audio||[]).length
