@@ -91,6 +91,23 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 .sensor-status.warn { color: var(--warning); }
 .sensor-status:empty { display: none; }
 
+/* --- Zustand --- */
+.health-punkt { font-size: 0.75rem; font-weight: 600; margin-left: 8px; color: var(--text-dim); }
+.health-punkt.ok { color: var(--near); }
+.health-punkt.hinweis { color: var(--text-dim); }
+.health-punkt.warnung { color: var(--warning); }
+.health-punkt.fehler { color: var(--danger); }
+/* Der farbige Streifen links traegt die Stufe, nicht die Schriftfarbe: der
+   Text muss auch dann lesbar bleiben, wenn die Stufe gedaempft ist. */
+.health-befund {
+    padding: 7px 10px; margin-bottom: 4px; font-size: 0.82rem;
+    background: var(--bg); border: 1px solid var(--border);
+    border-left: 3px solid var(--text-dim); border-radius: 0;
+}
+.health-befund.hinweis { border-left-color: var(--text-dim); }
+.health-befund.warnung { border-left-color: var(--warning); }
+.health-befund.fehler { border-left-color: var(--danger); }
+
 /* --- Besucher-Statistik --- */
 .stat-kacheln { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .stat-kachel {

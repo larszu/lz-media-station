@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // Gegenwert, und zwar auf einem Pi.
     loadStatistik();
     setInterval(loadStatistik, 15000);
+    // Der Zustand darf nicht erst beim naechsten Neuladen auffallen, muss aber
+    // auch nicht im 500-ms-Takt geprueft werden: er liest die Platte aus.
+    loadHealth();
+    setInterval(loadHealth, 10000);
     // Umschalten der Quelle sofort auf die Felder anwenden — nicht erst beim
     // naechsten Status-Poll, sonst springt die Auswahl fuer den Nutzer zurueck.
     el('cfg-sensor-type').addEventListener('change', function (e) {
@@ -146,6 +150,33 @@ function slider(id, displayId, fmt) {
     el(id).addEventListener('input', function (e) {
         el(displayId).textContent = fmt(parseFloat(e.target.value));
     });
+}
+
+/* ---- Zustand ---- */
+
+var HEALTH_TEXT = {
+    ok: 'Alles in Ordnung',
+    hinweis: 'Hinweis',
+    warnung: 'Achtung',
+    fehler: 'Störung',
+};
+
+async function loadHealth() {
+    try {
+        var r = await fetch('/api/health');
+        var d = await r.json();
+        var punkt = el('health-punkt');
+        punkt.className = 'health-punkt ' + d.stufe;
+        punkt.textContent = HEALTH_TEXT[d.stufe] || d.stufe;
+        el('health-liste').innerHTML = d.befunde.length
+            ? d.befunde.map(function (b) {
+                return '<div class="health-befund ' + b.stufe + '">' + esc(b.text) + '</div>';
+            }).join('')
+            : '<div class="zone-empty">Keine Befunde — Sensor misst, Platte hat Platz, '
+              + 'beide Zonen haben Medien.</div>';
+    } catch (e) {
+        /* Die Zustandsanzeige darf die Seite nicht mitreissen. */
+    }
 }
 
 /* ---- Besucher-Statistik ---- */

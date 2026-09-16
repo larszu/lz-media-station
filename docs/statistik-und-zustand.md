@@ -67,3 +67,44 @@ Wochenplan, der mitten im Besuch zumacht, oder das Stoppen am Tagesende — hät
 vergessen können, den offenen Besuch zu beenden. Der wäre dann still verloren
 gegangen. Mit einem Eingang kann das nicht passieren; `abschliessen()` deckt
 zusätzlich Stopp und Herunterfahren ab.
+
+---
+
+# Zustandsprüfung (`/api/health`)
+
+Ein toter Sensor, eine volle Platte oder eine Zone ohne Medien fielen bisher
+**nur im Log** auf — und das liest niemand, solange niemand einen Verdacht hat.
+Der Ausfall wurde dadurch typischerweise vom Kunden gemeldet, nicht vom
+Betreiber bemerkt.
+
+Im Admin zeigt der Abschnitt **Zustand** die Befunde. Geprüft wird:
+
+| Befund | Stufe |
+|---|---|
+| Sensor liefert keine Messung | Fehler |
+| Weniger als 200 MB frei | Fehler |
+| Weniger als 1 GB frei | Warnung |
+| Zugewiesene Mediendatei fehlt auf der Platte | Fehler |
+| Zone ohne Medien | Warnung |
+| Sensor-Steuerung gestoppt | Warnung |
+| Außerhalb der Öffnungszeiten | Hinweis |
+
+**Außerhalb der Öffnungszeiten ist „keine Messung" kein Fehler.** Dann soll gar
+nicht ausgelöst werden. Das sonst zu melden wäre ein Fehlalarm jede Nacht — und
+ein Melder, der jede Nacht anschlägt, wird abgeschaltet und meldet dann auch
+den echten Ausfall nicht mehr.
+
+## Für den Station Manager
+
+`/api/identity` liefert zusätzlich `health` (die schlimmste Stufe) und
+`health_anzahl`. Der Manager fragt beim Scannen ohnehin jede Station nach ihrer
+Identität — ein zweiter Aufruf je Station nur für den Zustand wäre dieselbe
+Runde ein zweites Mal. Die vollständige Liste holt sich über `/api/health`, wer
+sie anzeigt.
+
+## Wo es im Code steht
+
+Die Beurteilung steht in `gesundheit.pruefe` und bekommt die Lage
+**hereingereicht**; das Einsammeln (Platte, vorhandene Dateien) steht in
+`web_ui._lage`. Nur deshalb sind die unangenehmen Fälle überhaupt testbar —
+eine fast volle Platte lässt sich in einer CI nicht herstellen.

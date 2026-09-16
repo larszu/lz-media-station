@@ -3,6 +3,7 @@ import os
 import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
+import gesundheit
 from config_schema import pruefe_patch, pruefe_pins
 from zeitplan import pruefe_zeitplan
 
@@ -141,6 +142,44 @@ def create_app(controller, anzeigen=None):
     # Gespeichert wird nur, WANN und WIE LANGE jemand nah war — nichts ueber
     # einzelne Personen.
 
+    # ── Zustandspruefung ──────────────────────────────────────────────────
+
+    def _lage():
+        """Die echte Lage einsammeln und pruefen lassen.
+
+        Das Einsammeln (Platte, Dateien) steht hier, die Beurteilung in
+        `gesundheit.pruefe` — sonst waere kein einziger Befund ohne echtes
+        Dateisystem testbar.
+        """
+        import shutil
+        try:
+            freier_platz = shutil.disk_usage(BASE_DIR).free
+        except Exception:
+            freier_platz = None
+        vorhandene = {}
+        for art, verzeichnis in MEDIA_DIRS.items():
+            try:
+                vorhandene[art] = set(os.listdir(verzeichnis))
+            except OSError:
+                vorhandene[art] = set()
+        return gesundheit.pruefe(
+            controller.config,
+            sensor_ok=controller.sensor.distance is not None,
+            sensor_status=controller.sensor.status,
+            freier_platz_b=freier_platz,
+            vorhandene=vorhandene,
+            aktiv=controller.active,
+            geschlossen=not controller.ist_offen(),
+        )
+
+    @app.route("/api/health")
+    def api_health():
+        befunde = _lage()
+        return jsonify({
+            "stufe": gesundheit.gesamtstufe(befunde),
+            "befunde": befunde,
+        })
+
     @app.route("/api/statistik")
     def api_statistik():
         from datetime import datetime
@@ -238,6 +277,13 @@ def create_app(controller, anzeigen=None):
                     f.write(sid)
         except Exception:
             sid = "unknown"
+        # Der Zustand kommt MIT. Der Station Manager fragt beim Scannen ohnehin
+        # jede Station nach ihrer Identitaet — ein zweiter Aufruf je Station
+        # nur fuer die Gesundheit waere dieselbe Runde ein zweites Mal.
+        # Nur die Stufe und die Anzahl, nicht die ganzen Texte: die Liste holt
+        # sich, wer sie anzeigt, ueber `/api/health`.
+        befunde = _lage()
+        stufe = gesundheit.gesamtstufe(befunde)
         return jsonify({
             "id": sid,
             "name": controller.config.get("system_name", "LZ Station"),
@@ -245,6 +291,8 @@ def create_app(controller, anzeigen=None):
             "hostname": platform.node(),
             "active": controller.active,
             "state": controller.state,
+            "health": stufe,
+            "health_anzahl": len([b for b in befunde if b["stufe"] != "hinweis"]),
         })
 
     @app.route("/api/config", methods=["POST"])
