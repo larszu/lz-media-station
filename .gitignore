@@ -43,6 +43,9 @@ Thumbs.db
 # Config (user-specific)
 config.json
 
+# Erfasste Besuchszahlen (Betriebsdaten der einzelnen Station)
+statistik.json
+
 # Temporary files
 *.tmp
 *.temp

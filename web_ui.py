@@ -134,6 +134,39 @@ def create_app(controller, anzeigen=None):
     def api_scene():
         return jsonify(controller.get_scene())
 
+    # ── Besucher-Statistik ────────────────────────────────────────────────
+    #
+    # Die Zahlen entstehen ohnehin im Sensor und wurden bisher weggeworfen.
+    # Fuer den Betreiber sind sie der Nachweis, dass die Installation wirkt.
+    # Gespeichert wird nur, WANN und WIE LANGE jemand nah war — nichts ueber
+    # einzelne Personen.
+
+    @app.route("/api/statistik")
+    def api_statistik():
+        from datetime import datetime
+        return jsonify(controller.statistik.zusammenfassung(datetime.now()))
+
+    @app.route("/api/statistik.csv")
+    def api_statistik_csv():
+        from flask import Response
+        name = (controller.config.get("system_name") or "station").replace(" ", "_")
+        return Response(
+            controller.statistik.als_csv(),
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition":
+                     f'attachment; filename="{secure_filename(name)}-statistik.csv"'})
+
+    @app.route("/api/statistik/reset", methods=["POST"])
+    def api_statistik_reset():
+        """Zaehler auf null — beim Umzug in die naechste Ausstellung.
+
+        Bewusst ein eigener Endpunkt und nicht Teil von `/api/config`: das
+        Loeschen von Messwerten soll nicht als Nebenwirkung eines
+        Einstellungs-Speicherns passieren koennen.
+        """
+        controller.statistik_leeren()
+        return jsonify({"ok": True})
+
     # ── Die Bildschirme DIESES Rechners (Nutzer, 2026-09-15) ──────────────
     #
     # „im mediaplayer das endgeraet selbst und externe displays die ans

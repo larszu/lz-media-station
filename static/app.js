@@ -6,6 +6,11 @@ document.addEventListener('DOMContentLoaded', function () {
     setupUploads();
     loadNetwork();
     loadWifi();
+    // Die Statistik aendert sich in Minuten, nicht in Millisekunden — alle
+    // 15 s reicht. Sie an den 500-ms-Status-Poll zu haengen waere Last ohne
+    // Gegenwert, und zwar auf einem Pi.
+    loadStatistik();
+    setInterval(loadStatistik, 15000);
     // Umschalten der Quelle sofort auf die Felder anwenden — nicht erst beim
     // naechsten Status-Poll, sonst springt die Auswahl fuer den Nutzer zurueck.
     el('cfg-sensor-type').addEventListener('change', function (e) {
@@ -141,6 +146,63 @@ function slider(id, displayId, fmt) {
     el(id).addEventListener('input', function (e) {
         el(displayId).textContent = fmt(parseFloat(e.target.value));
     });
+}
+
+/* ---- Besucher-Statistik ---- */
+
+function dauerText(sekunden) {
+    if (!sekunden) return '0 s';
+    if (sekunden < 60) return Math.round(sekunden) + ' s';
+    var m = Math.floor(sekunden / 60), s = Math.round(sekunden % 60);
+    return m + ' min ' + (s ? s + ' s' : '');
+}
+
+async function loadStatistik() {
+    try {
+        var r = await fetch('/api/statistik');
+        var d = await r.json();
+        el('stat-heute-besuche').textContent = d.heute.besuche;
+        el('stat-heute-schnitt').textContent = dauerText(d.heute.schnitt_s);
+        el('stat-gesamt-besuche').textContent = d.gesamt_besuche;
+
+        // Tagesverlauf als Balken. Der hoechste Wert gibt den Massstab -- sonst
+        // sind alle Balken gleich hoch, sobald die Zahlen klein sind.
+        var max = Math.max.apply(null, d.heute.stunden.concat([1]));
+        el('stat-stunden').innerHTML = d.heute.stunden.map(function (n, stunde) {
+            var hoehe = Math.round((n / max) * 100);
+            return '<div class="stat-stunde" title="' + stunde + ' Uhr: ' + n + ' Besuche">' +
+                '<div class="stat-balken' + (n ? '' : ' leer') + '" style="height:' + hoehe + '%"></div>' +
+                '<span class="stat-stunde-name">' + (stunde % 6 === 0 ? stunde : '') + '</span>' +
+                '</div>';
+        }).join('');
+
+        el('stat-tage').innerHTML = d.letzte_tage.length
+            ? d.letzte_tage.slice().reverse().map(function (t) {
+                return '<div class="stat-tag-zeile">' +
+                    '<span class="stat-tag-datum">' + esc(t.tag) + '</span>' +
+                    '<span>' + t.besuche + ' Besuche</span>' +
+                    '<span class="stat-tag-dauer">Ø ' + dauerText(t.schnitt_s) + '</span>' +
+                    '</div>';
+            }).join('')
+            : '<div class="zone-empty">Noch keine Besuche erfasst</div>';
+    } catch (e) {
+        /* Die Statistik ist Beiwerk -- ihr Ausfall darf die Seite nicht stoeren. */
+    }
+}
+
+async function resetStatistik() {
+    if (!confirm('Alle erfassten Besuchszahlen unwiderruflich löschen?')) return;
+    var fb = el('stat-feedback');
+    try {
+        await fetch('/api/statistik/reset', { method: 'POST' });
+        fb.textContent = '✓ Zurückgesetzt';
+        fb.className = 'feedback success';
+        loadStatistik();
+    } catch (e) {
+        fb.textContent = '✗ Fehler';
+        fb.className = 'feedback error';
+    }
+    setTimeout(function () { fb.textContent = ''; }, 2000);
 }
 
 /* ---- Zeitsteuerung ---- */

@@ -11,6 +11,7 @@ import argparse
 from datetime import datetime
 
 import displays
+import statistik as statistik_modul
 import tv_cec
 import zeitplan
 from sensor import SensorThread
@@ -19,6 +20,7 @@ from web_ui import create_app, lan_adresse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+STATISTIK_FILE = os.path.join(BASE_DIR, "statistik.json")
 
 # Vorgaben und Grenzen stehen in `config_schema`; hier weiterhin unter ihrem
 # alten Namen erreichbar, weil Tests und Aufrufer `main.DEFAULT_CONFIG` kennen.
@@ -66,6 +68,10 @@ class Controller:
         # `None` und nicht True/False: der erste Durchlauf soll die Lage
         # melden (und ggf. CEC schalten), egal ob offen oder geschlossen.
         self._war_offen = None
+        # Besucher-Statistik. Wird beim Start von der Platte gelesen, damit ein
+        # Neustart (oder ein Stromausfall) die Zahlen der Ausstellung nicht
+        # zuruecksetzt.
+        self.statistik = statistik_modul.laden(STATISTIK_FILE)
 
     def ist_offen(self, jetzt=None):
         """Spielt die Station gerade laut Wochenplan?
@@ -117,6 +123,10 @@ class Controller:
         self.active = False
         self.state = "idle"
         self._pending_since = None
+        # Einen laufenden Besuch abschliessen, sonst ginge er verloren —
+        # gestoppt wird typischerweise am Ende eines Ausstellungstages.
+        if self.statistik.abschliessen(datetime.now()) is not None:
+            self.statistik_speichern()
         print("[Controller] Gestoppt")
 
     def _melde_sensorlage(self, dist):
@@ -134,6 +144,30 @@ class Controller:
         self._sensor_misst = misst
         print("[Sensor] Messung wieder da" if misst
               else "[Sensor] KEINE Messung — es wird nicht ausgeloest")
+
+    def statistik_speichern(self):
+        """Der EINE Ort, der den Statistik-Pfad kennt.
+
+        `web_ui` soll ihn nicht kennen muessen — sonst stuenden zwei Module mit
+        zwei Vorstellungen davon da, wo die Datei liegt.
+        """
+        return statistik_modul.speichern(self.statistik, STATISTIK_FILE)
+
+    def statistik_leeren(self):
+        self.statistik.leeren()
+        return self.statistik_speichern()
+
+    def _zaehle(self):
+        """Die Statistik einmal je Durchlauf fortschreiben.
+
+        Gespeichert wird NUR, wenn ein Besuch tatsaechlich endete — nicht
+        zehnmal je Sekunde. Auf einer SD-Karte waere das der sichere Weg, sie
+        in einer Ausstellungssaison durchzuschreiben.
+        """
+        beendet = self.statistik.verfolge(self.state == "near", datetime.now())
+        if beendet is not None:
+            self.statistik_speichern()
+            print(f"[Statistik] Besuch beendet nach {beendet:.1f}s")
 
     def _melde_zeitlage(self, offen):
         """Einmal melden, wenn der Wochenplan zu- oder aufmacht.
@@ -170,6 +204,11 @@ class Controller:
             if not offen:
                 self.state = "far"
                 self._pending_since = None
+                # Auch hier zaehlen: schliesst der Wochenplan, waehrend noch
+                # jemand davorsteht, muss der laufende Besuch beendet werden.
+                # Genau diesen Pfad haette ein `beginnt`/`endet`-Paar an den
+                # Zustandsuebergaengen vergessen.
+                self._zaehle()
                 time.sleep(0.5)
                 continue
 
@@ -213,6 +252,7 @@ class Controller:
                     self._pending_since = None
                     print(f"[Controller] → FERN ({dist:.2f}m)")
 
+            self._zaehle()
             time.sleep(0.1)
 
 
