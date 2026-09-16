@@ -15,6 +15,7 @@ import statistik as statistik_modul
 import tv_cec
 import zeitplan
 from sensor import SensorThread
+from button_sensor import ButtonSensorThread
 from camera_sensor import CameraSensorThread
 from web_ui import create_app, lan_adresse
 
@@ -37,14 +38,20 @@ __all__ = ["DEFAULT_CONFIG", "GRENZEN", "NUTZBARE_BCM", "ZONEN",
 def erzeuge_abstandsquelle(config):
     """Die zur Konfiguration passende Abstandsquelle bauen.
 
-    `sensor_type` entscheidet: „camera" -> Webcam-Erkennung, sonst der
-    HC-SR04 am GPIO (Vorgabe). Eine Stelle, an der die Wahl faellt — damit
+    `sensor_type` entscheidet: „camera" -> Webcam-Erkennung, „button" ->
+    GPIO-Taster, sonst der HC-SR04 am GPIO (Vorgabe). Eine Stelle, an der die Wahl faellt — damit
     `main` und die Tests dieselbe Quelle bekommen.
     """
-    if config.get("sensor_type") == "camera":
+    art = config.get("sensor_type")
+    if art == "camera":
         return CameraSensorThread(
             camera_index=config.get("camera_index", 0),
             focal_px=config.get("camera_focal_px", 700.0),
+        )
+    if art == "button":
+        return ButtonSensorThread(
+            pin=config.get("button_pin", 17),
+            haltezeit_s=config.get("button_haltezeit_s", 30.0),
         )
     return SensorThread(
         trigger_pin=config["gpio_trigger"],

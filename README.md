@@ -45,9 +45,10 @@ publishes by itself — nothing in this repo needs changing.
 ## Features
 
 ### Sensor-/Medien-Kern
-- **Zwei wählbare Abstandsquellen** (`sensor_type`):
+- **Drei wählbare Abstandsquellen** (`sensor_type`):
   - **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) / GPIO 24 (Echo) — frei konfigurierbar (Vorgabe)
   - **Kamera-Erkennung** über eine Webcam (OpenCV + YuNet/Haar) — läuft auch auf **Mac und Windows**, siehe [`docs/sensoren.md`](docs/sensoren.md)
+  - **Taster**: der Besucher drückt einen Knopf, statt gemessen zu werden
 - **Kein Demo-Modus mehr**: ist kein Sensor angeschlossen, misst die Station nichts und löst nicht aus — die Oberfläche sagt es im Klartext, statt eine erfundene Distanz zu zeigen
 - **Zustandsprüfung**: Sensor ohne Messung, volle Platte, Zone ohne Medien, fehlende Dateien — sichtbar im Admin und über `/api/identity` für den Station Manager
 - **Besucher-Statistik**: Besuche und Verweildauer pro Tag/Stunde, CSV-Export — ohne irgendetwas über einzelne Personen zu speichern, siehe [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)

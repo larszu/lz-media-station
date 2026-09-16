@@ -67,16 +67,29 @@ function updateStatusUI(d) {
     // Sensor antwortet nicht mehr. Frueher kam hier 0.00 an, also die Zahl,
     // die auch „Besucher steht direkt davor" bedeutet: die Oberflaeche konnte
     // einen toten Sensor nicht von einem sehr nahen Besucher unterscheiden.
+    var istTaster = (cfg.sensor_type === 'button');
+    // Beim Taster IST der Abstand nur eine Uebersetzung (0 m = gedrueckt,
+    // 25 m = frei). Die Zahl anzuzeigen waere ehrlich gemeint und trotzdem
+    // irrefuehrend: „25.00 m" sagt niemandem, dass der Knopf nicht gedrueckt
+    // ist. Deshalb hier der Zustand im Klartext.
     if (dist === null || dist === undefined) {
         document.getElementById('dist-value').textContent = '--';
         document.getElementById('dist-fill').style.width = '0%';
         document.getElementById('dist-fill').className = 'fill';
+    } else if (istTaster) {
+        var gedrueckt = dist <= threshold;
+        document.getElementById('dist-value').textContent = gedrueckt ? 'Gedrückt' : 'Frei';
+        document.getElementById('dist-fill').style.width = gedrueckt ? '100%' : '0%';
+        document.getElementById('dist-fill').className = 'fill' + (gedrueckt && d.active ? ' near' : '');
     } else {
         document.getElementById('dist-value').textContent = dist.toFixed(2);
         var pct = Math.min(dist / 4, 1) * 100;
         document.getElementById('dist-fill').style.width = pct + '%';
         document.getElementById('dist-fill').className = 'fill' + (dist <= threshold && d.active ? ' near' : '');
     }
+    // Die Schwellen-Marke ergibt beim Taster keinen Sinn — es gibt keine
+    // Entfernung, auf die sie zeigen koennte.
+    document.getElementById('dist-marker').style.display = istTaster ? 'none' : '';
     document.getElementById('dist-marker').style.left = Math.min(threshold / 4, 1) * 100 + '%';
 
     var badge = document.getElementById('state-badge');
@@ -106,6 +119,8 @@ function updateStatusUI(d) {
     if (!a || a.id !== 'cfg-gpio-echo') el('cfg-gpio-echo').value = cfg.gpio_echo;
     if (!a || a.id !== 'cfg-camera-index') el('cfg-camera-index').value = cfg.camera_index;
     if (!a || a.id !== 'cfg-camera-focal') el('cfg-camera-focal').value = cfg.camera_focal_px;
+    if (!a || a.id !== 'cfg-button-pin') el('cfg-button-pin').value = cfg.button_pin;
+    if (!a || a.id !== 'cfg-button-haltezeit') el('cfg-button-haltezeit').value = cfg.button_haltezeit_s;
     if (!a || a.id !== 'cfg-sensor-type') { el('cfg-sensor-type').value = cfg.sensor_type || 'ultrasonic'; toggleSensorFields(cfg.sensor_type || 'ultrasonic'); }
     if (!a || a.id !== 'cfg-display-ip') el('cfg-display-ip').value = cfg.display_ip || '';
     if (!a || a.id !== 'cfg-video-resume') el('cfg-video-resume').checked = !!cfg.video_resume;
@@ -405,12 +420,19 @@ async function saveZeitplan() {
 /* ---- Abstandsquelle: Felder je nach Typ zeigen/verbergen ---- */
 
 function toggleSensorFields(type) {
-    var istKamera = (type === 'camera');
-    document.querySelectorAll('.sensor-ultrasonic').forEach(function (e) {
-        e.style.display = istKamera ? 'none' : '';
-    });
-    document.querySelectorAll('.sensor-camera').forEach(function (e) {
-        e.style.display = istKamera ? '' : 'none';
+    // Je Quelle genau ihre Felder. Vorher war es ein Zweiweg-Schalter
+    // („Kamera ja/nein"); mit einer dritten Quelle waere daraus stillschweigend
+    // „alles ausser Kamera zeigt GPIO-Trigger/Echo" geworden — also Felder, die
+    // fuer den Taster nichts bedeuten.
+    var klassen = {
+        ultrasonic: '.sensor-ultrasonic',
+        camera: '.sensor-camera',
+        button: '.sensor-button',
+    };
+    Object.keys(klassen).forEach(function (art) {
+        document.querySelectorAll(klassen[art]).forEach(function (e) {
+            e.style.display = (art === type) ? '' : 'none';
+        });
     });
 }
 
@@ -516,6 +538,8 @@ async function saveConfig() {
         gpio_echo: parseInt(el('cfg-gpio-echo').value),
         camera_index: parseInt(el('cfg-camera-index').value),
         camera_focal_px: parseFloat(el('cfg-camera-focal').value),
+        button_pin: parseInt(el('cfg-button-pin').value),
+        button_haltezeit_s: parseFloat(el('cfg-button-haltezeit').value),
         display_ip: el('cfg-display-ip').value.trim(),
         video_resume: el('cfg-video-resume').checked,
     };

@@ -103,8 +103,9 @@ DEFAULT_CONFIG = {
     "threshold_m": 1.0,
     "delay_s": 1.5,
     # Welche Abstandsquelle die Station benutzt: "ultrasonic" (HC-SR04 am GPIO,
-    # Vorgabe) oder "camera" (Webcam + Gesichtserkennung, laeuft auch auf
-    # Mac/Windows). Details in docs/sensoren.md.
+    # Vorgabe), "camera" (Webcam + Gesichtserkennung, laeuft auch auf
+    # Mac/Windows) oder "button" (GPIO-Taster: der Besucher drueckt, statt dass
+    # gemessen wird). Details in docs/sensoren.md.
     "sensor_type": "ultrasonic",
     "gpio_trigger": 23,
     "gpio_echo": 24,
@@ -112,6 +113,9 @@ DEFAULT_CONFIG = {
     # Pixeln (bezogen auf die interne Erkennungsbreite, siehe camera_sensor.py).
     "camera_index": 0,
     "camera_focal_px": 700.0,
+    # Taster-Quelle: Pin und wie lange ein Druck als „nah" gilt.
+    "button_pin": 17,
+    "button_haltezeit_s": 30.0,
     "web_port": 5000,
     "image_interval_s": 5,
     "master_volume": 100,
@@ -186,11 +190,14 @@ GRENZEN = {
                    "Hostname oder IP, max. 64 Zeichen"),
     "threshold_m": (float, lambda v: 0.05 <= v <= 20.0, "0.05..20.0 m"),
     "delay_s": (float, lambda v: 0.0 <= v <= 60.0, "0..60 s"),
-    "sensor_type": (str, lambda v: v in ("ultrasonic", "camera"), "ultrasonic|camera"),
+    "sensor_type": (str, lambda v: v in ("ultrasonic", "camera", "button"),
+                    "ultrasonic|camera|button"),
     "gpio_trigger": (int, lambda v: v in NUTZBARE_BCM, f"BCM {NUTZBARE_BCM[0]}..{NUTZBARE_BCM[-1]}"),
     "gpio_echo": (int, lambda v: v in NUTZBARE_BCM, f"BCM {NUTZBARE_BCM[0]}..{NUTZBARE_BCM[-1]}"),
     "camera_index": (int, lambda v: 0 <= v <= 16, "0..16"),
     "camera_focal_px": (float, lambda v: 1.0 <= v <= 100000.0, "1..100000 px"),
+    "button_pin": (int, lambda v: v in NUTZBARE_BCM, f"BCM {NUTZBARE_BCM[0]}..{NUTZBARE_BCM[-1]}"),
+    "button_haltezeit_s": (float, lambda v: 1.0 <= v <= 600.0, "1..600 s"),
     "web_port": (int, lambda v: 1 <= v <= 65535, "1..65535"),
     "image_interval_s": (float, lambda v: 1.0 <= v <= 3600.0, "1..3600 s"),
     "master_volume": (int, lambda v: 0 <= v <= 100, "0..100 %"),

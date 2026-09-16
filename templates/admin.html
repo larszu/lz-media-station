@@ -274,6 +274,7 @@
                     <select id="cfg-sensor-type">
                         <option value="ultrasonic">Ultraschall (HC-SR04 am GPIO)</option>
                         <option value="camera">Kamera (Webcam, auch Mac/Windows)</option>
+                        <option value="button">Taster (Besucher dr&uuml;ckt)</option>
                     </select>
                 </div>
                 <!-- Nur bei Ultraschall sichtbar -->
@@ -293,6 +294,15 @@
                 <div class="form-group sensor-camera">
                     <label for="cfg-camera-focal">Brennweite (px, kalibriert)</label>
                     <input type="number" id="cfg-camera-focal" value="700" min="1" max="100000" step="1">
+                </div>
+                <!-- Nur bei Taster sichtbar -->
+                <div class="form-group sensor-button">
+                    <label for="cfg-button-pin">Taster GPIO (BCM)</label>
+                    <input type="number" id="cfg-button-pin" value="17" min="2" max="27">
+                </div>
+                <div class="form-group sensor-button">
+                    <label for="cfg-button-haltezeit">Haltezeit nach Druck (s)</label>
+                    <input type="number" id="cfg-button-haltezeit" value="30" min="1" max="600" step="1">
                 </div>
             </div>
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">

@@ -8,9 +8,11 @@ Schwelle ist, sonst die **Fern**-Szene. Woher der Abstand kommt, entscheidet
 |---|---|---|
 | `ultrasonic` (Vorgabe) | HC-SR04 Ultraschallsensor am GPIO | Raspberry Pi |
 | `camera` | Webcam + Gesichtserkennung (OpenCV) | Pi, **macOS, Windows** |
+| `button` | GPIO-Taster: der Besucher **drückt**, statt gemessen zu werden | Raspberry Pi |
 
-Beide liefern denselben Wert — den Abstand des nächsten Besuchers in Metern,
-oder „unbekannt". **Ist keine Hardware angeschlossen, wird nichts erfunden**
+Alle drei liefern denselben Wert — den Abstand des nächsten Besuchers in
+Metern, oder „unbekannt" (beim Taster ist dieser Abstand eine Übersetzung,
+siehe unten). **Ist keine Hardware angeschlossen, wird nichts erfunden**
 (kein Demo-Modus): die Station löst nicht aus, und der Admin zeigt im Klartext,
 warum. Das war früher anders und für Endnutzer irreführend — ein nicht
 angeschlossener Sensor sah aus wie ein ruhiger Besucher.
@@ -137,3 +139,49 @@ Ultraschall und Kamera. Kurzvergleich als Entscheidungshilfe:
 - MediaPipe (Wheel-Plattformen): <https://pypi.org/project/mediapipe/>
 - Monokamera-Distanz (Formel + Kalibrierung): <https://github.com/Asadullah-Dal17/Distance_measurement_using_single_camera>
 - VL53L1X ToF: <https://learn.adafruit.com/adafruit-vl53l1x> · HLK-LD2410 mmWave: <https://www.espboards.dev/sensors/ld2410/>
+
+
+---
+
+## Taster (`sensor_type: "button"`)
+
+Viele Exponate wollen nicht „jemand steht nah", sondern **„jemand hat
+gedrückt"**: ein Knopf am Podest, der die Vorführung startet. Das ist eine
+Absicht und kein Zufall — wer vorbeigeht, löst nichts aus.
+
+Einstellungen im Admin unter **Abstandsquelle → Taster**:
+
+| Feld | Bedeutung |
+|---|---|
+| **Taster GPIO (BCM)** | Der Pin, an dem der Taster hängt (Vorgabe 17) |
+| **Haltezeit nach Druck** | Wie lange ein Druck als „nah" gilt (Vorgabe 30 s) |
+
+Verdrahtung: Taster zwischen dem GPIO-Pin und **GND**. Der interne Pull-up
+wird gesetzt (`pull_up=True`), ein Widerstand ist nicht nötig. Gegen das
+Prellen mechanischer Taster ist eine Entprellzeit von 50 ms eingebaut — ohne
+sie meldet ein einziger Druck mehrere Flanken.
+
+### Wie er sich einfügt
+
+Die Station rechnet durchgehend mit einem Abstand (`dist <= threshold`). Der
+Taster übersetzt sich in genau diese Sprache, statt einen zweiten Weg durch
+die Zustandsmaschine zu öffnen:
+
+| Zustand | gemeldeter „Abstand" |
+|---|---|
+| gedrückt (Haltezeit läuft) | 0,0 m — unter jeder erlaubten Schwelle |
+| sonst | 25,0 m — über jeder erlaubten Schwelle (Maximum ist 20 m) |
+
+**„Frei" ist ein Wert und nicht „keine Messung".** `None` würde von der
+Zustandsprüfung zu Recht als Störung gemeldet — ein nicht gedrückter Taster
+ist aber keine Störung, sondern die Antwort „gerade niemand". Die Station muss
+zwischen „Taster sagt nein" und „Taster ist abgerissen" unterscheiden können.
+
+**Kein Mittelwert.** Die anderen Quellen mitteln über fünf Messwerte, um
+Ausreißer zu dämpfen. Zwischen 0,0 und 25,0 gemittelt kämen Zwischenwerte
+heraus, die es nie gab — und je nach Schwelle schaltete die Station auf einem
+Wert, den niemand ausgelöst hat. Ein Taster ist digital, deshalb
+`_filter_size = 1`.
+
+Im Admin zeigt die Statuszeile deshalb **Gedrückt / Frei** statt einer
+Entfernung: „25,00 m" wäre ehrlich gemeint und trotzdem irreführend.
