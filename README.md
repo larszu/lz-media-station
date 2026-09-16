@@ -96,6 +96,7 @@ publishes by itself — nothing in this repo needs changing.
 ```bash
 ./run-local.sh          # Linux / macOS
 run_windows.bat         # Windows (Doppelklick)
+run_windows.bat --server  # Windows, für einen Aufrufer: Vordergrund, kein Browser
 ```
 
 Mehr braucht es nicht: Python 3.10+. Das Skript legt beim ersten Lauf eine
@@ -112,6 +113,69 @@ Pi. Er wartet auf einen Wayland-Socket, erschießt `piwiz` und `zenity` und
 startet Chromium im Vollbild. Auf einem Notebook läuft davon nichts, und
 der Abbruch kommt beim Wayland-Socket — also mit einer Meldung über ein
 fehlendes Fenster statt über die Sache.
+
+### Dieser Rechner ist auch ein Mediaplayer — mit allen Bildschirmen
+
+```bash
+python3 main.py --list-displays     # was hängt hier?
+python3 main.py --play-on all       # Anzeige auf jedem Schirm
+python3 main.py --play-on 0,2       # nur auf diesen beiden
+```
+
+Bis 2026-09-15 gab es genau **einen** Schirm, und der war der HDMI-Ausgang
+eines Raspberry Pi. Die Anzeige ist seit jeher eine Browser-Seite
+(`/display`); auf dem Pi öffnet sie ein Chromium im Kiosk-Betrieb, und mehr
+Bildschirme hat ein Pi in diesem Aufbau nicht. Auf einem Notebook oder
+einem Rechner am Aufbau hängt oft mehr als einer — **der eingebaute zählt
+mit** —, und davon konnte die Station nichts nutzen. Wer zwei Schirme
+bespielen wollte, brauchte zwei Rechner.
+
+Die Schirme stehen auch im Web-Admin, mit einem Knopf je Schirm. Die Karte
+erscheint nur, wenn es etwas zu zeigen gibt: auf einem Pi ohne X wäre eine
+leere Liste mit zwei wirkungslosen Knöpfen schlimmer als keine Karte.
+
+**Gefunden werden sie auf dem Weg, den das System selbst anbietet:**
+
+| Windows | `ctypes` → `user32.EnumDisplayMonitors` (Standardbibliothek) |
+|---|---|
+| macOS | `system_profiler SPDisplaysDataType -json` |
+| Linux | `xrandr --listmonitors` |
+
+Keine neue Abhängigkeit.
+
+**Der ehrliche Teil: warum Position und nicht „Schirm Nummer 2".** Es gibt
+keinen Weg, einem Browser zu sagen „geh auf Schirm 2 in den
+Vollbildmodus". Was es gibt, ist ein Fenster an einer **Position**: jeder
+Schirm hat im gemeinsamen Koordinatensystem eine Ecke, und ein Fenster, das
+dort aufgeht, liegt auf diesem Schirm. Genau das tun `--window-position`
+und `--window-size`.
+
+Daraus folgen zwei Grenzen, die hier stehen statt sich zu verstecken:
+
+* Wer die Schirme in den Systemeinstellungen **verschiebt, während ein
+  Fenster offen ist**, bekommt es nicht nachgeführt. Aufgezählt wird beim
+  Öffnen.
+* macOS nennt in seiner Ausgabe **keine Koordinaten**. Die Ecken werden
+  deshalb aus den Breiten aufgereiht: Hauptschirm bei 0/0, die übrigen
+  rechts daneben. Wer seine Schirme übereinander legt, bekommt das Fenster
+  an der falschen Stelle — es geht dann trotzdem auf und lässt sich
+  verschieben.
+
+**Chrome, Chromium oder Edge.** Firefox und Safari können kein Fenster auf
+einem bestimmten Schirm öffnen, deshalb stehen sie nicht in der Liste.
+Findet die Station keinen Browser, sagt sie, **wo sie gesucht hat** — ein
+„geht nicht" ohne Ort ist für den Nutzer dasselbe wie Schweigen.
+
+Und jeder Schirm bekommt ein eigenes Browser-Profil. Ohne das bleibt der
+zweite schwarz: ein zweiter Chrome-Aufruf mit demselben Profil faltet sich
+in das bestehende Fenster, statt ein neues zu öffnen.
+
+`tests/test_displays.py` misst die Auswertung gegen echte Ausgaben von
+`system_profiler` und `xrandr` — in CI gibt es keinen Bildschirm, und die
+Frage ist ohnehin eine andere: ob aus dem Text die richtige Ecke wird. Ein
+echter Defekt kam dabei heraus: der erste Anlauf trennte die
+xrandr-Geometrie an `+` und verlor damit jeden Schirm **links** vom
+Hauptschirm (`-1920+0`) — also ausgerechnet den zweiten.
 
 ### Andere Geräte im selben Netz
 
