@@ -91,6 +91,26 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 .sensor-status.warn { color: var(--warning); }
 .sensor-status:empty { display: none; }
 
+/* --- Zonen-Optionen und Reihenfolge --- */
+.zone-optionen { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 8px; }
+.zone-optionen .checkbox-label { margin: 0; font-size: 0.75rem; }
+.zone-item { display: flex; align-items: center; gap: 4px; }
+.zone-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 24px Trefferflaeche (WCAG 2.2, 2.5.8) — die Pfeile werden mit dem Daumen
+   getroffen, nicht mit der Maus. */
+.ord-btn {
+    width: 24px; height: 24px; flex: none; border-radius: 0; padding: 0;
+    background: var(--bg); color: var(--text-dim);
+    border: 1px solid var(--border); font-size: 0.7rem; cursor: pointer;
+}
+.ord-btn:hover { color: var(--text); }
+.ord-btn.leer { background: none; border-color: transparent; cursor: default; }
+.bildzeit {
+    width: 58px; flex: none; min-height: 24px; padding: 2px 4px; border-radius: 0;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    font-size: 0.72rem;
+}
+
 /* --- Zustand --- */
 .health-punkt { font-size: 0.75rem; font-weight: 600; margin-left: 8px; color: var(--text-dim); }
 .health-punkt.ok { color: var(--near); }

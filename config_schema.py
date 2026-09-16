@@ -10,6 +10,94 @@ Kreis.
 """
 from zeitplan import heile_zeitplan, standard_zeitplan
 
+#: Die beiden Zonen und die Medienarten darin.
+ZONEN = ("near", "far")
+MEDIENARTEN = ("videos", "images", "audio")
+
+#: Grenzen fuer eine eigene Standzeit je Bild.
+BILDZEIT_MIN_S = 1.0
+BILDZEIT_MAX_S = 3600.0
+
+
+def standard_zone():
+    """Eine leere Zone mit allen Wiedergabe-Optionen.
+
+    `shuffle`  — zufaellige Reihenfolge statt der Listenreihenfolge
+    `einmal`   — einmal durchspielen statt endlos zu wiederholen
+    `bildzeiten` — {Dateiname: Sekunden} fuer Bilder, die laenger oder kuerzer
+                 stehen sollen als der allgemeine Bildwechsel
+    """
+    return {"videos": [], "images": [], "audio": [],
+            "shuffle": False, "einmal": False, "bildzeiten": {}}
+
+
+def heile_zone(roh):
+    """Ladeweg fuer EINE Zone: reparieren statt abbrechen.
+
+    Eine Stelle fuer beide Zonen und beide Wege. Vorher stand die
+    Zonen-Normalisierung in `main.load_config` und kannte nur die drei
+    Medienlisten — jede neue Option haette dort nachgezogen werden muessen,
+    und ein Vergessen faellt erst auf, wenn eine gespeicherte Einstellung
+    nach dem Neustart weg ist.
+    """
+    zone = standard_zone()
+    if not isinstance(roh, dict):
+        return zone
+    for art in MEDIENARTEN:
+        wert = roh.get(art)
+        if isinstance(wert, list):
+            zone[art] = [x for x in wert if isinstance(x, str) and x]
+    zone["shuffle"] = bool(roh.get("shuffle", False))
+    zone["einmal"] = bool(roh.get("einmal", False))
+    rohzeiten = roh.get("bildzeiten")
+    if isinstance(rohzeiten, dict):
+        sauber = {}
+        for name, sekunden in rohzeiten.items():
+            if not isinstance(name, str):
+                continue
+            try:
+                wert = float(sekunden)
+            except (TypeError, ValueError):
+                continue
+            if BILDZEIT_MIN_S <= wert <= BILDZEIT_MAX_S:
+                sauber[name] = wert
+        zone["bildzeiten"] = sauber
+    return zone
+
+
+def pruefe_zone(roh):
+    """Schreibweg fuer EINE Zone: ablehnen statt heilen, mit Feldnamen."""
+    if not isinstance(roh, dict):
+        raise ValueError("Zone muss ein Objekt sein")
+    heraus = {}
+    for art in MEDIENARTEN:
+        if art in roh:
+            if not isinstance(roh[art], list):
+                raise ValueError(f"{art}: muss eine Liste sein")
+            heraus[art] = [x for x in roh[art] if isinstance(x, str) and x]
+    for schalter in ("shuffle", "einmal"):
+        if schalter in roh:
+            if not isinstance(roh[schalter], bool):
+                raise ValueError(f"{schalter}: muss true oder false sein")
+            heraus[schalter] = roh[schalter]
+    if "bildzeiten" in roh:
+        if not isinstance(roh["bildzeiten"], dict):
+            raise ValueError("bildzeiten: muss ein Objekt sein")
+        zeiten = {}
+        for name, sekunden in roh["bildzeiten"].items():
+            try:
+                wert = float(sekunden)
+            except (TypeError, ValueError):
+                raise ValueError(f"bildzeiten.{name}: muss eine Zahl sein") from None
+            if not (BILDZEIT_MIN_S <= wert <= BILDZEIT_MAX_S):
+                raise ValueError(
+                    f"bildzeiten.{name}: {wert} liegt ausserhalb von "
+                    f"{BILDZEIT_MIN_S:.0f}..{BILDZEIT_MAX_S:.0f} s")
+            zeiten[name] = wert
+        heraus["bildzeiten"] = zeiten
+    return heraus
+
+
 DEFAULT_CONFIG = {
     "system_name": "LZ Station 1",
     "threshold_m": 1.0,
@@ -38,8 +126,8 @@ DEFAULT_CONFIG = {
     # nichts ausser einer Zeile im Log.
     "cec_aktiv": False,
     "display_ip": "",
-    "near": {"videos": [], "images": [], "audio": []},
-    "far": {"videos": [], "images": [], "audio": []},
+    "near": standard_zone(),
+    "far": standard_zone(),
 }
 
 

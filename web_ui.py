@@ -4,7 +4,9 @@ import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 import gesundheit
-from config_schema import pruefe_patch, pruefe_pins
+from config_schema import (
+    MEDIENARTEN, ZONEN, pruefe_patch, pruefe_pins, pruefe_zone, standard_zone,
+)
 from zeitplan import pruefe_zeitplan
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -317,15 +319,27 @@ def create_app(controller, anzeigen=None):
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         controller.config.update(geprueft)
-        for zone in ("near", "far"):
-            if zone in data and isinstance(data[zone], dict):
-                if not isinstance(controller.config.get(zone), dict):
-                    controller.config[zone] = {"videos": [], "images": [], "audio": []}
-                for mt in ("videos", "images", "audio"):
-                    if mt in data[zone] and isinstance(data[zone][mt], list):
-                        controller.config[zone][mt] = [
-                            secure_filename(f) for f in data[zone][mt] if f
-                        ]
+        for zone in ZONEN:
+            if zone not in data:
+                continue
+            try:
+                teil = pruefe_zone(data[zone])
+            except ValueError as e:
+                return jsonify({"error": f"{zone}.{e}"}), 400
+            if not isinstance(controller.config.get(zone), dict):
+                controller.config[zone] = standard_zone()
+            # Dateinamen bleiben entschaerft — der Name kommt aus dem Browser
+            # und landet spaeter in einem Pfad.
+            for mt in MEDIENARTEN:
+                if mt in teil:
+                    controller.config[zone][mt] = [secure_filename(f) for f in teil[mt]]
+            for schalter in ("shuffle", "einmal"):
+                if schalter in teil:
+                    controller.config[zone][schalter] = teil[schalter]
+            if "bildzeiten" in teil:
+                controller.config[zone]["bildzeiten"] = {
+                    secure_filename(name): wert for name, wert in teil["bildzeiten"].items()
+                }
         controller.save_config()
         return jsonify({"ok": True, "config": controller.config})
 

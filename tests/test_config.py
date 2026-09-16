@@ -106,7 +106,12 @@ class ZonenHeilung(LoadConfigBasis):
         self.schreibe({"near": [], "far": {}})
         cfg = main.load_config()
         self.assertIsInstance(cfg["near"], dict)
-        self.assertEqual(cfg["near"], {"videos": [], "images": [], "audio": []})
+        # Gegen `standard_zone()` und nicht gegen eine abgeschriebene Liste:
+        # eine Zone traegt inzwischen auch Wiedergabe-Optionen (shuffle,
+        # einmal, bildzeiten). Ein abgeschriebenes Objekt muesste bei jeder
+        # neuen Option hier nachgezogen werden — und faellt sonst rot aus,
+        # ohne dass etwas kaputt ist.
+        self.assertEqual(cfg["near"], main.standard_zone())
 
     def test_zone_als_null_wird_ersetzt(self):
         self.schreibe({"near": None})

@@ -20,6 +20,16 @@ document.addEventListener('DOMContentLoaded', function () {
     el('cfg-sensor-type').addEventListener('change', function (e) {
         toggleSensorFields(e.target.value);
     });
+    // Zonen-Optionen wirken sofort: sie gehoeren zur Zonen-Uebersicht und
+    // nicht zum Einstellungen-Formular, also gibt es dort auch keinen
+    // Speichern-Knopf, auf den jemand warten muesste.
+    ['near', 'far'].forEach(function (zone) {
+        ['shuffle', 'einmal'].forEach(function (opt) {
+            el('zone-' + zone + '-' + opt).addEventListener('change', function (e) {
+                setzeZonenOption(zone, opt, e.target.checked);
+            });
+        });
+    });
 });
 
 // ESC -> zurück zum Home-Menü (von Admin aus)
@@ -124,15 +134,92 @@ function updateStatusUI(d) {
     renderZoneOverview('far', cfg.far || {});
 }
 
+var ZONE_SYMBOL = { videos: '\uD83C\uDFAC', images: '\uD83D\uDDBC', audio: '\uD83C\uDFB5' };
+
 function renderZoneOverview(zone, data) {
     var container = document.getElementById('zone-' + zone + '-media');
-    var items = [];
-    (data.videos || []).forEach(function (f) { items.push('\uD83C\uDFAC ' + f); });
-    (data.images || []).forEach(function (f) { items.push('\uD83D\uDDBC ' + f); });
-    (data.audio || []).forEach(function (f) { items.push('\uD83C\uDFB5 ' + f); });
-    container.innerHTML = items.length
-        ? items.map(function (i) { return '<div class="zone-item">' + esc(i) + '</div>'; }).join('')
+    var a = document.activeElement;
+
+    // Optionen der Zone (nicht anfassen, was gerade den Fokus hat).
+    ['shuffle', 'einmal'].forEach(function (opt) {
+        var id = 'zone-' + zone + '-' + opt;
+        if (!a || a.id !== id) el(id).checked = !!data[opt];
+    });
+
+    var zeiten = data.bildzeiten || {};
+    var zeilen = [];
+    ['videos', 'images', 'audio'].forEach(function (art) {
+        (data[art] || []).forEach(function (f, i, liste) {
+            // Pfeile zum Umsortieren statt Drag: die Verwaltung wird vom
+            // HANDY bedient, und Drag-and-Drop mit dem Daumen auf einer Liste
+            // ist dort der unzuverlaessigste Weg, den es gibt.
+            var hoch = i > 0
+                ? '<button class="ord-btn" onclick="verschiebe(\'' + zone + '\',\'' + art + '\',' + i + ',-1)" title="nach oben">\u25B2</button>'
+                : '<span class="ord-btn leer"></span>';
+            var runter = i < liste.length - 1
+                ? '<button class="ord-btn" onclick="verschiebe(\'' + zone + '\',\'' + art + '\',' + i + ',1)" title="nach unten">\u25BC</button>'
+                : '<span class="ord-btn leer"></span>';
+            // Standzeit nur bei Bildern: Videos und Audio bringen ihre Dauer
+            // selbst mit.
+            var zeit = '';
+            if (art === 'images') {
+                var wert = zeiten[f];
+                var zid = 'bz-' + zone + '-' + i;
+                zeit = '<input type="number" class="bildzeit" id="' + zid + '" min="1" max="3600" step="1"' +
+                    ' placeholder="Std." title="Standzeit in Sekunden (leer = allgemeiner Bildwechsel)"' +
+                    ' value="' + (wert ? esc(String(wert)) : '') + '"' +
+                    ' onchange="setzeBildzeit(\'' + zone + '\',\'' + escAttr(f) + '\',this.value)">';
+            }
+            zeilen.push('<div class="zone-item">' + hoch + runter +
+                '<span class="zone-item-name">' + ZONE_SYMBOL[art] + ' ' + esc(f) + '</span>' +
+                zeit + '</div>');
+        });
+    });
+    container.innerHTML = zeilen.length
+        ? zeilen.join('')
         : '<div class="zone-empty">Keine Medien zugewiesen</div>';
+}
+
+/* ---- Reihenfolge und Standzeit ---- */
+
+async function sendeZone(zone, teil) {
+    var payload = {};
+    payload[zone] = teil;
+    await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    fetchStatus();
+}
+
+function verschiebe(zone, art, index, richtung) {
+    var liste = ((config[zone] || {})[art] || []).slice();
+    var ziel = index + richtung;
+    if (ziel < 0 || ziel >= liste.length) return;
+    var t = liste[index]; liste[index] = liste[ziel]; liste[ziel] = t;
+    var teil = {};
+    teil[art] = liste;
+    sendeZone(zone, teil);
+}
+
+function setzeBildzeit(zone, datei, wert) {
+    var zeiten = Object.assign({}, (config[zone] || {}).bildzeiten || {});
+    var zahl = parseFloat(wert);
+    if (!wert || !isFinite(zahl)) {
+        // Leer heisst \u201Eallgemeiner Bildwechsel" \u2014 der Eintrag verschwindet,
+        // statt eine 0 zu speichern, die der Kern ohnehin ablehnen wuerde.
+        delete zeiten[datei];
+    } else {
+        zeiten[datei] = zahl;
+    }
+    sendeZone(zone, { bildzeiten: zeiten });
+}
+
+function setzeZonenOption(zone, option, an) {
+    var teil = {};
+    teil[option] = an;
+    sendeZone(zone, teil);
 }
 
 /* ---- Sliders ---- */

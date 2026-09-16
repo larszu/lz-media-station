@@ -25,12 +25,12 @@ STATISTIK_FILE = os.path.join(BASE_DIR, "statistik.json")
 # Vorgaben und Grenzen stehen in `config_schema`; hier weiterhin unter ihrem
 # alten Namen erreichbar, weil Tests und Aufrufer `main.DEFAULT_CONFIG` kennen.
 from config_schema import (  # noqa: E402  (nach den Standard-Imports, absichtlich)
-    DEFAULT_CONFIG, GRENZEN, NUTZBARE_BCM,
-    pruefe_patch, pruefe_pins, heile_config,
+    DEFAULT_CONFIG, GRENZEN, NUTZBARE_BCM, ZONEN,
+    pruefe_patch, pruefe_pins, heile_config, heile_zone, standard_zone,
 )
 
-__all__ = ["DEFAULT_CONFIG", "GRENZEN", "NUTZBARE_BCM",
-           "pruefe_patch", "pruefe_pins", "heile_config",
+__all__ = ["DEFAULT_CONFIG", "GRENZEN", "NUTZBARE_BCM", "ZONEN",
+           "pruefe_patch", "pruefe_pins", "heile_config", "heile_zone", "standard_zone",
            "erzeuge_abstandsquelle", "Controller", "load_config", "main"]
 
 
@@ -101,8 +101,12 @@ class Controller:
             "active": self.active,
             "geschlossen": geschlossen,
             "zone": zone,
-            "near": self.config.get("near", {"videos": [], "images": [], "audio": []}),
-            "far": self.config.get("far", {"videos": [], "images": [], "audio": []}),
+            # Die ganzen Zonen-Objekte, damit die Wiedergabe-Optionen
+            # (shuffle/einmal/bildzeiten) mitkommen, ohne hier einzeln
+            # aufgezaehlt zu werden — eine neue Option waere sonst im Kern da
+            # und auf dem Schirm nicht.
+            "near": self.config.get("near") or standard_zone(),
+            "far": self.config.get("far") or standard_zone(),
             "image_interval_s": self.config.get("image_interval_s", 5),
             "master_volume": self.config.get("master_volume", 100),
             "video_volume": self.config.get("video_volume", 100),
@@ -263,11 +267,13 @@ def load_config():
                 cfg = json.load(f)
             for k, v in DEFAULT_CONFIG.items():
                 cfg.setdefault(k, v)
-            for zone in ("near", "far"):
-                if not isinstance(cfg.get(zone), dict):
-                    cfg[zone] = {"videos": [], "images": [], "audio": []}
-                for key in ("videos", "images", "audio"):
-                    cfg[zone].setdefault(key, [])
+            # Eine Stelle heilt die Zonen (`config_schema.heile_zone`). Vorher
+            # stand die Normalisierung hier und kannte nur die drei
+            # Medienlisten — jede neue Wiedergabe-Option haette nachgezogen
+            # werden muessen, und ein Vergessen faellt erst auf, wenn eine
+            # gespeicherte Einstellung nach dem Neustart verschwunden ist.
+            for zone in ZONEN:
+                cfg[zone] = heile_zone(cfg.get(zone))
             return heile_config(cfg)
         except Exception as e:
             print(f"[Config] Lesefehler: {e}")
