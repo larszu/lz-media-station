@@ -99,7 +99,13 @@ def create_app(controller):
             "sensor_ok": controller.sensor.distance is not None,
             "state": controller.state,
             "active": controller.active,
-            "dummy_sensor": controller.sensor.use_dummy,
+            # Welche Quelle laeuft und ihr Klartext-Zustand. Loest das alte
+            # `dummy_sensor` ab: es gibt keinen Demo-Modus mehr, und die
+            # Oberflaeche soll sagen koennen „kein Sensor angeschlossen" statt
+            # eine erfundene Zahl zu zeigen.
+            "sensor_type": controller.config.get("sensor_type", "ultrasonic"),
+            "sensor_label": controller.sensor.LABEL,
+            "sensor_status": controller.sensor.status,
             "host_ip": host_ip,
             "web_port": port,
             "remote_url": "http://" + host_ip + ":" + str(port) + "/admin",

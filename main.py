@@ -9,6 +9,7 @@ import threading
 import argparse
 
 from sensor import SensorThread
+from camera_sensor import CameraSensorThread
 from web_ui import create_app, lan_adresse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,19 +24,33 @@ from config_schema import (  # noqa: E402  (nach den Standard-Imports, absichtli
 
 __all__ = ["DEFAULT_CONFIG", "GRENZEN", "NUTZBARE_BCM",
            "pruefe_patch", "pruefe_pins", "heile_config",
-           "Controller", "load_config", "main"]
+           "erzeuge_abstandsquelle", "Controller", "load_config", "main"]
+
+
+def erzeuge_abstandsquelle(config):
+    """Die zur Konfiguration passende Abstandsquelle bauen.
+
+    `sensor_type` entscheidet: „camera" -> Webcam-Erkennung, sonst der
+    HC-SR04 am GPIO (Vorgabe). Eine Stelle, an der die Wahl faellt — damit
+    `main` und die Tests dieselbe Quelle bekommen.
+    """
+    if config.get("sensor_type") == "camera":
+        return CameraSensorThread(
+            camera_index=config.get("camera_index", 0),
+            focal_px=config.get("camera_focal_px", 700.0),
+        )
+    return SensorThread(
+        trigger_pin=config["gpio_trigger"],
+        echo_pin=config["gpio_echo"],
+    )
 
 
 class Controller:
     """Sensor → Zonen-Logik. Display wird vom Browser gehandhabt."""
 
-    def __init__(self, config, use_dummy=False):
+    def __init__(self, config):
         self.config = config
-        self.sensor = SensorThread(
-            trigger_pin=config["gpio_trigger"],
-            echo_pin=config["gpio_echo"],
-            use_dummy=use_dummy,
-        )
+        self.sensor = erzeuge_abstandsquelle(config)
         self.active = False
         self.state = "idle"
         self._pending_since = None
@@ -168,7 +183,6 @@ def load_config():
 
 def main():
     parser = argparse.ArgumentParser(description="LZ Media Station")
-    parser.add_argument("--dummy", action="store_true", help="Dummy-Sensor (kein GPIO)")
     parser.add_argument("--port", type=int, help="Web-UI Port (Standard: 5000)")
     # Die Bind-Adresse war fest auf 0.0.0.0 verdrahtet — also auf ALLEN
     # Schnittstellen, ohne dass es eine Moeglichkeit gab, das zu lassen. Auf
@@ -188,7 +202,7 @@ def main():
     for d in ("videos", "images", "audio"):
         os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
 
-    controller = Controller(config, use_dummy=args.dummy)
+    controller = Controller(config)
     controller.sensor.start()
 
     if not os.path.isfile(CONFIG_FILE):
@@ -223,7 +237,10 @@ def main():
     else:
         print("    kein Netz gefunden — nur dieser Rechner kommt dran.")
     print()
-    print(f"    Sensor: {'Dummy (kein GPIO)' if controller.sensor.use_dummy else 'HC-SR04'}")
+    # `status` fuellt sich erst, wenn der Quellen-Thread seinen ersten
+    # Durchlauf hatte; deshalb der Kurzname der Quelle als sofort sichtbare
+    # Angabe und der Status daneben, sobald er da ist.
+    print(f"    Sensor: {controller.sensor.LABEL} — {controller.sensor.status}")
     print()
 
     def shutdown(sig, frame):

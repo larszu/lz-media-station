@@ -1,13 +1,33 @@
-"""HC-SR04 Ultraschallsensor via gpiozero - Thread-basiert mit Mittelwertfilter"""
+"""Abstandsquellen der LZ Media Station.
+
+Zwei Quellen liefern denselben Wert — den Abstand des naechsten Besuchers in
+Metern, oder `None`, wenn gerade keiner gemessen werden kann:
+
+* `SensorThread`   — HC-SR04 Ultraschallsensor am GPIO (dieser Datei).
+* `CameraSensorThread` — Kamera-Erkennung (in `camera_sensor.py`).
+
+Beide erben von `AbstandsQuelle`: der gleitende Mittelwert, das Veralten eines
+Messwerts und die `distance`-Eigenschaft stehen NUR hier, an einer Stelle. Wer
+eine dritte Quelle baut, erbt dieselbe Rechnung — nicht eine zweite, die
+auseinanderlaeuft.
+
+KEIN Demo-/Dummy-Modus mehr. Frueher hat der Sensor, wenn keiner angeschlossen
+war, Zufallswerte um 1,5 m erzeugt. Das war fuer den Enduser irrefuehrend: die
+Station tat so, als messe sie, obwohl gar keine Hardware da war — die
+Abstandsanzeige zappelte, die Zonen schalteten scheinbar echt. Jetzt gilt: ist
+kein Sensor da, gibt es keinen Messwert (`distance is None`), und `status`
+sagt im Klartext, warum. `main.py` behandelt `None` als „nicht nah" — es wird
+also nichts ausgeloest, und die Oberflaeche zeigt „--" statt einer erfundenen
+Zahl.
+"""
 import threading
 import time
-import random
 
 # Wie lange ein Messwert gilt, wenn keiner nachkommt.
 #
 # Die Messschleife laeuft alle 0,1 s. Zwanzig Durchlaeufe hintereinander ohne
-# gueltigen Wert sind kein Aussetzer, sondern ein Ausfall — dann sagt der
-# Sensor „ich weiss es nicht" statt weiter den letzten Wert zu behaupten.
+# gueltigen Wert sind kein Aussetzer, sondern ein Ausfall — dann sagt die
+# Quelle „ich weiss es nicht" statt weiter den letzten Wert zu behaupten.
 STALE_AFTER_S = 2.0
 
 try:
@@ -17,89 +37,49 @@ except ImportError:
     GPIOZERO_AVAILABLE = False
 
 
-class SensorThread(threading.Thread):
-    def __init__(self, trigger_pin=23, echo_pin=24, use_dummy=False):
+class AbstandsQuelle(threading.Thread):
+    """Gemeinsame Basis aller Abstandsquellen.
+
+    Haelt das eine Stueck Logik, das jede Quelle teilt: einen gleitenden
+    Mittelwert ueber `_filter_size` Rohwerte und das Veralten nach
+    `STALE_AFTER_S`. Unterklassen fuellen in ihrer `run`-Schleife Rohwerte
+    ueber `_uebernimm(...)` ein und schliessen ihre Hardware in
+    `_quelle_schliessen()`.
+    """
+
+    #: Kurzname der Quelle fuer Logs und `/api/status` (Unterklasse ueberschreibt).
+    LABEL = "Abstandsquelle"
+
+    def __init__(self):
         super().__init__(daemon=True)
-        self.trigger_pin = trigger_pin
-        self.echo_pin = echo_pin
-        self.use_dummy = use_dummy or not GPIOZERO_AVAILABLE
-        # KEIN Startwert 0.0. Das war der Defekt: 0,0 m heisst nicht
+        # KEIN Startwert 0.0. Das war ein alter Defekt: 0,0 m heisst nicht
         # „noch nichts gemessen", sondern „jemand steht direkt vor dem
         # Sensor" — und `dist <= threshold` ist damit ab dem allerersten
-        # Schleifendurchlauf wahr. Die Station spielte die Nah-Szene beim
-        # Start, ohne dass jemand da war, und bei einem Sensor, der gar nicht
-        # antwortet, blieb sie dauerhaft dabei.
+        # Schleifendurchlauf wahr.
         self._distance = None
         self._measured_at = None
         self._running = False
-        self._sensor = None
         self._values = []
         self._filter_size = 5
         self._lock = threading.Lock()
+        # Klartext-Zustand fuer Log und Oberflaeche. Beginnt mit „startet",
+        # weil vor dem ersten `run`-Durchlauf noch nichts feststeht.
+        self._status = "startet"
 
-    def run(self):
-        self._running = True
-        if not self.use_dummy:
-            try:
-                self._sensor = DistanceSensor(
-                    echo=self.echo_pin,
-                    trigger=self.trigger_pin,
-                    max_distance=4.0,
-                )
-                print(f"[Sensor] HC-SR04 initialisiert (Trigger={self.trigger_pin}, Echo={self.echo_pin})")
-            except Exception as e:
-                print(f"[Sensor] GPIO-Fehler: {e} - verwende Dummy")
-                self.use_dummy = True
-
-        if self.use_dummy:
-            print("[Sensor] Dummy-Modus aktiv")
-
-        while self._running:
-            try:
-                if self.use_dummy:
-                    raw = 1.5 + random.uniform(-0.5, 0.5)
-                    if random.random() < 0.05:
-                        raw = random.uniform(0.2, 0.6)
-                else:
-                    raw = self._sensor.distance  # meters
-
-                self._uebernimm(raw)
-
-            except Exception as e:
-                # Der Zeitstempel wird NICHT fortgeschrieben. Damit veraltet
-                # der letzte Wert von selbst, und `distance` faellt nach
-                # STALE_AFTER_S auf None zurueck. Frueher blieb er ewig
-                # stehen: ein toter Sensor sah aus wie ein ruhiger Besucher.
-                print(f"[Sensor] Messfehler: {e}")
-
-            time.sleep(0.1)
+    # -- von Unterklassen genutzt ------------------------------------------
 
     def _uebernimm(self, raw):
         """Einen Rohwert in den gleitenden Mittelwert aufnehmen.
 
-        Eigene Methode und nicht mehr im Rumpf der Schleife, weil der Test
-        die Rechnung sonst NACHBAUEN muss — und ein Nachbau laeuft
-        auseinander. Genau das war hier schon passiert: `tests/test_sensor.py`
-        hatte einen `push`-Helfer, der Fenster und Mittelwert nachbildete;
-        als der Zeitstempel dazukam, kannte ihn nur die Schleife, und der
-        Nachbau lieferte Werte, die es im Betrieb nicht gibt.
+        Eigene Methode und nicht im Rumpf der Schleife, weil der Test die
+        Rechnung sonst NACHBAUEN muesste — und ein Nachbau laeuft auseinander.
         """
         jetzt = time.monotonic()
 
-        # BEFUND (Defektformen-Sweep, Form `fixture-erreicht-grenze-nicht`,
-        # gemessen 2026-09-08): Der Ablauf bewachte den ZEITSTEMPEL, das
-        # Mittelwertfenster aber niemand. Nach einem Ausfall lagen die alten
-        # Werte noch im Fenster: der erste neue Messwert wurde mit vier
-        # Werten von VOR dem Ausfall gemittelt und galt sofort als frisch.
-        #
-        # Ein halbe Sekunde lang stand damit ein Abstand im Umlauf, den es nie
-        # gegeben hat — und zwar genau in dem Moment, in dem die Station
-        # entscheidet, ob jemand davorsteht. Wer waehrend des Ausfalls
-        # herangetreten ist, wird dadurch spaeter erkannt, nicht frueher.
-        #
-        # Die Grenze ist dieselbe wie beim Ablauf: was aelter ist als
-        # STALE_AFTER_S, gehoert nicht in denselben Mittelwert. Zwei Fenster
-        # mit zwei Regeln waeren wieder zwei Rechnungen.
+        # Nach einem Ausfall gehoeren die alten Werte nicht in denselben
+        # Mittelwert: was aelter ist als STALE_AFTER_S, wird verworfen, sonst
+        # wuerde der erste neue Messwert mit Werten von VOR dem Ausfall
+        # gemittelt und gaelte sofort als frisch.
         if self._measured_at is None or jetzt - self._measured_at > STALE_AFTER_S:
             self._values.clear()
 
@@ -110,14 +90,24 @@ class SensorThread(threading.Thread):
             self._distance = sum(self._values) / len(self._values)
             self._measured_at = jetzt
 
+    def _setze_status(self, text):
+        """Klartext-Zustand setzen (Zuweisung ist unter dem GIL atomar)."""
+        self._status = text
+
+    def _quelle_schliessen(self):
+        """Hardware freigeben. Unterklasse ueberschreibt bei Bedarf."""
+        pass
+
+    # -- oeffentliche Schnittstelle ----------------------------------------
+
     @property
     def distance(self):
         """Der gemessene Abstand in Metern — oder `None`.
 
         `None` heisst „kein gueltiger Messwert": entweder wurde noch nie
         gemessen, oder die letzte gueltige Messung ist aelter als
-        STALE_AFTER_S. Der Aufrufer MUSS den Fall behandeln; genau das
-        Weglassen war der Defekt.
+        STALE_AFTER_S, oder es ist gar keine Hardware angeschlossen. Der
+        Aufrufer MUSS den Fall behandeln.
         """
         with self._lock:
             if self._measured_at is None:
@@ -126,8 +116,72 @@ class SensorThread(threading.Thread):
                 return None
             return self._distance
 
+    @property
+    def status(self):
+        """Klartext, warum es gerade einen (oder keinen) Messwert gibt.
+
+        Fuer Log und `/api/status`. Beispiele: „HC-SR04 (Trigger=23, Echo=24)",
+        „kein Sensor: gpiozero nicht installiert", „Kamera: opencv nicht
+        installiert".
+        """
+        return self._status
+
     def stop(self):
         self._running = False
+        self._quelle_schliessen()
+
+
+class SensorThread(AbstandsQuelle):
+    """HC-SR04 Ultraschallsensor via gpiozero — thread-basiert mit Mittelwert.
+
+    Ist gpiozero nicht installiert oder schlaegt die GPIO-Initialisierung fehl
+    (kein Pi, Pin belegt, Verdrahtung falsch), dann misst der Thread nichts:
+    `distance` bleibt `None` und `status` nennt den Grund. Er erfindet KEINE
+    Werte — ein nicht angeschlossener Sensor darf nicht wie ein ruhiger
+    Besucher aussehen.
+    """
+
+    LABEL = "HC-SR04"
+
+    def __init__(self, trigger_pin=23, echo_pin=24):
+        super().__init__()
+        self.trigger_pin = trigger_pin
+        self.echo_pin = echo_pin
+        self._sensor = None
+
+    def run(self):
+        self._running = True
+        if not GPIOZERO_AVAILABLE:
+            self._setze_status("kein Sensor: gpiozero nicht installiert")
+            print(f"[Sensor] {self._status} — es wird nicht ausgeloest")
+            return
+        try:
+            self._sensor = DistanceSensor(
+                echo=self.echo_pin,
+                trigger=self.trigger_pin,
+                max_distance=4.0,
+            )
+            self._setze_status(f"HC-SR04 (Trigger={self.trigger_pin}, Echo={self.echo_pin})")
+            print(f"[Sensor] {self._status} initialisiert")
+        except Exception as e:
+            # Kein Rueckfall auf erfundene Werte. Der Thread endet, `distance`
+            # bleibt None, der Grund steht in `status` und im Log.
+            self._setze_status(f"kein Sensor: GPIO-Fehler ({e})")
+            print(f"[Sensor] {self._status} — es wird nicht ausgeloest")
+            return
+
+        while self._running:
+            try:
+                self._uebernimm(self._sensor.distance)  # meters
+            except Exception as e:
+                # Der Zeitstempel wird NICHT fortgeschrieben. Damit veraltet
+                # der letzte Wert von selbst, und `distance` faellt nach
+                # STALE_AFTER_S auf None zurueck: ein toter Sensor sieht nicht
+                # aus wie ein ruhiger Besucher.
+                print(f"[Sensor] Messfehler: {e}")
+            time.sleep(0.1)
+
+    def _quelle_schliessen(self):
         if self._sensor:
             try:
                 self._sensor.close()

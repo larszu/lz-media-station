@@ -45,6 +45,7 @@ start "" "http://localhost:5000/"
 
 echo.
 echo Server laeuft. Fenster schliessen oder Strg+C im Server-Fenster zum Beenden.
-echo (Sensor laeuft im Dummy-Modus auf Windows.)
+echo (Ohne Ultraschallsensor wird nichts gemessen. Fuer eine Webcam im Admin
+echo  unter "Abstandsquelle" auf "Kamera" stellen -- siehe docs/sensoren.md.)
 echo.
 pause

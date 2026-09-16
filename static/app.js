@@ -6,6 +6,11 @@ document.addEventListener('DOMContentLoaded', function () {
     setupUploads();
     loadNetwork();
     loadWifi();
+    // Umschalten der Quelle sofort auf die Felder anwenden — nicht erst beim
+    // naechsten Status-Poll, sonst springt die Auswahl fuer den Nutzer zurueck.
+    el('cfg-sensor-type').addEventListener('change', function (e) {
+        toggleSensorFields(e.target.value);
+    });
 });
 
 // ESC -> zurück zum Home-Menü (von Admin aus)
@@ -77,8 +82,19 @@ function updateStatusUI(d) {
     if (!a || a.id !== 'cfg-audvol') { el('cfg-audvol').value = cfg.audio_volume; el('audvol-display').textContent = cfg.audio_volume; }
     if (!a || a.id !== 'cfg-gpio-trigger') el('cfg-gpio-trigger').value = cfg.gpio_trigger;
     if (!a || a.id !== 'cfg-gpio-echo') el('cfg-gpio-echo').value = cfg.gpio_echo;
+    if (!a || a.id !== 'cfg-camera-index') el('cfg-camera-index').value = cfg.camera_index;
+    if (!a || a.id !== 'cfg-camera-focal') el('cfg-camera-focal').value = cfg.camera_focal_px;
+    if (!a || a.id !== 'cfg-sensor-type') { el('cfg-sensor-type').value = cfg.sensor_type || 'ultrasonic'; toggleSensorFields(cfg.sensor_type || 'ultrasonic'); }
     if (!a || a.id !== 'cfg-display-ip') el('cfg-display-ip').value = cfg.display_ip || '';
     if (!a || a.id !== 'cfg-video-resume') el('cfg-video-resume').checked = !!cfg.video_resume;
+
+    // Klartext-Zustand der Quelle. Ohne gueltige Messung sagt er, warum —
+    // „kein Sensor angeschlossen" statt einer stumm erfundenen Zahl.
+    var st = el('sensor-status');
+    if (st) {
+        st.textContent = d.sensor_status || '';
+        st.className = 'sensor-status' + (d.sensor_ok ? ' ok' : ' warn');
+    }
 
     document.querySelectorAll('.threshold-val').forEach(function (e) { e.textContent = cfg.threshold_m.toFixed(1); });
 
@@ -111,6 +127,18 @@ function setupSliders() {
 function slider(id, displayId, fmt) {
     el(id).addEventListener('input', function (e) {
         el(displayId).textContent = fmt(parseFloat(e.target.value));
+    });
+}
+
+/* ---- Abstandsquelle: Felder je nach Typ zeigen/verbergen ---- */
+
+function toggleSensorFields(type) {
+    var istKamera = (type === 'camera');
+    document.querySelectorAll('.sensor-ultrasonic').forEach(function (e) {
+        e.style.display = istKamera ? 'none' : '';
+    });
+    document.querySelectorAll('.sensor-camera').forEach(function (e) {
+        e.style.display = istKamera ? '' : 'none';
     });
 }
 
@@ -211,8 +239,11 @@ async function saveConfig() {
         master_volume: parseInt(el('cfg-mastervol').value),
         video_volume: parseInt(el('cfg-vidvol').value),
         audio_volume: parseInt(el('cfg-audvol').value),
+        sensor_type: el('cfg-sensor-type').value,
         gpio_trigger: parseInt(el('cfg-gpio-trigger').value),
         gpio_echo: parseInt(el('cfg-gpio-echo').value),
+        camera_index: parseInt(el('cfg-camera-index').value),
+        camera_focal_px: parseFloat(el('cfg-camera-focal').value),
         display_ip: el('cfg-display-ip').value.trim(),
         video_resume: el('cfg-video-resume').checked,
     };
