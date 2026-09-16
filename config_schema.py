@@ -10,8 +10,12 @@ Kreis.
 """
 from zeitplan import heile_zeitplan, standard_zeitplan
 
-#: Die beiden Zonen und die Medienarten darin.
-ZONEN = ("near", "far")
+#: ALLE moeglichen Zonen, von nah nach fern. "mid" ist optional und wird nur
+#: benutzt, wenn `zonen_stufen` auf 3 steht — siehe `aktive_zonen`.
+ZONEN = ("near", "mid", "far")
+
+#: Klartext je Zone fuer Meldungen und Oberflaeche.
+ZONEN_NAMEN = {"near": "Nah", "mid": "Mitte", "far": "Fern"}
 MEDIENARTEN = ("videos", "images", "audio")
 
 #: Grenzen fuer eine eigene Standzeit je Bild.
@@ -101,6 +105,12 @@ def pruefe_zone(roh):
 DEFAULT_CONFIG = {
     "system_name": "LZ Station 1",
     "threshold_m": 1.0,
+    # Drei Stufen statt zwei: fern -> mitte -> nah. Vorgabe bleibt 2, damit
+    # sich eine bestehende Installation exakt wie vorher verhaelt.
+    "zonen_stufen": 2,
+    # Obere Grenze der Mitte (nur bei drei Stufen). Muss groesser sein als
+    # `threshold_m` — sonst gaebe es die Mitte rechnerisch nicht.
+    "threshold_mid_m": 2.5,
     "delay_s": 1.5,
     # Welche Abstandsquelle die Station benutzt: "ultrasonic" (HC-SR04 am GPIO,
     # Vorgabe), "camera" (Webcam + Gesichtserkennung, laeuft auch auf
@@ -131,8 +141,23 @@ DEFAULT_CONFIG = {
     "cec_aktiv": False,
     "display_ip": "",
     "near": standard_zone(),
+    "mid": standard_zone(),
     "far": standard_zone(),
 }
+
+
+def aktive_zonen(config):
+    """Die Zonen, die diese Station wirklich benutzt — von nah nach fern.
+
+    Bei zwei Stufen ist `mid` zwar in der Konfiguration vorhanden (damit die
+    Medien-Zuweisung beim Umschalten nicht verloren geht), zaehlt aber
+    nirgends mit: nicht in der Zustandsmaschine und nicht in der
+    Zustandspruefung. Sonst meldete eine gewoehnliche Station dauerhaft
+    „Zone Mitte hat keine Medien".
+    """
+    if int(config.get("zonen_stufen", 2)) >= 3:
+        return ("near", "mid", "far")
+    return ("near", "far")
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -189,6 +214,8 @@ GRENZEN = {
     "display_ip": (str, lambda v: len(v) <= 64 and all(c.isalnum() or c in ".-" for c in v),
                    "Hostname oder IP, max. 64 Zeichen"),
     "threshold_m": (float, lambda v: 0.05 <= v <= 20.0, "0.05..20.0 m"),
+    "threshold_mid_m": (float, lambda v: 0.05 <= v <= 20.0, "0.05..20.0 m"),
+    "zonen_stufen": (int, lambda v: v in (2, 3), "2 oder 3"),
     "delay_s": (float, lambda v: 0.0 <= v <= 60.0, "0..60 s"),
     "sensor_type": (str, lambda v: v in ("ultrasonic", "camera", "button"),
                     "ultrasonic|camera|button"),
@@ -256,6 +283,27 @@ def pruefe_pins(config, patch):
             "derselbe Pin kann nicht senden und empfangen")
 
 
+def pruefe_schwellen(config, patch):
+    """Die Mitte muss weiter weg sein als die Nah-Schwelle.
+
+    Wieder eine Bedingung, die KEIN Feld fuer sich sieht: `threshold_m: 3.0`
+    ist gueltig, `threshold_mid_m: 2.0` ist gueltig — zusammen gibt es die
+    Mitte rechnerisch nicht, und die Station spraenge von fern direkt auf nah,
+    ohne dass ein Wert falsch aussieht. Geprueft wird deshalb gegen den
+    ZUSAMMENGEFUEHRTEN Stand, nicht gegen den Patch allein (sonst rutscht es
+    ueber zwei getrennte Anfragen durch).
+    """
+    stufen = int(patch.get("zonen_stufen", config.get("zonen_stufen", 2)) or 2)
+    if stufen < 3:
+        return
+    nah = float(patch.get("threshold_m", config.get("threshold_m", 1.0)))
+    mitte = float(patch.get("threshold_mid_m", config.get("threshold_mid_m", 2.5)))
+    if mitte <= nah:
+        raise ValueError(
+            f"threshold_mid_m: {mitte} muss groesser sein als threshold_m "
+            f"({nah}) — sonst gibt es die Mitte nicht")
+
+
 def heile_config(cfg):
     """Ladeweg: unbrauchbare Werte auf die Vorgabe zuruecksetzen und sagen.
 
@@ -285,4 +333,13 @@ def heile_config(cfg):
     # GRENZEN-Tabelle — eigene Heilung, gleiche Politik (reparieren statt
     # abbrechen), genau wie bei den Zonen in `load_config`.
     cfg["zeitplan"] = heile_zeitplan(cfg.get("zeitplan"))
+    # Und die Kreuzbedingung der Schwellen: liegt die Mitte nicht weiter weg
+    # als die Nah-Schwelle, gibt es sie rechnerisch nicht. Beim Laden wird das
+    # repariert statt abgebrochen (Politik wie oben).
+    try:
+        pruefe_schwellen(cfg, {})
+    except ValueError as e:
+        print(f"[Config] {e} — nehme die Vorgaben fuer beide Schwellen")
+        cfg["threshold_m"] = DEFAULT_CONFIG["threshold_m"]
+        cfg["threshold_mid_m"] = DEFAULT_CONFIG["threshold_mid_m"]
     return cfg

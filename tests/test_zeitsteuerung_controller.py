@@ -59,13 +59,13 @@ class GeschlossenGibtKeineZoneHeraus(unittest.TestCase):
     def test_offen_liefert_eine_zone(self):
         c = main.Controller(config_mit_plan(False))   # Zeitsteuerung aus
         c.active = True
-        c.state = "near"
+        c.zone = "near"
         szene = c.get_scene()
         self.assertEqual(szene["zone"], "near")
         self.assertFalse(szene["geschlossen"])
 
     def test_geschlossen_liefert_keine_zone(self):
-        # Der Kern: `state` sagt "near", der Plan sagt "zu" -- es darf nichts
+        # Der Kern: die Zone sagt "near", der Plan sagt "zu" -- es darf nichts
         # gespielt werden. Sonst haette ein gestoppter Controller (dessen
         # Schleife nicht laeuft) nachts die alte Nah-Szene stehen lassen.
         plan = zeitplan.standard_zeitplan()
@@ -76,7 +76,7 @@ class GeschlossenGibtKeineZoneHeraus(unittest.TestCase):
         cfg["zeitplan"] = plan
         c = main.Controller(cfg)
         c.active = True
-        c.state = "near"
+        c.zone = "near"
         szene = c.get_scene()
         self.assertIsNone(szene["zone"], "ausserhalb der Zeit darf nichts spielen")
         self.assertTrue(szene["geschlossen"])

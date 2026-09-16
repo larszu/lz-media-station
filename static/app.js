@@ -20,10 +20,13 @@ document.addEventListener('DOMContentLoaded', function () {
     el('cfg-sensor-type').addEventListener('change', function (e) {
         toggleSensorFields(e.target.value);
     });
+    el('cfg-zonen-stufen').addEventListener('change', function (e) {
+        toggleStufen(Number(e.target.value));
+    });
     // Zonen-Optionen wirken sofort: sie gehoeren zur Zonen-Uebersicht und
     // nicht zum Einstellungen-Formular, also gibt es dort auch keinen
     // Speichern-Knopf, auf den jemand warten muesste.
-    ['near', 'far'].forEach(function (zone) {
+    ['near', 'mid', 'far'].forEach(function (zone) {
         ['shuffle', 'einmal'].forEach(function (opt) {
             el('zone-' + zone + '-' + opt).addEventListener('change', function (e) {
                 setzeZonenOption(zone, opt, e.target.checked);
@@ -96,8 +99,10 @@ function updateStatusUI(d) {
     var states = {
         idle: ['Inaktiv', ''],
         far: ['Fern', 'far'],
+        mid: ['Mitte', 'mid'],
         near: ['Nah', 'near'],
         pending_near: ['\u2192 Nah\u2026', 'pending'],
+        pending_mid: ['\u2192 Mitte\u2026', 'pending'],
         pending_far: ['\u2192 Fern\u2026', 'pending'],
     };
     var s = states[d.state] || ['?', ''];
@@ -111,6 +116,9 @@ function updateStatusUI(d) {
     if (!a || a.id !== 'cfg-name') el('cfg-name').value = cfg.system_name || '';
     if (!a || a.id !== 'cfg-threshold') { el('cfg-threshold').value = cfg.threshold_m; el('threshold-display').textContent = cfg.threshold_m.toFixed(2); }
     if (!a || a.id !== 'cfg-delay') { el('cfg-delay').value = cfg.delay_s; el('delay-display').textContent = cfg.delay_s.toFixed(1); }
+    if (!a || a.id !== 'cfg-threshold-mid') { el('cfg-threshold-mid').value = cfg.threshold_mid_m; el('threshold-mid-display').textContent = Number(cfg.threshold_mid_m).toFixed(2); }
+    if (!a || a.id !== 'cfg-zonen-stufen') { el('cfg-zonen-stufen').value = String(cfg.zonen_stufen || 2); }
+    toggleStufen(Number(cfg.zonen_stufen || 2));
     if (!a || a.id !== 'cfg-imginterval') { el('cfg-imginterval').value = cfg.image_interval_s; el('imgint-display').textContent = cfg.image_interval_s; }
     if (!a || a.id !== 'cfg-mastervol') { el('cfg-mastervol').value = cfg.master_volume; el('mastervol-display').textContent = cfg.master_volume; }
     if (!a || a.id !== 'cfg-vidvol') { el('cfg-vidvol').value = cfg.video_volume; el('vidvol-display').textContent = cfg.video_volume; }
@@ -144,8 +152,10 @@ function updateStatusUI(d) {
     renderZeitplan(cfg);
 
     document.querySelectorAll('.threshold-val').forEach(function (e) { e.textContent = cfg.threshold_m.toFixed(1); });
+    document.querySelectorAll('.threshold-mid-val').forEach(function (e) { e.textContent = Number(cfg.threshold_mid_m).toFixed(1); });
 
     renderZoneOverview('near', cfg.near || {});
+    renderZoneOverview('mid', cfg.mid || {});
     renderZoneOverview('far', cfg.far || {});
 }
 
@@ -241,6 +251,7 @@ function setzeZonenOption(zone, option, an) {
 
 function setupSliders() {
     slider('cfg-threshold', 'threshold-display', function (v) { return v.toFixed(2); });
+    slider('cfg-threshold-mid', 'threshold-mid-display', function (v) { return v.toFixed(2); });
     slider('cfg-delay', 'delay-display', function (v) { return v.toFixed(1); });
     slider('cfg-imginterval', 'imgint-display', function (v) { return String(v); });
     slider('cfg-mastervol', 'mastervol-display', function (v) { return String(v); });
@@ -453,6 +464,20 @@ async function saveZeitplan() {
     setTimeout(function () { fb.textContent = ''; }, 4000);
 }
 
+/* ---- Zonen-Stufen ---- */
+
+// Die Mitte verschwindet aus der Oberflaeche, wenn sie nicht benutzt wird.
+// Sie BLEIBT dabei in der Konfiguration: wer zwischen zwei und drei Stufen
+// hin- und herschaltet, soll seine Zuweisung nicht jedes Mal verlieren.
+function toggleStufen(stufen) {
+    var drei = (stufen >= 3);
+    var karte = el('zone-mid-karte');
+    if (karte) karte.style.display = drei ? '' : 'none';
+    document.querySelectorAll('.nur-drei-stufen').forEach(function (e) {
+        e.style.display = drei ? '' : 'none';
+    });
+}
+
 /* ---- Abstandsquelle: Felder je nach Typ zeigen/verbergen ---- */
 
 function toggleSensorFields(type) {
@@ -564,6 +589,8 @@ async function saveConfig() {
     var data = {
         system_name: el('cfg-name').value,
         threshold_m: parseFloat(el('cfg-threshold').value),
+        threshold_mid_m: parseFloat(el('cfg-threshold-mid').value),
+        zonen_stufen: parseInt(el('cfg-zonen-stufen').value),
         delay_s: parseFloat(el('cfg-delay').value),
         image_interval_s: parseInt(el('cfg-imginterval').value),
         master_volume: parseInt(el('cfg-mastervol').value),

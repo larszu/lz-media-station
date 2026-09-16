@@ -7,8 +7,9 @@ from werkzeug.utils import secure_filename
 import gesundheit
 import medien_check
 from config_schema import (
-    DEFAULT_CONFIG, MEDIENARTEN, ZONEN, heile_config, heile_zone,
-    pruefe_patch, pruefe_pins, pruefe_zone, standard_zone,
+    DEFAULT_CONFIG, MEDIENARTEN, ZONEN, ZONEN_NAMEN, aktive_zonen,
+    heile_config, heile_zone, pruefe_patch, pruefe_pins, pruefe_schwellen,
+    pruefe_zone, standard_zone,
 )
 from zeitplan import pruefe_zeitplan
 
@@ -175,6 +176,7 @@ def create_app(controller, anzeigen=None):
             vorhandene=vorhandene,
             aktiv=controller.active,
             geschlossen=not controller.ist_offen(),
+            zonen=[(z, ZONEN_NAMEN.get(z, z)) for z in aktive_zonen(controller.config)],
         )
 
     @app.route("/api/health")
@@ -314,6 +316,9 @@ def create_app(controller, anzeigen=None):
         try:
             geprueft = pruefe_patch(data)
             pruefe_pins(controller.config, geprueft)
+            # Auch eine Kreuzbedingung: die Mitte muss weiter weg sein als die
+            # Nah-Schwelle. Jedes Feld fuer sich waere gueltig.
+            pruefe_schwellen(controller.config, geprueft)
             # Der Zeitplan ist verschachtelt und steht darum nicht in GRENZEN.
             # Gleiche Politik wie dort: ABLEHNEN statt heilen — wer eine
             # Oeffnungszeit setzt, soll erfahren, dass sie nicht ankam.

@@ -91,6 +91,15 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 .sensor-status.warn { color: var(--warning); }
 .sensor-status:empty { display: none; }
 
+/* --- Dritte Zone (Mitte) --- */
+/* Ein Ton zwischen Nah (gruen) und Fern (stahlblau). Er ZEIGT auf den
+   vorhandenen Status-Ton statt den Wert abzuschreiben: zwei Stellen mit
+   derselben Farbe laufen beim naechsten Palettenwechsel auseinander. */
+:root { --mid: var(--warning); }
+.badge.mid { background: var(--mid); color: var(--accent-text); }
+.dot.mid { background: var(--mid); }
+.zone-mid { border-left: 3px solid var(--mid); }
+
 /* --- Zonen-Optionen und Reihenfolge --- */
 .zone-optionen { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 8px; }
 .zone-optionen .checkbox-label { margin: 0; font-size: 0.75rem; }

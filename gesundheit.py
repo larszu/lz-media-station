@@ -45,11 +45,16 @@ def gesamtstufe(befunde):
 
 
 def pruefe(config, sensor_ok, sensor_status, freier_platz_b, vorhandene,
-           aktiv, geschlossen):
+           aktiv, geschlossen, zonen=None):
     """Alle Befunde als Liste. Leer heisst: nichts zu melden.
 
     `vorhandene` ist {"videos": {...}, "images": {...}, "audio": {...}} mit den
     Dateinamen, die wirklich auf der Platte liegen.
+
+    `zonen` ist [(schluessel, klartext)] der AKTIVEN Zonen. Ohne Angabe die
+    beiden Standardzonen. Wichtig, weil eine Station mit zwei Stufen die
+    Mitte zwar in der Konfiguration traegt, aber nicht benutzt — sie zu
+    pruefen hiesse, dauerhaft „Zone Mitte hat keine Medien" zu melden.
     """
     befunde = []
 
@@ -77,7 +82,7 @@ def pruefe(config, sensor_ok, sensor_status, freier_platz_b, vorhandene,
                 f"Noch {frei_mb:.0f} MB frei — vor der naechsten Ausstellung aufraeumen."))
 
     # --- Medien je Zone ---------------------------------------------------
-    for zone, name in (("near", "Nah"), ("far", "Fern")):
+    for zone, name in (zonen or (("near", "Nah"), ("far", "Fern"))):
         zonendaten = config.get(zone) or {}
         zugewiesen = []
         for art in MEDIENARTEN:

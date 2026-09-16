@@ -26,12 +26,14 @@ STATISTIK_FILE = os.path.join(BASE_DIR, "statistik.json")
 # Vorgaben und Grenzen stehen in `config_schema`; hier weiterhin unter ihrem
 # alten Namen erreichbar, weil Tests und Aufrufer `main.DEFAULT_CONFIG` kennen.
 from config_schema import (  # noqa: E402  (nach den Standard-Imports, absichtlich)
-    DEFAULT_CONFIG, GRENZEN, NUTZBARE_BCM, ZONEN,
-    pruefe_patch, pruefe_pins, heile_config, heile_zone, standard_zone,
+    DEFAULT_CONFIG, GRENZEN, NUTZBARE_BCM, ZONEN, ZONEN_NAMEN, aktive_zonen,
+    pruefe_patch, pruefe_pins, pruefe_schwellen,
+    heile_config, heile_zone, standard_zone,
 )
 
-__all__ = ["DEFAULT_CONFIG", "GRENZEN", "NUTZBARE_BCM", "ZONEN",
-           "pruefe_patch", "pruefe_pins", "heile_config", "heile_zone", "standard_zone",
+__all__ = ["DEFAULT_CONFIG", "GRENZEN", "NUTZBARE_BCM", "ZONEN", "ZONEN_NAMEN",
+           "aktive_zonen", "pruefe_patch", "pruefe_pins", "pruefe_schwellen",
+           "heile_config", "heile_zone", "standard_zone",
            "erzeuge_abstandsquelle", "Controller", "load_config", "main"]
 
 
@@ -66,7 +68,11 @@ class Controller:
         self.config = config
         self.sensor = erzeuge_abstandsquelle(config)
         self.active = False
-        self.state = "idle"
+        #: Die BESTAETIGTE Zone. Getrennt vom Kandidaten, weil waehrend der
+        #: Hysterese weiterhin die alte Zone spielt — sonst flackerte genau
+        #: das, was die Verzoegerung verhindern soll.
+        self.zone = "far"
+        self._kandidat = None
         self._pending_since = None
         self._thread = None
         # Startwert True, damit der erste Ausfall gemeldet wird und nicht der
@@ -79,6 +85,39 @@ class Controller:
         # Neustart (oder ein Stromausfall) die Zahlen der Ausstellung nicht
         # zuruecksetzt.
         self.statistik = statistik_modul.laden(STATISTIK_FILE)
+
+    @property
+    def state(self):
+        """Der Zustand als Text — die Form, die `/api/status` seit jeher nennt.
+
+        Abgeleitet statt gespeichert: „nah", „auf dem Weg nach nah" und „welche
+        Zone gerade spielt" sind drei Fragen an EINEN Zustand. Als drei Felder
+        waeren sie irgendwann uneinig.
+        """
+        if not self.active:
+            return "idle"
+        if self._kandidat:
+            return "pending_" + self._kandidat
+        return self.zone
+
+    def zonen(self):
+        """Die aktiven Zonen dieser Station, von nah nach fern."""
+        return aktive_zonen(self.config)
+
+    def zone_fuer(self, dist):
+        """Welche Zone gehoert zu diesem Abstand?
+
+        `None` (keine Messung) ergibt „fern": ohne Messung wird nicht
+        ausgeloest. Dieselbe Regel wie frueher — sie stand nur als
+        `dist is not None and dist <= threshold` mitten in der Schleife.
+        """
+        if dist is None:
+            return "far"
+        if dist <= self.config.get("threshold_m", 1.0):
+            return "near"
+        if "mid" in self.zonen() and dist <= self.config.get("threshold_mid_m", 2.5):
+            return "mid"
+        return "far"
 
     def ist_offen(self, jetzt=None):
         """Spielt die Station gerade laut Wochenplan?
@@ -93,46 +132,48 @@ class Controller:
     def get_scene(self):
         """Aktueller Zustand für die Display-Seite"""
         geschlossen = not self.ist_offen()
-        zone = None
+        # Waehrend der Hysterese spielt die BESTAETIGTE Zone weiter — deshalb
+        # `self.zone` und nicht der Kandidat.
+        #
         # Ausserhalb der Oeffnungszeiten gibt es KEINE Zone. Das ist die
         # Absicherung an der Quelle: selbst wenn die Steuerschleife gerade
         # nicht laeuft (Controller gestoppt), bekommt die Anzeigeseite nichts
         # zu spielen — sie muss sich nicht darauf verlassen, das Flag zu
         # beachten.
-        if self.active and not geschlossen:
-            if self.state in ("near", "pending_far"):
-                zone = "near"
-            elif self.state in ("far", "pending_near"):
-                zone = "far"
-        return {
+        szene = {
             "active": self.active,
             "geschlossen": geschlossen,
-            "zone": zone,
-            # Die ganzen Zonen-Objekte, damit die Wiedergabe-Optionen
-            # (shuffle/einmal/bildzeiten) mitkommen, ohne hier einzeln
-            # aufgezaehlt zu werden — eine neue Option waere sonst im Kern da
-            # und auf dem Schirm nicht.
-            "near": self.config.get("near") or standard_zone(),
-            "far": self.config.get("far") or standard_zone(),
+            "zone": self.zone if (self.active and not geschlossen) else None,
+            "zonen": list(self.zonen()),
             "image_interval_s": self.config.get("image_interval_s", 5),
             "master_volume": self.config.get("master_volume", 100),
             "video_volume": self.config.get("video_volume", 100),
             "audio_volume": self.config.get("audio_volume", 80),
             "video_resume": bool(self.config.get("video_resume", False)),
         }
+        # Die Zonen-Objekte je AKTIVER Zone, damit die Wiedergabe-Optionen
+        # (shuffle/einmal/bildzeiten) mitkommen, ohne hier einzeln aufgezaehlt
+        # zu werden — eine neue Option waere sonst im Kern da und auf dem
+        # Schirm nicht. Eine neue Zone ebenso.
+        for name in self.zonen():
+            szene[name] = self.config.get(name) or standard_zone()
+        return szene
 
     def start(self):
         if self.active:
             return
         self.active = True
-        self.state = "far"
+        self.zone = "far"
+        self._kandidat = None
+        self._pending_since = None
         self._thread = threading.Thread(target=self._control_loop, daemon=True)
         self._thread.start()
         print("[Controller] Gestartet")
 
     def stop(self):
         self.active = False
-        self.state = "idle"
+        self.zone = "far"
+        self._kandidat = None
         self._pending_since = None
         # Einen laufenden Besuch abschliessen, sonst ginge er verloren —
         # gestoppt wird typischerweise am Ende eines Ausstellungstages.
@@ -213,7 +254,8 @@ class Controller:
             offen = self.ist_offen()
             self._melde_zeitlage(offen)
             if not offen:
-                self.state = "far"
+                self.zone = "far"
+                self._kandidat = None
                 self._pending_since = None
                 # Auch hier zaehlen: schliesst der Wochenplan, waehrend noch
                 # jemand davorsteht, muss der laufende Besuch beendet werden.
@@ -224,44 +266,33 @@ class Controller:
                 continue
 
             dist = self.sensor.distance
-            threshold = self.config.get("threshold_m", 1.0)
             delay = self.config.get("delay_s", 1.5)
-            # `None` heisst „kein gueltiger Messwert" — noch nie gemessen oder
-            # der Sensor antwortet nicht mehr. Das ist KEIN „jemand steht
-            # davor": ohne Messung wird nicht ausgeloest.
-            #
-            # Frueher startete `distance` bei 0.0, und `0.0 <= threshold` ist
-            # wahr. Die Station ging deshalb beim Start in die Nah-Szene, ohne
-            # dass jemand da war — und blieb dauerhaft dort, wenn der Sensor
-            # gar nicht erst antwortete.
-            is_near = dist is not None and dist <= threshold
             self._melde_sensorlage(dist)
             now = time.time()
 
-            if self.state == "far":
-                if is_near:
-                    self.state = "pending_near"
-                    self._pending_since = now
-            elif self.state == "near":
-                if not is_near:
-                    self.state = "pending_far"
-                    self._pending_since = now
-            elif self.state == "pending_near":
-                if not is_near:
-                    self.state = "far"
-                    self._pending_since = None
-                elif now - self._pending_since >= delay:
-                    self.state = "near"
-                    self._pending_since = None
-                    print(f"[Controller] → NAH ({dist:.2f}m)")
-            elif self.state == "pending_far":
-                if is_near:
-                    self.state = "near"
-                    self._pending_since = None
-                elif now - self._pending_since >= delay:
-                    self.state = "far"
-                    self._pending_since = None
-                    print(f"[Controller] → FERN ({dist:.2f}m)")
+            # EINE Maschine fuer zwei wie fuer drei Stufen: das Ziel ergibt
+            # sich aus dem Abstand, und ein Wechsel gilt erst, wenn dasselbe
+            # Ziel `delay_s` lang stabil war.
+            #
+            # Vorher standen die vier Faelle (far/near/pending_near/
+            # pending_far) einzeln da. Mit einer dritten Stufe waeren daraus
+            # neun geworden, und jede weitere Zone haette die Tabelle erneut
+            # aufgeblaeht — bei gleichbleibender Regel. `None` (keine Messung)
+            # ergibt „fern": ohne Messung wird nicht ausgeloest.
+            ziel = self.zone_fuer(dist)
+            if ziel == self.zone:
+                # Zurueck zum Ausgangspunkt: ein angefangener Wechsel verfaellt.
+                self._kandidat = None
+                self._pending_since = None
+            elif self._kandidat != ziel:
+                self._kandidat = ziel
+                self._pending_since = now
+            elif now - self._pending_since >= delay:
+                self.zone = ziel
+                self._kandidat = None
+                self._pending_since = None
+                wo = "?" if dist is None else f"{dist:.2f}m"
+                print(f"[Controller] → {ZONEN_NAMEN.get(ziel, ziel).upper()} ({wo})")
 
             self._zaehle()
             time.sleep(0.1)

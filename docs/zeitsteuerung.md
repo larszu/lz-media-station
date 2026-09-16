@@ -72,3 +72,56 @@ Die Sperre sitzt **an zwei Stellen**, und das ist Absicht: die Steuerschleife
 löst nicht aus, und `get_scene()` gibt nichts heraus. Damit bleibt der Schirm
 auch dann schwarz, wenn der Controller gerade gestoppt ist — sonst stünde
 nachts die zuletzt gespielte Szene auf dem Schirm.
+
+---
+
+# Mehrstufige Zonen
+
+Bis 2026-09-16 gab es genau zwei Zonen: **Nah** und **Fern**. Das Herantreten
+war damit ein Schalter. Mit einer dritten Stufe wird es eine Dramaturgie:
+
+```
+  fern  ────────>  mitte  ────────>  nah
+        > 2,5 m          ≤ 2,5 m        ≤ 1,0 m
+```
+
+Im Admin unter **Einstellungen → Zonen** auf „Drei Stufen" umstellen; die
+Schwelle der Mitte erscheint dann als zweiter Regler, und die Zonen-Übersicht
+zeigt eine dritte Karte.
+
+**Die Vorgabe bleibt bei zwei Stufen** — eine bestehende Installation verhält
+sich exakt wie vorher. Die Mitte steht zwar auch dann in der Konfiguration
+(damit eine Zuweisung beim Hin- und Herschalten nicht verloren geht), zählt
+aber nirgends mit: nicht in der Zustandsmaschine und nicht in der
+Zustandsprüfung. Sonst meldete jede gewöhnliche Station dauerhaft „Zone Mitte
+hat keine Medien".
+
+## Die Schwellen dürfen sich nicht überholen
+
+`threshold_mid_m` muss größer sein als `threshold_m`, sonst gibt es die Mitte
+rechnerisch nicht und die Station spränge von fern direkt auf nah. Wieder eine
+Bedingung, die **kein Feld für sich** sieht: `threshold_m: 3.0` ist gültig,
+`threshold_mid_m: 2.0` ist gültig — zusammen sind sie es nicht. Geprüft wird
+deshalb gegen den zusammengeführten Stand, sonst rutscht es über zwei getrennte
+Anfragen durch.
+
+## Eine Maschine statt einer Falltabelle
+
+Vorher standen vier Fälle einzeln da: `far`, `near`, `pending_near`,
+`pending_far`. Mit einer dritten Stufe wären daraus neun geworden — bei
+gleichbleibender Regel.
+
+Jetzt gibt es **eine** Regel:
+
+1. Das Ziel ergibt sich aus dem Abstand (`zone_fuer`).
+2. Weicht es von der bestätigten Zone ab, läuft eine Frist.
+3. War dasselbe Ziel `delay_s` lang stabil, wird es die neue Zone.
+
+Der Zustandstext (`far`, `pending_near`, …), den `/api/status` seit jeher
+nennt, wird daraus **abgeleitet** statt gespeichert: „welche Zone gilt",
+„wohin ist sie unterwegs" und „was spielt gerade" sind drei Fragen an einen
+Zustand. Als drei Felder wären sie irgendwann uneinig.
+
+**Während der Hysterese spielt die alte Zone weiter.** Der Kandidat schaltet
+die Wiedergabe nicht um — sonst flackert genau das, was die Verzögerung
+verhindern soll.

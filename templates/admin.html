@@ -55,6 +55,14 @@
                     </div>
                     <div id="zone-near-media" class="zone-media"></div>
                 </div>
+                <div class="zone zone-mid" id="zone-mid-karte">
+                    <h3><span class="dot mid"></span> Mitte <small>&le; <span class="threshold-mid-val">2.5</span>m</small></h3>
+                    <div class="zone-optionen">
+                        <label class="checkbox-label"><input type="checkbox" id="zone-mid-shuffle"><span>Zuf&auml;llige Reihenfolge</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="zone-mid-einmal"><span>Einmal abspielen</span></label>
+                    </div>
+                    <div id="zone-mid-media" class="zone-media"></div>
+                </div>
                 <div class="zone zone-far">
                     <h3><span class="dot far"></span> Fern <small>&gt; <span class="threshold-val">1.0</span>m</small></h3>
                     <div class="zone-optionen">
@@ -139,8 +147,19 @@
                     <input type="text" id="cfg-name" placeholder="LZ Station 1">
                 </div>
                 <div class="form-group span-2">
-                    <label>Schwelle: <strong id="threshold-display">1.00</strong> m</label>
+                    <label for="cfg-zonen-stufen">Zonen</label>
+                    <select id="cfg-zonen-stufen">
+                        <option value="2">Zwei Stufen (Nah / Fern)</option>
+                        <option value="3">Drei Stufen (Nah / Mitte / Fern)</option>
+                    </select>
+                </div>
+                <div class="form-group span-2">
+                    <label>Schwelle Nah: <strong id="threshold-display">1.00</strong> m</label>
                     <input type="range" id="cfg-threshold" min="0.1" max="4.0" step="0.05" value="1.0">
+                </div>
+                <div class="form-group span-2 nur-drei-stufen">
+                    <label>Schwelle Mitte: <strong id="threshold-mid-display">2.50</strong> m</label>
+                    <input type="range" id="cfg-threshold-mid" min="0.1" max="8.0" step="0.05" value="2.5">
                 </div>
                 <div class="form-group">
                     <label>Verz&ouml;gerung: <strong id="delay-display">1.5</strong> s</label>
