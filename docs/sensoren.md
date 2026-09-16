@@ -31,8 +31,10 @@ Silicon)** und **Windows** — kein Kompilieren, keine Torch-Abhängigkeit.
 ### 2. Im Admin auf „Kamera" umstellen
 
 Unter **Systemeinstellungen → Abstandsquelle** „Kamera" wählen, **Kamera-Index**
-setzen (meist `0`) und speichern. Danach den Sensor-Loop neu starten (Stop /
-Start), damit die Kamera geöffnet wird.
+setzen (meist `0`) und speichern. Die Quelle wird beim **Programmstart** gebaut
+(wie die GPIO-Pins) — nach dem Umstellen also die Station bzw. den Prozess neu
+starten (auf dem Pi „Pi neu starten", lokal den Server neu starten), damit die
+Kamera geöffnet wird.
 
 ### 3. Brennweite kalibrieren (einmalig pro Kamera + Auflösung)
 
