@@ -46,9 +46,10 @@ echo "[LZ] Installiere Abhaengigkeiten ..."
 
 mkdir -p videos images audio
 
-# `--dummy` wird NICHT gesetzt: `sensor.py` erkennt selbst, ob `gpiozero`
-# und ein GPIO-Chip da sind, und faellt sonst zurueck. Ein Schalter, der das
-# von aussen erzwingt, wuerde auf einem Pi den echten Sensor abschalten —
-# und dieses Skript soll auch dort laufen koennen.
+# Ohne angeschlossenen Ultraschallsensor misst die Station nichts (kein
+# Demo-Modus mehr) und loest nicht aus. Auf einem Entwicklungsrechner
+# (Mac/Windows/Linux ohne GPIO) die Kamera-Quelle nutzen: im Admin unter
+# „Abstandsquelle" auf „Kamera" stellen (braucht opencv-python-headless,
+# siehe requirements-camera.txt). Details in docs/sensoren.md.
 echo "[LZ] Starte Server ..."
 exec "$VENV_PY" main.py "$@"

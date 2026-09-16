@@ -1,20 +1,36 @@
 """Flask Web-UI + Media-Server für LZ Media Station"""
+import json
 import os
 import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
-from config_schema import pruefe_patch, pruefe_pins
+import gesundheit
+import medien_check
+from config_schema import (
+    DEFAULT_CONFIG, MEDIENARTEN, ZONEN, ZONEN_NAMEN, aktive_zonen,
+    heile_config, heile_zone, pruefe_patch, pruefe_pins, pruefe_schwellen,
+    pruefe_sprachen, pruefe_untertitel, pruefe_zone, standard_zone,
+)
+from zeitplan import pruefe_zeitplan
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEDIA_DIRS = {
     "videos": os.path.join(BASE_DIR, "videos"),
     "images": os.path.join(BASE_DIR, "images"),
     "audio": os.path.join(BASE_DIR, "audio"),
+    # Untertitel sind eine eigene Medienart: sie werden hochgeladen und
+    # aufgelistet wie Videos, aber nie einer Zone zugewiesen — sie haengen an
+    # einem Video, nicht an einer Entfernung.
+    "subtitles": os.path.join(BASE_DIR, "subtitles"),
 }
 ALLOWED_EXT = {
     "videos": {".mp4", ".mkv", ".avi", ".mov", ".webm"},
     "images": {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"},
     "audio": {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"},
+    # Nur WebVTT: das ist das einzige Format, das ein Browser ohne Umwege
+    # abspielt. Eine .srt anzunehmen und stumm nicht anzuzeigen waere
+    # schlimmer als sie abzulehnen.
+    "subtitles": {".vtt"},
 }
 
 
@@ -107,7 +123,16 @@ def create_app(controller, anzeigen=None):
             "sensor_ok": controller.sensor.distance is not None,
             "state": controller.state,
             "active": controller.active,
-            "dummy_sensor": controller.sensor.use_dummy,
+            # Welche Quelle laeuft und ihr Klartext-Zustand. Loest das alte
+            # `dummy_sensor` ab: es gibt keinen Demo-Modus mehr, und die
+            # Oberflaeche soll sagen koennen „kein Sensor angeschlossen" statt
+            # eine erfundene Zahl zu zeigen.
+            "sensor_type": controller.config.get("sensor_type", "ultrasonic"),
+            "sensor_label": controller.sensor.LABEL,
+            "sensor_status": controller.sensor.status,
+            # Wochenplan: die Verwaltung soll erklaeren koennen, warum nichts
+            # spielt, statt dass es wie ein Defekt aussieht.
+            "geschlossen": not controller.ist_offen(),
             "host_ip": host_ip,
             "web_port": port,
             "remote_url": "http://" + host_ip + ":" + str(port) + "/admin",
@@ -123,6 +148,99 @@ def create_app(controller, anzeigen=None):
     @app.route("/api/scene")
     def api_scene():
         return jsonify(controller.get_scene())
+
+    @app.route("/api/sync")
+    def api_sync():
+        """Der Takt fuer andere Stationen: welche Zone laeuft hier gerade?
+
+        JEDE Station beantwortet das — deshalb gibt es keine „master"-Rolle
+        einzustellen. Absichtlich schmal: nur Zone und Betriebsruhe. Wer den
+        ganzen Szenen-Zustand braucht, nimmt /api/scene; wer folgt, braucht
+        genau diese zwei Angaben, und eine schmale Antwort haelt den Takt
+        billig (der Follower fragt mehrmals je Sekunde).
+        """
+        szene = controller.get_scene()
+        return jsonify({
+            "zone": szene["zone"],
+            "geschlossen": szene["geschlossen"],
+            "zonen": szene["zonen"],
+            "name": controller.config.get("system_name", "LZ Station"),
+        })
+
+    # ── Besucher-Statistik ────────────────────────────────────────────────
+    #
+    # Die Zahlen entstehen ohnehin im Sensor und wurden bisher weggeworfen.
+    # Fuer den Betreiber sind sie der Nachweis, dass die Installation wirkt.
+    # Gespeichert wird nur, WANN und WIE LANGE jemand nah war — nichts ueber
+    # einzelne Personen.
+
+    # ── Zustandspruefung ──────────────────────────────────────────────────
+
+    def _lage():
+        """Die echte Lage einsammeln und pruefen lassen.
+
+        Das Einsammeln (Platte, Dateien) steht hier, die Beurteilung in
+        `gesundheit.pruefe` — sonst waere kein einziger Befund ohne echtes
+        Dateisystem testbar.
+        """
+        import shutil
+        try:
+            freier_platz = shutil.disk_usage(BASE_DIR).free
+        except Exception:
+            freier_platz = None
+        vorhandene = {}
+        for art, verzeichnis in MEDIA_DIRS.items():
+            try:
+                vorhandene[art] = set(os.listdir(verzeichnis))
+            except OSError:
+                vorhandene[art] = set()
+        return gesundheit.pruefe(
+            controller.config,
+            sensor_ok=controller.sensor.distance is not None,
+            sensor_status=controller.sensor.status,
+            freier_platz_b=freier_platz,
+            vorhandene=vorhandene,
+            aktiv=controller.active,
+            geschlossen=not controller.ist_offen(),
+            zonen=[(z, ZONEN_NAMEN.get(z, z)) for z in aktive_zonen(controller.config)],
+            sync_ok=(None if not controller.follower
+                     else controller.follower.zone is not None),
+            sync_status=(controller.follower.status if controller.follower else None),
+        )
+
+    @app.route("/api/health")
+    def api_health():
+        befunde = _lage()
+        return jsonify({
+            "stufe": gesundheit.gesamtstufe(befunde),
+            "befunde": befunde,
+        })
+
+    @app.route("/api/statistik")
+    def api_statistik():
+        from datetime import datetime
+        return jsonify(controller.statistik.zusammenfassung(datetime.now()))
+
+    @app.route("/api/statistik.csv")
+    def api_statistik_csv():
+        from flask import Response
+        name = (controller.config.get("system_name") or "station").replace(" ", "_")
+        return Response(
+            controller.statistik.als_csv(),
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition":
+                     f'attachment; filename="{secure_filename(name)}-statistik.csv"'})
+
+    @app.route("/api/statistik/reset", methods=["POST"])
+    def api_statistik_reset():
+        """Zaehler auf null — beim Umzug in die naechste Ausstellung.
+
+        Bewusst ein eigener Endpunkt und nicht Teil von `/api/config`: das
+        Loeschen von Messwerten soll nicht als Nebenwirkung eines
+        Einstellungs-Speicherns passieren koennen.
+        """
+        controller.statistik_leeren()
+        return jsonify({"ok": True})
 
     # ── Die Bildschirme DIESES Rechners (Nutzer, 2026-09-15) ──────────────
     #
@@ -195,6 +313,13 @@ def create_app(controller, anzeigen=None):
                     f.write(sid)
         except Exception:
             sid = "unknown"
+        # Der Zustand kommt MIT. Der Station Manager fragt beim Scannen ohnehin
+        # jede Station nach ihrer Identitaet — ein zweiter Aufruf je Station
+        # nur fuer die Gesundheit waere dieselbe Runde ein zweites Mal.
+        # Nur die Stufe und die Anzahl, nicht die ganzen Texte: die Liste holt
+        # sich, wer sie anzeigt, ueber `/api/health`.
+        befunde = _lage()
+        stufe = gesundheit.gesamtstufe(befunde)
         return jsonify({
             "id": sid,
             "name": controller.config.get("system_name", "LZ Station"),
@@ -202,6 +327,8 @@ def create_app(controller, anzeigen=None):
             "hostname": platform.node(),
             "active": controller.active,
             "state": controller.state,
+            "health": stufe,
+            "health_anzahl": len([b for b in befunde if b["stufe"] != "hinweis"]),
         })
 
     @app.route("/api/config", methods=["POST"])
@@ -218,18 +345,47 @@ def create_app(controller, anzeigen=None):
         try:
             geprueft = pruefe_patch(data)
             pruefe_pins(controller.config, geprueft)
+            # Auch eine Kreuzbedingung: die Mitte muss weiter weg sein als die
+            # Nah-Schwelle. Jedes Feld fuer sich waere gueltig.
+            pruefe_schwellen(controller.config, geprueft)
+            # Der Zeitplan ist verschachtelt und steht darum nicht in GRENZEN.
+            # Gleiche Politik wie dort: ABLEHNEN statt heilen — wer eine
+            # Oeffnungszeit setzt, soll erfahren, dass sie nicht ankam.
+            if "zeitplan" in data:
+                geprueft["zeitplan"] = pruefe_zeitplan(data["zeitplan"])
+            if "sprachen" in data:
+                geprueft["sprachen"] = pruefe_sprachen(data["sprachen"])
+            if "untertitel" in data:
+                geprueft["untertitel"] = {
+                    secure_filename(video): {
+                        code: secure_filename(datei) for code, datei in spuren.items()
+                    }
+                    for video, spuren in pruefe_untertitel(data["untertitel"]).items()
+                }
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         controller.config.update(geprueft)
-        for zone in ("near", "far"):
-            if zone in data and isinstance(data[zone], dict):
-                if not isinstance(controller.config.get(zone), dict):
-                    controller.config[zone] = {"videos": [], "images": [], "audio": []}
-                for mt in ("videos", "images", "audio"):
-                    if mt in data[zone] and isinstance(data[zone][mt], list):
-                        controller.config[zone][mt] = [
-                            secure_filename(f) for f in data[zone][mt] if f
-                        ]
+        for zone in ZONEN:
+            if zone not in data:
+                continue
+            try:
+                teil = pruefe_zone(data[zone])
+            except ValueError as e:
+                return jsonify({"error": f"{zone}.{e}"}), 400
+            if not isinstance(controller.config.get(zone), dict):
+                controller.config[zone] = standard_zone()
+            # Dateinamen bleiben entschaerft — der Name kommt aus dem Browser
+            # und landet spaeter in einem Pfad.
+            for mt in MEDIENARTEN:
+                if mt in teil:
+                    controller.config[zone][mt] = [secure_filename(f) for f in teil[mt]]
+            for schalter in ("shuffle", "einmal"):
+                if schalter in teil:
+                    controller.config[zone][schalter] = teil[schalter]
+            if "bildzeiten" in teil:
+                controller.config[zone]["bildzeiten"] = {
+                    secure_filename(name): wert for name, wert in teil["bildzeiten"].items()
+                }
         controller.save_config()
         return jsonify({"ok": True, "config": controller.config})
 
@@ -260,8 +416,63 @@ def create_app(controller, anzeigen=None):
         if os.path.splitext(name)[1].lower() not in ALLOWED_EXT[media_type]:
             return jsonify({"error": "Format nicht erlaubt"}), 400
         os.makedirs(MEDIA_DIRS[media_type], exist_ok=True)
-        f.save(os.path.join(MEDIA_DIRS[media_type], name))
-        return jsonify({"ok": True, "name": name})
+        ziel = os.path.join(MEDIA_DIRS[media_type], name)
+        f.save(ziel)
+        # Hinweise, KEINE Ablehnung: wer weiss, was er tut (ein Pi 5 mit einem
+        # kurzen 4K-Clip), soll nicht vom Werkzeug ausgebremst werden. Der
+        # haeufigste Ausfallgrund einer Station ist aber kein Defekt, sondern
+        # eine Datei, die der Pi nicht fluessig dekodiert — und der Upload war
+        # dazu bisher stumm.
+        hinweise = []
+        if media_type == "videos":
+            _geprueft, hinweise = medien_check.pruefe_datei(ziel)
+        return jsonify({"ok": True, "name": name, "hinweise": hinweise})
+
+    # ── Sicherung und Wiederherstellung ───────────────────────────────────
+    #
+    # Eine Station wird geklont (die naechste Ausstellung, derselbe Aufbau)
+    # oder nach einem SD-Karten-Tod wiederhergestellt. Bisher hiess das: die
+    # `config.json` von Hand ueber SSH kopieren.
+
+    @app.route("/api/backup")
+    def api_backup():
+        from flask import Response
+        name = (controller.config.get("system_name") or "station").replace(" ", "_")
+        return Response(
+            json.dumps(controller.config, indent=2, ensure_ascii=False),
+            mimetype="application/json; charset=utf-8",
+            headers={"Content-Disposition":
+                     f'attachment; filename="{secure_filename(name)}-konfiguration.json"'})
+
+    @app.route("/api/restore", methods=["POST"])
+    def api_restore():
+        """Eine gesicherte Konfiguration einspielen.
+
+        HEILEN statt ablehnen — anders als `/api/config`. Eine Sicherung kann
+        aus einer aelteren Fassung stammen, in der es Felder noch nicht gab
+        oder anders hiessen. Eine Wiederherstellung, die an einem einzigen
+        veralteten Feld scheitert, ist im Ernstfall (Karte tot, Ausstellung
+        oeffnet) genau das, was niemand gebrauchen kann.
+        """
+        daten = request.get_json(silent=True)
+        if not isinstance(daten, dict):
+            return jsonify({"error": "Kein lesbares Konfigurations-Objekt"}), 400
+        neu = json.loads(json.dumps(DEFAULT_CONFIG))
+        for schluessel, wert in daten.items():
+            if schluessel in neu:
+                neu[schluessel] = wert
+        for zone in ZONEN:
+            neu[zone] = heile_zone(neu.get(zone))
+        neu = heile_config(neu)
+        controller.config.clear()
+        controller.config.update(neu)
+        controller.save_config()
+        # Die Quelle wird beim Programmstart gebaut; ein geaenderter Sensortyp
+        # oder Pin wirkt erst danach. Das gehoert gesagt, sonst sucht jemand
+        # den Fehler in der Verdrahtung.
+        return jsonify({"ok": True, "config": controller.config,
+                        "hinweis": "Wiederhergestellt. Fuer Sensor- und "
+                                   "Port-Aenderungen die Station neu starten."})
 
     @app.route("/api/media/<media_type>/<name>", methods=["DELETE"])
     def api_delete_media(media_type, name):

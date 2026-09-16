@@ -47,3 +47,24 @@ img.layer { z-index: 2; }
 }
 .hint.show { display: block; }
 .hint strong { color: #00d4ff; }
+
+/* --- Sprachwahl (Untertitel) ---------------------------------------------
+   Sie liegt ueber dem Bild, weil die Anzeige Vollbild ist und es keine andere
+   Flaeche gibt, die ein Besucher beruehren koennte. Unten rechts, damit sie
+   Untertitel (unten mittig) und Bildinhalt nicht verdeckt.
+   `cursor: auto` hebt das `cursor: none` der Anzeigeflaeche hier wieder auf:
+   an einem Schirm mit Maus soll man den Knopf finden. */
+.sprachwahl {
+    position: fixed; right: 20px; bottom: 20px; z-index: 30;
+    display: none; gap: 8px; cursor: auto;
+}
+.sprachwahl.sichtbar { display: flex; }
+/* 44 px Kantenlaenge: das wird mit dem Finger getroffen, nicht mit der Maus
+   (WCAG 2.2, 2.5.8 verlangt 24 px als Minimum — hier ist mehr Platz). */
+.sprach-knopf {
+    min-width: 44px; min-height: 44px; padding: 0 12px;
+    background: rgba(19, 32, 64, 0.72); color: #E1ECEF;
+    border: 1px solid rgba(225, 236, 239, 0.45); border-radius: 0;
+    font-size: 0.95rem; font-weight: 600; letter-spacing: 0.04em; cursor: pointer;
+}
+.sprach-knopf.aktiv { background: #F6F5F0; color: #132040; border-color: #F6F5F0; }

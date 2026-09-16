@@ -27,8 +27,13 @@ jobs:
           python-version: '3.11'
       - name: Abhaengigkeiten
         run: pip install -r requirements.txt
+      # ALLE Module im Wurzelverzeichnis, nicht eine Aufzaehlung. Hier stand
+      # eine Liste, die bei jedem neuen Modul von Hand nachzuziehen war -- und
+      # genau das geht still daneben: ein nicht aufgefuehrtes Modul wurde nie
+      # kompiliert, und ein Syntaxfehler darin faellt erst auf dem Geraet auf.
+      # Der Glob nimmt neue Dateien von selbst mit.
       - name: Compile Python services
-        run: python -m compileall -q main.py web_ui.py sensor.py config_schema.py displays.py
+        run: python -m compileall -q *.py scripts/*.py
       - name: Check shell scripts
         run: for f in *.sh; do bash -n "$f"; done
       # Fragt die action.yml jedes Pins nach ihrer Node-Version, statt sie in

@@ -267,7 +267,7 @@ class DieOberflaecheKennDieSchirme(unittest.TestCase):
     def test_api_ohne_spieler_antwortet_statt_zu_werfen(self):
         import main
         from web_ui import create_app
-        controller = main.Controller(main.load_config(), use_dummy=True)
+        controller = main.Controller(main.load_config())
         app = create_app(controller)  # ohne `anzeigen` — wie auf einem Pi ohne X
         with app.test_client() as c:
             antwort = c.get("/api/displays")
@@ -278,7 +278,7 @@ class DieOberflaecheKennDieSchirme(unittest.TestCase):
     def test_spielen_und_beenden_gehen_ueber_die_api(self):
         import main
         from web_ui import create_app
-        controller = main.Controller(main.load_config(), use_dummy=True)
+        controller = main.Controller(main.load_config())
         anzeigen = displays.Anzeigen()
         app = create_app(controller, anzeigen)
         with mock.patch.object(displays, "schirme", return_value=[
@@ -295,7 +295,7 @@ class DieOberflaecheKennDieSchirme(unittest.TestCase):
     def test_falsche_eingabe_wird_abgewiesen_statt_geraten(self):
         import main
         from web_ui import create_app
-        controller = main.Controller(main.load_config(), use_dummy=True)
+        controller = main.Controller(main.load_config())
         app = create_app(controller, displays.Anzeigen())
         with app.test_client() as c:
             antwort = c.post("/api/displays/play", json={"schirme": "alle"})

@@ -84,6 +84,104 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 
 .controls { display: flex; gap: 6px; }
 
+/* Klartext-Zustand der Abstandsquelle unter der Statuszeile. Kein Demo-Modus
+   mehr: liegt kein Messwert vor, steht hier im Warnton, warum. */
+.sensor-status { width: 100%; margin-top: 8px; font-size: 0.8rem; color: var(--text-dim); }
+.sensor-status.ok { color: var(--near); }
+.sensor-status.warn { color: var(--warning); }
+.sensor-status:empty { display: none; }
+
+/* --- Dritte Zone (Mitte) --- */
+/* Ein Ton zwischen Nah (gruen) und Fern (stahlblau). Er ZEIGT auf den
+   vorhandenen Status-Ton statt den Wert abzuschreiben: zwei Stellen mit
+   derselben Farbe laufen beim naechsten Palettenwechsel auseinander. */
+:root { --mid: var(--warning); }
+.badge.mid { background: var(--mid); color: var(--accent-text); }
+.dot.mid { background: var(--mid); }
+.zone-mid { border-left: 3px solid var(--mid); }
+
+/* --- Zonen-Optionen und Reihenfolge --- */
+.zone-optionen { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 8px; }
+.zone-optionen .checkbox-label { margin: 0; font-size: 0.75rem; }
+.zone-item { display: flex; align-items: center; gap: 4px; }
+.zone-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 24px Trefferflaeche (WCAG 2.2, 2.5.8) — die Pfeile werden mit dem Daumen
+   getroffen, nicht mit der Maus. */
+.ord-btn {
+    width: 24px; height: 24px; flex: none; border-radius: 0; padding: 0;
+    background: var(--bg); color: var(--text-dim);
+    border: 1px solid var(--border); font-size: 0.7rem; cursor: pointer;
+}
+.ord-btn:hover { color: var(--text); }
+.ord-btn.leer { background: none; border-color: transparent; cursor: default; }
+.bildzeit {
+    width: 58px; flex: none; min-height: 24px; padding: 2px 4px; border-radius: 0;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    font-size: 0.72rem;
+}
+
+/* --- Zustand --- */
+.health-punkt { font-size: 0.75rem; font-weight: 600; margin-left: 8px; color: var(--text-dim); }
+.health-punkt.ok { color: var(--near); }
+.health-punkt.hinweis { color: var(--text-dim); }
+.health-punkt.warnung { color: var(--warning); }
+.health-punkt.fehler { color: var(--danger); }
+/* Der farbige Streifen links traegt die Stufe, nicht die Schriftfarbe: der
+   Text muss auch dann lesbar bleiben, wenn die Stufe gedaempft ist. */
+.health-befund {
+    padding: 7px 10px; margin-bottom: 4px; font-size: 0.82rem;
+    background: var(--bg); border: 1px solid var(--border);
+    border-left: 3px solid var(--text-dim); border-radius: 0;
+}
+.health-befund.hinweis { border-left-color: var(--text-dim); }
+.health-befund.warnung { border-left-color: var(--warning); }
+.health-befund.fehler { border-left-color: var(--danger); }
+
+/* --- Besucher-Statistik --- */
+.stat-kacheln { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.stat-kachel {
+    flex: 1; min-width: 120px; padding: 10px 12px; border-radius: 0;
+    background: var(--bg); border: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 2px;
+}
+.stat-wert { font-family: 'Consolas', 'SF Mono', monospace; font-size: 1.6rem; font-weight: 700; color: var(--accent); }
+.stat-name { font-size: 0.75rem; color: var(--text-dim); }
+.stat-titel { font-size: 0.85rem; color: var(--text-dim); margin: 14px 0 6px; font-weight: 600; }
+
+/* Tagesverlauf: 24 Balken. `align-items:flex-end`, damit die Balken auf der
+   Grundlinie stehen und nicht von oben haengen. */
+.stat-stunden { display: flex; align-items: flex-end; gap: 2px; height: 90px; }
+.stat-stunde { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.stat-balken { background: var(--near); border-radius: 0; min-height: 2px; }
+/* Leere Stunden bleiben sichtbar, aber gedaempft — eine Luecke im Verlauf ist
+   eine Aussage, kein fehlender Balken. */
+.stat-balken.leer { background: var(--border); }
+.stat-stunde-name { font-size: 0.6rem; color: var(--text-dim); text-align: center; margin-top: 2px; min-height: 0.8rem; }
+
+.stat-tage { display: flex; flex-direction: column; gap: 2px; }
+.stat-tag-zeile {
+    display: flex; gap: 10px; justify-content: space-between; align-items: baseline;
+    padding: 5px 8px; background: var(--bg); border: 1px solid var(--border);
+    font-size: 0.8rem;
+}
+.stat-tag-datum { font-family: 'Consolas', 'SF Mono', monospace; color: var(--text-dim); }
+.stat-tag-dauer { color: var(--text-dim); }
+
+/* --- Zeitsteuerung --- */
+.karten-hinweis { font-size: 0.8rem; color: var(--text-dim); margin: 0 0 10px; }
+.zeitplan-tage { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.zeitplan-zeile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Feste Breite, damit die Uhrzeiten aller sieben Tage untereinander stehen
+   statt je nach Tagesname zu springen. */
+.zeitplan-zeile .zp-tag { min-width: 130px; margin: 0; }
+.zeitplan-zeile .zp-bis { color: var(--text-dim); font-size: 0.8rem; }
+/* 24px Mindesthoehe wie bei den Schiebereglern (WCAG 2.2, 2.5.8): diese
+   Seite wird vom Handy bedient. */
+.zeitplan-zeile input[type="time"] {
+    min-height: 32px; padding: 4px 6px; border-radius: 0;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+}
+
 /* --- Badge --- */
 .badge { display: inline-block; padding: 3px 12px; border-radius: 0; font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.06); color: var(--text-dim); }
 .badge.near { background: rgba(0,230,118,0.15); color: var(--near); }
@@ -257,3 +355,10 @@ select:focus-visible, textarea:focus-visible {
     outline: 2px solid var(--signal);
     outline-offset: 3px;
 }
+
+/* --- Untertitel-Zuordnung --- */
+.ut-zeile { padding: 7px 0; border-bottom: 1px solid var(--border); }
+.ut-video { font-size: 0.82rem; margin-bottom: 4px; }
+.ut-spuren { display: flex; gap: 10px; flex-wrap: wrap; }
+.ut-spur { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-dim); }
+.ut-spur select { min-height: 28px; border-radius: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border); font-size: 0.75rem; }

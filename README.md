@@ -1,7 +1,7 @@
 # Pi Media Station
 
 > Sensor-gesteuerte Medien-Station mit Web-Admin, Display-Modus und Multi-Station Manager.
-> Läuft auf **Raspberry Pi** (HC-SR04 Ultraschallsensor) und für Tests auf **Windows** (Dummy-Sensor).
+> Läuft auf **Raspberry Pi** (HC-SR04 Ultraschallsensor) sowie auf **Mac/Windows** (Kamera-Erkennung als Abstandsquelle).
 
 [![Release](https://img.shields.io/badge/release-v2.1.0-blue)](https://github.com/larszu/pi-media-station/releases)
 
@@ -45,24 +45,34 @@ publishes by itself — nothing in this repo needs changing.
 ## Features
 
 ### Sensor-/Medien-Kern
-- **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) und GPIO 24 (Echo) — frei konfigurierbar
+- **Drei wählbare Abstandsquellen** (`sensor_type`):
+  - **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) / GPIO 24 (Echo) — frei konfigurierbar (Vorgabe)
+  - **Kamera-Erkennung** über eine Webcam (OpenCV + YuNet/Haar) — läuft auch auf **Mac und Windows**, siehe [`docs/sensoren.md`](docs/sensoren.md)
+  - **Taster**: der Besucher drückt einen Knopf, statt gemessen zu werden
+- **Kein Demo-Modus mehr**: ist kein Sensor angeschlossen, misst die Station nichts und löst nicht aus — die Oberfläche sagt es im Klartext, statt eine erfundene Distanz zu zeigen
+- **Zustandsprüfung**: Sensor ohne Messung, volle Platte, Zone ohne Medien, fehlende Dateien — sichtbar im Admin und über `/api/identity` für den Station Manager
+- **Besucher-Statistik**: Besuche und Verweildauer pro Tag/Stunde, CSV-Export — ohne irgendetwas über einzelne Personen zu speichern, siehe [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)
+- **Zeitsteuerung**: Wochenplan mit Öffnungszeiten (auch über Mitternacht) — außerhalb bleibt der Schirm schwarz, der Ton aus und es wird nicht ausgelöst; optional Fernseher per HDMI-CEC mit abschalten, siehe [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
 - **Zwei Zonen**: NAH (≤ Schwelle) / FERN (> Schwelle), mit konfigurierbarer Verzögerung gegen Flackern
 - **Pro Zone** beliebige Auswahl an Videos, Bildern und Audio
+- **Gleichtakt mehrerer Stationen**: eine Station folgt der Zone einer anderen über das LAN — ein Sensor treibt eine ganze Wand, siehe [`docs/gleichtakt.md`](docs/gleichtakt.md)
+- **Mehrsprachigkeit**: Untertitelspuren (WebVTT) je Video mit Sprachknöpfen auf der Anzeige, siehe [`docs/mehrsprachigkeit.md`](docs/mehrsprachigkeit.md)
+- **Playlist-Optionen je Zone**: zufällige Reihenfolge, „einmal abspielen", Reihenfolge umsortieren und eigene Standzeit je Bild
 - **Bildslideshow** mit einstellbarem Intervall
 - **Lautstärke** getrennt für Master / Video / Audio (0–100 %)
 - **Video-Resume**: Optional Wiedergabe an gleicher Stelle fortsetzen, statt von vorne
-- **Dummy-Sensor** auf Windows für UI-Tests ohne Hardware
 
 ### Web-Admin (`/admin`)
 - Zonen-Übersicht mit Drag-Zuordnung
 - Medien-Bibliothek mit Tabs (Videos / Bilder / Audio)
-- **Drag-and-Drop-Upload** mit Fortschrittsanzeige
+- **Drag-and-Drop-Upload** mit Fortschrittsanzeige und **Medien-Check** (warnt vor 4K/60fps/fremdem Codec, der auf dem Pi ruckelt)
+- **Sicherung**: Konfiguration exportieren und einspielen — zum Klonen einer Station oder nach SD-Karten-Defekt, siehe [`docs/betrieb.md`](docs/betrieb.md)
 - Datei-Löschung **nicht-destruktiv**: entfernt nur aus Zonen, die Datei bleibt auf dem Pi
-- Live-Status: Distanz, aktive Zone, Sensor-Modus
+- Live-Status: Distanz, aktive Zone, Klartext-Zustand der Abstandsquelle
 - Einstellungen: Stationsname, Schwelle, Verzögerung, Bildwechsel, Lautstärken, Video-Resume
 
 ### Systemeinstellungen (eigener Bereich in `/admin`)
-- **GPIO-Konfiguration**: Trigger-/Echo-Pin änderbar
+- **Abstandsquelle wählbar**: Ultraschall (GPIO Trigger/Echo) oder Kamera (Index, Brennweite)
 - **Anzeige-IP** für Fernsteuerung (leer = Auto-Erkennung)
 - **Netzwerk** via `nmcli`:
   - DHCP / statische IP wählbar
@@ -102,11 +112,14 @@ run_windows.bat --server  # Windows, für einen Aufrufer: Vordergrund, kein Brow
 Mehr braucht es nicht: Python 3.10+. Das Skript legt beim ersten Lauf eine
 `.venv` an, installiert `requirements.txt` und startet den Server.
 
-**Der Sensor wird nicht abgeschaltet, er fehlt einfach.** `sensor.py`
-prüft selbst, ob `gpiozero` und ein GPIO-Chip da sind, und fällt sonst auf
-den Dummy zurück. `run-local.sh` setzt deshalb **kein** `--dummy` — dieser
-Schalter würde auf einem Pi den echten Sensor abschalten, und das Skript
-soll auch dort laufen.
+**Ohne Sensor wird nichts erfunden.** Fehlt `gpiozero` oder ein GPIO-Chip
+(also auf jedem Entwicklungsrechner), misst der Ultraschallsensor nichts:
+`distance` bleibt „unbekannt", es wird nicht ausgelöst, und der Admin zeigt im
+Klartext, dass kein Sensor angeschlossen ist. Den früheren Zufalls-Demo-Modus
+gibt es nicht mehr — er ließ die Station so aussehen, als messe sie. Wer auf
+Mac/Windows ohne Ultraschall-Hardware entwickeln oder ausstellen will, stellt
+im Admin unter **Abstandsquelle** auf **Kamera** (Webcam) um; die Einrichtung
+steht in [`docs/sensoren.md`](docs/sensoren.md).
 
 `start.sh` ist etwas anderes und bleibt es: der **Kiosk**-Start auf dem
 Pi. Er wartet auf einen Wayland-Socket, erschießt `piwiz` und `zenity` und
@@ -290,7 +303,9 @@ ssh pi@<pi-ip> "cp /tmp/web_ui.py ~/pi_media_station/web_ui.py && \
 run_windows.bat
 ```
 
-Startet Flask mit Dummy-Sensor auf `http://localhost:5000`.
+Startet Flask auf `http://localhost:5000`. Ohne Ultraschall-Hardware misst die
+Station nichts; für eine Webcam im Admin unter **Abstandsquelle** auf
+**Kamera** umstellen (siehe [`docs/sensoren.md`](docs/sensoren.md)).
 
 ---
 
@@ -390,7 +405,8 @@ Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. 
 **Pi-Stack:**
 - `main.py` – Controller (Sensor-Loop, State-Machine, Player)
 - `web_ui.py` – Flask-Routes (`/`, `/admin`, `/api/*`)
-- `sensor.py` – `gpiozero.DistanceSensor` mit Dummy-Fallback
+- `sensor.py` – Abstandsquellen-Basis + HC-SR04 (`gpiozero.DistanceSensor`); ohne Sensor kein Messwert
+- `camera_sensor.py` – Kamera-Abstandsquelle (OpenCV + YuNet/Haar), plattformübergreifend
 - `media_player.py` – Player
 - `static/`, `templates/` – Frontend
 - `lzstation.service` – Avahi mDNS

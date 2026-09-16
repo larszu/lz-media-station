@@ -157,7 +157,16 @@ class LadewegHeiltStattAbzubrechen(unittest.TestCase):
 class JedesFeldDerVorgabeHatEineGrenze(unittest.TestCase):
     """Sonst waechst die Vorgabe und der Vertrag bleibt stehen."""
 
-    OHNE_GRENZE = {"near", "far"}  # Medienlisten, eigene Pruefung in api_config
+    # Verschachtelte Felder, die NICHT in die flache GRENZEN-Tabelle passen und
+    # deshalb einen EIGENEN Pruefer haben. Die Ausnahme gilt nur mit dem
+    # Nachweis, wo geprueft wird -- sonst waere sie ein Loch im Vertrag:
+    #   near/mid/far -> Medienlisten + Wiedergabe-Optionen, eigene Pruefung in
+    #                `config_schema.pruefe_zone` / `heile_zone`
+    #   zeitplan  -> `zeitplan.pruefe_zeitplan` (Schreibweg) und
+    #                `zeitplan.heile_zeitplan` (Ladeweg, aus `heile_config`)
+    #   sprachen  -> `pruefe_sprachen` / `heile_sprachen`
+    #   untertitel -> `pruefe_untertitel` / `heile_untertitel`
+    OHNE_GRENZE = {"near", "mid", "far", "zeitplan", "sprachen", "untertitel"}
 
     def test_kein_feld_ohne_grenze(self):
         fehlen = sorted(set(cs.DEFAULT_CONFIG) - set(cs.GRENZEN) - self.OHNE_GRENZE)

@@ -72,7 +72,7 @@ class Station:
         umgebung["PYTHONUNBUFFERED"] = "1"
         self.p = subprocess.Popen(
             [sys.executable, str(ROOT / "main.py"),
-             "--dummy", "--port", str(self.port), *args],
+             "--port", str(self.port), *args],
             cwd=str(ROOT), env=umgebung,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 

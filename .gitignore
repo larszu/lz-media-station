@@ -43,6 +43,9 @@ Thumbs.db
 # Config (user-specific)
 config.json
 
+# Erfasste Besuchszahlen (Betriebsdaten der einzelnen Station)
+statistik.json
+
 # Temporary files
 *.tmp
 *.temp
@@ -66,7 +69,11 @@ audio/*.m4a
 audio/*.flac
 audio/*.aac
 
+# Untertitel (Nutzerinhalt)
+subtitles/*.vtt
+
 # Keep directories but ignore contents
+!subtitles/.gitkeep
 !videos/.gitkeep
 !images/.gitkeep
 !audio/.gitkeep
@@ -76,6 +83,9 @@ pi-media-station/
 
 # lokale venv
 .venv/
+
+# Optionales Kamera-Modell (per scripts/fetch_yunet.py geladen, nicht eingecheckt)
+models/*.onnx
 
 # Die gebaute Projektseite (scripts/build-site.py). Sie entsteht in CI neu;
 # eine eingecheckte Kopie waere ein zweiter Stand derselben Doku.

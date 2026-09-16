@@ -97,7 +97,9 @@ echo.
 echo   Web-Admin:  http://localhost:5000/
 echo   Anzeige:    http://localhost:5000/display
 echo.
-echo   Der Sensor laeuft auf Windows im Dummy-Modus.
+echo   Ohne Ultraschallsensor wird nichts gemessen - es loest nichts aus.
+echo   Fuer eine Webcam im Admin unter "Abstandsquelle" auf "Kamera"
+echo   stellen (siehe docs/sensoren.md).
 echo   Zum Beenden Strg-C.
 echo.
 

@@ -14,11 +14,30 @@
     var currentVideoFile = null;
     var currentAudioFile = null;
     var currentImageSet = '';
+    // Kennung der aktuell laufenden Liste (Dateien + Shuffle-Schalter). Die
+    // Wiedergabe wird NUR neu aufgesetzt, wenn sich diese Kennung aendert.
+    //
+    // Vorher stand hier `currentVideoFile !== videos[0]`, und das war ein
+    // echter Defekt bei mehr als einer Datei: sobald das erste Video endete
+    // und auf das zweite weiterschaltete, war `currentVideoFile` nicht mehr
+    // `videos[0]` — der naechste Poll (500 ms spaeter) sprang deshalb zurueck
+    // auf das erste. Eine Playlist mit mehreren Videos spielte faktisch nur
+    // das erste, immer wieder. Fuer Audio galt dasselbe.
+    var currentVideoSet = '';
+    var currentAudioSet = '';
     var zoneVideos = [];
     var videoIndex = 0;
     var slideshowTimer = null;
     var audioIndex = 0;
     var zoneAudioList = [];
+    // Wiedergabe-Optionen der laufenden Zone.
+    var zoneEinmal = false;
+    // Untertitel: die Sprachliste und die Zuordnung aus `/api/scene`, dazu die
+    // gerade gewaehlte Sprache.
+    var sprachen = [];
+    var untertitel = {};
+    var aktiveSprache = null;
+    var sprachwahlStand = '';
 
     var hintEl = document.getElementById('hint');
     var startAttempted = false;
@@ -52,6 +71,18 @@
         try {
             var resp = await fetch('/api/scene');
             var scene = await resp.json();
+
+            // Der Wochenplan steht VOR allem anderen: ausserhalb der
+            // Oeffnungszeit bleibt der Schirm schwarz und der Ton aus — kein
+            // Hinweistext ("Warte auf Sensor" waere nachts schlicht falsch)
+            // und vor allem KEIN Auto-Start, der die Steuerung wieder
+            // anwerfen wuerde.
+            if (scene.geschlossen) {
+                if (currentHash) { fadeAllOut(); currentHash = ''; }
+                clearRedirect();
+                hideHint();
+                return;
+            }
 
             if (!scene.active) {
                 if (currentHash) { fadeAllOut(); currentHash = ''; }
@@ -101,6 +132,10 @@
             }
 
             resumeEnabled = !!scene.video_resume;
+            // VOR der Hash-Abkuerzung: die Sprachliste haengt nicht an der
+            // Zone. Stuende sie dahinter, erschienen die Knoepfe erst beim
+            // naechsten Zonenwechsel — also womoeglich nie.
+            uebernimmSprachen(scene);
 
             if (hash === currentHash) return;
             currentHash = hash;
@@ -127,38 +162,133 @@
         return Math.min(100, Math.max(0, n)) / 100;
     }
 
+    // Zufaellige Reihenfolge auf einer KOPIE (Fisher-Yates). Die Liste aus
+    // `/api/scene` wird bei jedem Poll neu geliefert; sie an Ort und Stelle zu
+    // mischen waere wirkungslos und verwirrend.
+    function mischen(liste) {
+        var k = liste.slice();
+        for (var i = k.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = k[i]; k[i] = k[j]; k[j] = t;
+        }
+        return k;
+    }
+
     function applyScene(zd, imgInterval) {
         var videos = zd.videos || [];
         var images = zd.images || [];
         var audio = zd.audio || [];
+        var shuffle = !!zd.shuffle;
+        zoneEinmal = !!zd.einmal;
+        var bildzeiten = zd.bildzeiten || {};
 
         if (videos.length > 0) {
             hideImages();
-            zoneVideos = videos;
-            if (currentVideoFile !== videos[0]) {
+            // Der Shuffle-Schalter gehoert in die Kennung: wird er umgelegt,
+            // soll neu gemischt werden — sonst liefe die alte Reihenfolge bis
+            // zum naechsten Zonenwechsel weiter.
+            var vidSet = JSON.stringify(videos) + '|' + shuffle;
+            if (vidSet !== currentVideoSet) {
+                currentVideoSet = vidSet;
+                zoneVideos = shuffle ? mischen(videos) : videos.slice();
                 videoIndex = 0;
-                crossfadeVideo(videos[0]);
-            }
-        } else if (images.length > 0) {
-            hideVideos();
-            var imgSet = JSON.stringify(images);
-            if (imgSet !== currentImageSet) {
-                currentImageSet = imgSet;
-                startSlideshow(images, imgInterval);
+                crossfadeVideo(zoneVideos[0]);
             }
         } else {
-            hideVideos();
-            hideImages();
+            currentVideoSet = '';
+            if (images.length > 0) {
+                hideVideos();
+                var imgSet = JSON.stringify(images) + '|' + shuffle + '|' +
+                    JSON.stringify(bildzeiten) + '|' + imgInterval;
+                if (imgSet !== currentImageSet) {
+                    currentImageSet = imgSet;
+                    startSlideshow(shuffle ? mischen(images) : images.slice(),
+                                   imgInterval, bildzeiten);
+                }
+            } else {
+                hideVideos();
+                hideImages();
+            }
         }
 
         if (audio.length > 0) {
-            if (currentAudioFile !== audio[0]) {
-                zoneAudioList = audio;
+            var audSet = JSON.stringify(audio) + '|' + shuffle;
+            if (audSet !== currentAudioSet) {
+                currentAudioSet = audSet;
+                zoneAudioList = shuffle ? mischen(audio) : audio.slice();
                 audioIndex = 0;
-                playAudio(audio[0]);
+                playAudio(zoneAudioList[0]);
             }
         } else if (currentAudioFile) {
+            currentAudioSet = '';
             fadeOutAudio();
+        }
+    }
+
+    /* ---- Untertitel und Sprachwahl ---- */
+
+    function uebernimmSprachen(scene) {
+        sprachen = scene.sprachen || [];
+        untertitel = scene.untertitel || {};
+        if (aktiveSprache === null || sprachen.indexOf(aktiveSprache) < 0) {
+            aktiveSprache = sprachen.length ? sprachen[0] : null;
+        }
+        zeichneSprachwahl();
+    }
+
+    function zeichneSprachwahl() {
+        var box = document.getElementById('sprachwahl');
+        if (!box) return;
+        // Nur neu zeichnen, wenn sich etwas geaendert hat: die Seite pollt
+        // zweimal je Sekunde, und ein Neubau bei jedem Poll wuerde einen
+        // gerade beruehrten Knopf unter dem Finger wegziehen.
+        var stand = sprachen.join(',') + '|' + aktiveSprache;
+        if (stand === sprachwahlStand) return;
+        sprachwahlStand = stand;
+        if (sprachen.length < 2) {
+            // Eine einzige Sprache ist keine Wahl.
+            box.innerHTML = '';
+            box.classList.remove('sichtbar');
+            return;
+        }
+        box.innerHTML = sprachen.map(function (code) {
+            return '<button class="sprach-knopf' + (code === aktiveSprache ? ' aktiv' : '') +
+                '" data-code="' + code + '">' + code.toUpperCase() + '</button>';
+        }).join('');
+        box.classList.add('sichtbar');
+        Array.prototype.forEach.call(box.querySelectorAll('.sprach-knopf'), function (k) {
+            k.addEventListener('click', function () {
+                aktiveSprache = k.getAttribute('data-code');
+                sprachwahlStand = '';
+                zeichneSprachwahl();
+                wendeSpracheAn(activeVideoEl);
+            });
+        });
+    }
+
+    function setzeUntertitel(el, datei) {
+        // Alte Spuren entfernen: das Element wird wiederverwendet (A/B-Paar),
+        // und uebrig gebliebene <track> eines anderen Films wuerden mitlaufen.
+        Array.prototype.forEach.call(el.querySelectorAll('track'), function (t) {
+            el.removeChild(t);
+        });
+        var spuren = untertitel[datei] || {};
+        sprachen.forEach(function (code) {
+            if (!spuren[code]) return;
+            var track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.srclang = code;
+            track.label = code.toUpperCase();
+            track.src = '/media/subtitles/' + encodeURIComponent(spuren[code]);
+            el.appendChild(track);
+        });
+    }
+
+    function wendeSpracheAn(el) {
+        if (!el || !el.textTracks) return;
+        for (var i = 0; i < el.textTracks.length; i++) {
+            el.textTracks[i].mode =
+                (el.textTracks[i].language === aktiveSprache) ? 'showing' : 'disabled';
         }
     }
 
@@ -173,7 +303,11 @@
         currentVideoFile = file;
         var el = standbyVideoEl;
         el.src = '/media/videos/' + encodeURIComponent(file);
-        el.loop = zoneVideos.length <= 1;
+        // Ein einzelnes Video lief bisher immer in der Schleife. Mit „einmal"
+        // soll es stehen bleiben — sonst laesst sich eine Praesentation nicht
+        // von einer Endlosschleife unterscheiden.
+        el.loop = zoneVideos.length <= 1 && !zoneEinmal;
+        setzeUntertitel(el, file);
         el.load();
 
         function onReady() {
@@ -184,6 +318,9 @@
                 try { el.currentTime = videoPositions[file]; } catch (e) { /* ignore */ }
             }
             el.play().catch(function () {});
+            // Erst nach `canplay`: vorher sind die Spuren dem Element zwar
+            // angehaengt, aber `textTracks` ist noch leer.
+            wendeSpracheAn(el);
             el.classList.add('active');
             activeVideoEl.classList.remove('active');
             var old = activeVideoEl;
@@ -213,6 +350,9 @@
         el.onended = function () {
             // Komplett durchgespielt -> Position vergessen, damit beim nächsten Mal von vorn
             delete videoPositions[file];
+            // „einmal": nach dem letzten Video stehen bleiben statt von vorn
+            // zu beginnen.
+            if (zoneEinmal && videoIndex >= zoneVideos.length - 1) return;
             if (zoneVideos.length > 1) {
                 videoIndex = (videoIndex + 1) % zoneVideos.length;
                 crossfadeVideo(zoneVideos[videoIndex]);
@@ -237,41 +377,66 @@
 
     /* ---- Images ---- */
 
-    function startSlideshow(images, interval) {
-        if (slideshowTimer) clearInterval(slideshowTimer);
-        var idx = 0;
+    function bildFehler() {
+        showHint('<strong>Bild nicht ladbar</strong><br><br>Zur Admin-Seite...');
+        scheduleAdminRedirect(1200);
+    }
 
-        activeImgEl.src = '/media/images/' + encodeURIComponent(images[0]);
-        activeImgEl.onload = function () { activeImgEl.classList.add('active'); touchPlayable(); };
-        activeImgEl.onerror = function () {
-            showHint('<strong>Bild nicht ladbar</strong><br><br>Zur Admin-Seite...');
-            scheduleAdminRedirect(1200);
+    function zeigeBild(name, sofort) {
+        var el = sofort ? activeImgEl : standbyImgEl;
+        el.src = '/media/images/' + encodeURIComponent(name);
+        el.onload = function () {
+            touchPlayable();
+            el.classList.add('active');
+            if (!sofort) {
+                activeImgEl.classList.remove('active');
+                var tmp = activeImgEl;
+                activeImgEl = standbyImgEl;
+                standbyImgEl = tmp;
+            }
         };
-        standbyImgEl.classList.remove('active');
+        el.onerror = bildFehler;
+        if (sofort) standbyImgEl.classList.remove('active');
+    }
 
-        if (images.length > 1) {
-            slideshowTimer = setInterval(function () {
+    // Kette aus `setTimeout` statt eines festen `setInterval`: nur so kann
+    // jedes Bild seine EIGENE Standzeit haben (ein Titelbild 3 s, eine
+    // Detailtafel 20 s). Mit einem Intervall waere die Schrittweite fuer alle
+    // Bilder dieselbe.
+    function startSlideshow(images, interval, bildzeiten) {
+        stopSlideshow();
+        var idx = 0;
+        zeigeBild(images[idx], true);
+
+        function standzeit(name) {
+            var s = Number((bildzeiten || {})[name]);
+            return (isFinite(s) && s > 0) ? s : interval;
+        }
+
+        function plane() {
+            if (images.length <= 1) return;
+            // „einmal": am letzten Bild stehen bleiben, statt von vorn zu
+            // beginnen. Das ist der Unterschied zwischen einer Praesentation
+            // und einer Endlosschleife.
+            if (zoneEinmal && idx === images.length - 1) return;
+            slideshowTimer = setTimeout(function () {
                 idx = (idx + 1) % images.length;
-                var el = standbyImgEl;
-                el.src = '/media/images/' + encodeURIComponent(images[idx]);
-                el.onload = function () {
-                    touchPlayable();
-                    el.classList.add('active');
-                    activeImgEl.classList.remove('active');
-                    var tmp = activeImgEl;
-                    activeImgEl = standbyImgEl;
-                    standbyImgEl = tmp;
-                };
-                el.onerror = function () {
-                    showHint('<strong>Bild nicht ladbar</strong><br><br>Zur Admin-Seite...');
-                    scheduleAdminRedirect(1200);
-                };
-            }, interval * 1000);
+                zeigeBild(images[idx], false);
+                plane();
+            }, standzeit(images[idx]) * 1000);
+        }
+        plane();
+    }
+
+    function stopSlideshow() {
+        if (slideshowTimer) {
+            clearTimeout(slideshowTimer);
+            slideshowTimer = null;
         }
     }
 
     function hideImages() {
-        if (slideshowTimer) { clearInterval(slideshowTimer); slideshowTimer = null; }
+        stopSlideshow();
         [imgA, imgB].forEach(function (i) {
             i.classList.remove('active');
             i.removeAttribute('src');
@@ -284,7 +449,7 @@
     function playAudio(file) {
         currentAudioFile = file;
         audioEl.src = '/media/audio/' + encodeURIComponent(file);
-        audioEl.loop = zoneAudioList.length <= 1;
+        audioEl.loop = zoneAudioList.length <= 1 && !zoneEinmal;
         audioEl.onloadeddata = touchPlayable;
         audioEl.onerror = function () {
             if (zoneAudioList.length > 1) {
@@ -299,10 +464,13 @@
         };
         audioEl.play().catch(function () {});
         audioEl.onended = function () {
+            if (zoneEinmal && audioIndex >= zoneAudioList.length - 1) return;
             if (zoneAudioList.length > 1) {
                 audioIndex = (audioIndex + 1) % zoneAudioList.length;
-                audioEl.src = '/media/audio/' + encodeURIComponent(zoneAudioList[audioIndex]);
-                audioEl.play().catch(function () {});
+                // Ueber `playAudio`, nicht die `src` direkt setzen: sonst
+                // bleibt `currentAudioFile` auf dem alten Titel stehen, und
+                // die Fehlerbehandlung des neuen Titels fehlt ganz.
+                playAudio(zoneAudioList[audioIndex]);
             }
         };
     }

@@ -8,7 +8,7 @@ Bewusst NICHT getestet: die Messschleife in `run()`. Sie laeuft mit
 `time.sleep(0.1)` in einem Thread; sie zu testen hiesse, auf Zeit zu warten,
 und zeitabhaengige Tests sind der zuverlaessigste Weg, eine CI unglaubwuerdig
 zu machen. Geprueft wird stattdessen, was ohne Warten pruefbar ist: der
-Aufbau, die Dummy-Erkennung, das Filterfenster und das Anhalten.
+Aufbau, das Fehlen des Demo-Modus, das Filterfenster und das Anhalten.
 
 Lauf: `python3 -m unittest discover -s tests -v`
 """
@@ -24,15 +24,27 @@ import sensor  # noqa: E402
 
 
 class Aufbau(unittest.TestCase):
-    def test_ohne_gpiozero_faellt_er_auf_dummy_zurueck(self):
-        # Auf einem Rechner ohne gpiozero MUSS der Dummy greifen -- sonst
-        # stuerzt die Station beim Start ab, statt ohne Sensor weiterzulaufen.
+    def test_ohne_gpiozero_stuerzt_der_aufbau_nicht_ab(self):
+        # Auf einem Rechner ohne gpiozero MUSS sich der Sensor bauen lassen --
+        # die GPIO-Initialisierung passiert erst in `run()`, nicht im
+        # Konstruktor. Sonst kaeme die Station auf einem Entwicklungsrechner
+        # gar nicht erst hoch.
         s = sensor.SensorThread()
-        if not sensor.GPIOZERO_AVAILABLE:
-            self.assertTrue(s.use_dummy, 'ohne gpiozero muss use_dummy greifen')
+        # Und ohne Messung gibt es keinen Wert -- KEINEN erfundenen Demo-Wert.
+        self.assertIsNone(s.distance)
 
-    def test_dummy_laesst_sich_erzwingen(self):
-        self.assertTrue(sensor.SensorThread(use_dummy=True).use_dummy)
+    def test_kein_demo_modus_im_quelltext(self):
+        # DIE FORDERUNG (Nutzer, 2026-09-16): „Entferne den Demo Modus des
+        # Ultraschall Sensors wenn keiner angeschlossen ist. Das ist
+        # verwirrend fuer enduser." Frueher erzeugte `run()` Zufallswerte um
+        # 1,5 m, wenn kein Sensor da war -- die Station tat so, als messe sie.
+        # Dieser Waechter haelt fest, dass der Demo-Weg nicht zurueckkehrt:
+        # kein `import random`, kein `use_dummy`.
+        quelle = (Path(__file__).resolve().parent.parent / 'sensor.py').read_text()
+        self.assertNotIn('import random', quelle,
+                         'der Zufalls-Demo-Modus darf nicht zurueckkehren')
+        self.assertNotIn('use_dummy', quelle,
+                         'der Dummy-Schalter ist entfernt -- kein Sensor heisst kein Messwert')
 
     def test_pins_sind_uebernehmbar(self):
         s = sensor.SensorThread(trigger_pin=5, echo_pin=6)
@@ -85,19 +97,19 @@ class Filterfenster(unittest.TestCase):
         self.assertEqual(sensor.SensorThread()._filter_size, 5)
 
     def test_mittelwert_ueber_wenige_werte(self):
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         for v in (1.0, 2.0, 3.0):
             self.push(s, v)
         self.assertAlmostEqual(s.distance, 2.0)
 
     def test_fenster_waechst_nicht_ueber_die_grenze(self):
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         for v in range(20):
             self.push(s, float(v))
         self.assertEqual(len(s._values), 5, 'das Fenster laeuft voll statt zu rollen')
 
     def test_alte_werte_fallen_hinten_raus(self):
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         for v in (10.0, 10.0, 10.0, 10.0, 10.0):
             self.push(s, v)
         self.assertAlmostEqual(s.distance, 10.0)
@@ -108,14 +120,14 @@ class Filterfenster(unittest.TestCase):
 
 class Anhalten(unittest.TestCase):
     def test_stop_setzt_das_laufflag(self):
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         s._running = True
         s.stop()
         self.assertFalse(s._running)
 
     def test_stop_ohne_sensor_wirft_nicht(self):
         # Wird gestoppt, bevor `run()` je lief, ist `_sensor` None.
-        sensor.SensorThread(use_dummy=True).stop()
+        sensor.SensorThread().stop()
 
 
 if __name__ == "__main__":
@@ -146,17 +158,17 @@ class KeinMesswertIstEinEigenerZustand(unittest.TestCase):
     """
 
     def test_ohne_messung_ist_der_abstand_unbekannt(self):
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         self.assertIsNone(s.distance, 'vor der ersten Messung gibt es keinen Abstand')
 
     def test_null_ist_kein_ersatz_fuer_unbekannt(self):
         # Der eigentliche Defekt in einem Satz: 0.0 ist ein gueltiger, sehr
         # naher Abstand. Wer ihn als Startwert nimmt, meldet einen Besucher.
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         self.assertNotEqual(s.distance, 0.0)
 
     def test_ein_messwert_wird_gemeldet(self):
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         s._values = [1.2, 1.4]
         s._distance = 1.3
         s._measured_at = time.monotonic()
@@ -166,7 +178,7 @@ class KeinMesswertIstEinEigenerZustand(unittest.TestCase):
         # Ohne Ablauf blieb der letzte Wert ewig stehen. Ein Sensor, der
         # aufhoert zu antworten, haette die Station in ihrem Zustand
         # eingefroren, und nichts haette es gesagt.
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         s._distance = 1.3
         s._measured_at = time.monotonic() - (sensor.STALE_AFTER_S + 0.5)
         self.assertIsNone(s.distance, 'ein veralteter Messwert ist keiner')
@@ -176,7 +188,7 @@ class KeinMesswertIstEinEigenerZustand(unittest.TestCase):
         # langer Zeit gemessen". Das faellt heute nicht auf, weil der Ablauf
         # es abfaengt — aber es waere ein Startwert, der wieder etwas
         # bedeutet, und genau davon handelt dieser Befund.
-        self.assertIsNone(sensor.SensorThread(use_dummy=True)._measured_at)
+        self.assertIsNone(sensor.SensorThread()._measured_at)
 
     def test_nur_eine_stelle_setzt_den_zeitstempel(self):
         """Der Zeitstempel wird an GENAU EINER Stelle gesetzt: `_uebernimm`.
@@ -215,7 +227,7 @@ class KeinMesswertIstEinEigenerZustand(unittest.TestCase):
         stand damit ein Abstand im Umlauf, den es nie gegeben hat — genau in
         dem Moment, in dem die Station entscheidet, ob jemand davorsteht.
         """
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         for _ in range(5):
             s._uebernimm(3.0)          # der Raum ist leer
         self.assertAlmostEqual(s.distance, 3.0)
@@ -234,7 +246,7 @@ class KeinMesswertIstEinEigenerZustand(unittest.TestCase):
         # Die Gegenprobe. Waere jede Luecke ein Neuanfang, waere der
         # Mittelwertfilter wirkungslos — ein einzelner Ausreisser schluege
         # dann voll durch, und genau dagegen gibt es ihn.
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         for _ in range(4):
             s._uebernimm(3.0)
         s._measured_at = time.monotonic() - (sensor.STALE_AFTER_S - 0.5)
@@ -245,7 +257,7 @@ class KeinMesswertIstEinEigenerZustand(unittest.TestCase):
     def test_die_grenze_ist_grosszuegig_genug_fuer_einen_aussetzer(self):
         # Ein einzelner verschluckter Messwert darf die Station nicht
         # umschalten — die Schleife misst alle 0,1 s.
-        s = sensor.SensorThread(use_dummy=True)
+        s = sensor.SensorThread()
         s._distance = 1.3
         s._measured_at = time.monotonic() - 0.5
         self.assertAlmostEqual(s.distance, 1.3)

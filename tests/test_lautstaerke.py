@@ -40,7 +40,7 @@ import main  # noqa: E402
 def controller(**overrides):
     cfg = dict(main.DEFAULT_CONFIG)
     cfg.update(overrides)
-    return main.Controller(cfg, use_dummy=True)
+    return main.Controller(cfg)
 
 
 class DerKernFuelltDieVorgaben(unittest.TestCase):
@@ -49,7 +49,7 @@ class DerKernFuelltDieVorgaben(unittest.TestCase):
     def test_fehlende_werte_bekommen_die_vorgabe(self):
         cfg = {k: v for k, v in main.DEFAULT_CONFIG.items()
                if k not in ("master_volume", "video_volume", "audio_volume")}
-        szene = main.Controller(cfg, use_dummy=True).get_scene()
+        szene = main.Controller(cfg).get_scene()
         self.assertEqual(szene["master_volume"], 100)
         self.assertEqual(szene["video_volume"], 100)
         self.assertEqual(szene["audio_volume"], 80)

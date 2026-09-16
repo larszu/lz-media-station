@@ -53,7 +53,8 @@
           ]
         }
       ],
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "identity": "-"
     },
     "linux": {
       "target": [

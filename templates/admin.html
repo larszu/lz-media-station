@@ -37,6 +37,10 @@
                     <a href="/" class="btn btn-display">&#10004; Fertig &mdash; Startseite</a>
                 </div>
             </div>
+            <!-- Klartext-Zustand der Abstandsquelle. Zeigt „kein Sensor
+                 angeschlossen" statt einer erfundenen Zahl, seit der
+                 Demo-Modus entfernt ist. -->
+            <div id="sensor-status" class="sensor-status"></div>
         </section>
 
         <!-- Zonen-Übersicht -->
@@ -45,10 +49,26 @@
             <div class="zones-grid">
                 <div class="zone zone-near">
                     <h3><span class="dot near"></span> Nah <small>&le; <span class="threshold-val">1.0</span>m</small></h3>
+                    <div class="zone-optionen">
+                        <label class="checkbox-label"><input type="checkbox" id="zone-near-shuffle"><span>Zuf&auml;llige Reihenfolge</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="zone-near-einmal"><span>Einmal abspielen</span></label>
+                    </div>
                     <div id="zone-near-media" class="zone-media"></div>
+                </div>
+                <div class="zone zone-mid" id="zone-mid-karte">
+                    <h3><span class="dot mid"></span> Mitte <small>&le; <span class="threshold-mid-val">2.5</span>m</small></h3>
+                    <div class="zone-optionen">
+                        <label class="checkbox-label"><input type="checkbox" id="zone-mid-shuffle"><span>Zuf&auml;llige Reihenfolge</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="zone-mid-einmal"><span>Einmal abspielen</span></label>
+                    </div>
+                    <div id="zone-mid-media" class="zone-media"></div>
                 </div>
                 <div class="zone zone-far">
                     <h3><span class="dot far"></span> Fern <small>&gt; <span class="threshold-val">1.0</span>m</small></h3>
+                    <div class="zone-optionen">
+                        <label class="checkbox-label"><input type="checkbox" id="zone-far-shuffle"><span>Zuf&auml;llige Reihenfolge</span></label>
+                        <label class="checkbox-label"><input type="checkbox" id="zone-far-einmal"><span>Einmal abspielen</span></label>
+                    </div>
                     <div id="zone-far-media" class="zone-media"></div>
                 </div>
             </div>
@@ -72,6 +92,9 @@
         <!-- Medienbibliothek -->
         <section class="card">
             <h2>Medienbibliothek</h2>
+            <!-- Hinweise des Medien-Checks nach einem Upload (z. B. 4K, das
+                 auf einem Pi ruckelt). Keine Ablehnung: die Datei ist da. -->
+            <div id="upload-hinweise"></div>
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('videos', this)">&#127916; Videos</button>
                 <button class="tab" onclick="switchTab('images', this)">&#128444; Bilder</button>
@@ -124,8 +147,19 @@
                     <input type="text" id="cfg-name" placeholder="LZ Station 1">
                 </div>
                 <div class="form-group span-2">
-                    <label>Schwelle: <strong id="threshold-display">1.00</strong> m</label>
+                    <label for="cfg-zonen-stufen">Zonen</label>
+                    <select id="cfg-zonen-stufen">
+                        <option value="2">Zwei Stufen (Nah / Fern)</option>
+                        <option value="3">Drei Stufen (Nah / Mitte / Fern)</option>
+                    </select>
+                </div>
+                <div class="form-group span-2">
+                    <label>Schwelle Nah: <strong id="threshold-display">1.00</strong> m</label>
                     <input type="range" id="cfg-threshold" min="0.1" max="4.0" step="0.05" value="1.0">
+                </div>
+                <div class="form-group span-2 nur-drei-stufen">
+                    <label>Schwelle Mitte: <strong id="threshold-mid-display">2.50</strong> m</label>
+                    <input type="range" id="cfg-threshold-mid" min="0.1" max="8.0" step="0.05" value="2.5">
                 </div>
                 <div class="form-group">
                     <label>Verz&ouml;gerung: <strong id="delay-display">1.5</strong> s</label>
@@ -156,6 +190,115 @@
             </div>
             <button class="btn btn-save" onclick="saveConfig()">Einstellungen speichern</button>
             <div id="save-feedback" class="feedback"></div>
+        </section>
+
+        <!-- Untertitel -->
+        <section class="card">
+            <h2>Untertitel &amp; Sprachen</h2>
+            <p class="karten-hinweis">
+                Sprachcodes durch Komma getrennt (z.&nbsp;B. <code>de, en</code>). Ab zwei
+                Sprachen erscheinen Knöpfe auf der Anzeige. Leer = keine Umschaltung.
+                Untertitel m&uuml;ssen <strong>WebVTT (.vtt)</strong> sein &mdash; nur das spielt
+                ein Browser ab.
+            </p>
+            <div class="settings-grid">
+                <div class="form-group span-2">
+                    <label for="cfg-sprachen">Sprachen</label>
+                    <input type="text" id="cfg-sprachen" placeholder="de, en">
+                </div>
+            </div>
+            <div style="margin:8px 0">
+                <label class="btn btn-save" style="cursor:pointer">
+                    .vtt hochladen
+                    <input type="file" id="vtt-datei" accept=".vtt" multiple
+                           style="display:none" onchange="ladeUntertitelHoch(this)">
+                </label>
+            </div>
+            <div id="untertitel-zuordnung"></div>
+            <button class="btn btn-save" onclick="saveUntertitel()">Untertitel speichern</button>
+            <div id="untertitel-feedback" class="feedback"></div>
+        </section>
+
+        <!-- Sicherung -->
+        <section class="card">
+            <h2>Sicherung</h2>
+            <p class="karten-hinweis">
+                Sichert alle Einstellungen (Zonen, Zeitplan, Sensor, Lautst&auml;rken) als
+                Datei &mdash; zum Klonen einer Station oder zur Wiederherstellung nach
+                einem SD-Karten-Defekt. <strong>Medien-Dateien sind nicht enthalten.</strong>
+            </p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+                <a class="btn btn-save" href="/api/backup">Konfiguration sichern</a>
+                <label class="btn btn-save" style="cursor:pointer">
+                    Sicherung einspielen
+                    <input type="file" id="restore-datei" accept="application/json,.json"
+                           style="display:none" onchange="spieleEin(this)">
+                </label>
+            </div>
+            <div id="restore-feedback" class="feedback"></div>
+        </section>
+
+        <!-- Zustand -->
+        <section class="card">
+            <h2>Zustand <span class="health-punkt" id="health-punkt"></span></h2>
+            <div id="health-liste"></div>
+        </section>
+
+        <!-- Besucher-Statistik -->
+        <section class="card">
+            <h2>Besucher-Statistik</h2>
+            <p class="karten-hinweis">
+                Gez&auml;hlt wird, <strong>wann</strong> und <strong>wie lange</strong> jemand in der
+                Nah-Zone stand &mdash; nichts &uuml;ber einzelne Personen.
+            </p>
+            <div class="stat-kacheln">
+                <div class="stat-kachel">
+                    <span class="stat-wert" id="stat-heute-besuche">&ndash;</span>
+                    <span class="stat-name">Besuche heute</span>
+                </div>
+                <div class="stat-kachel">
+                    <span class="stat-wert" id="stat-heute-schnitt">&ndash;</span>
+                    <span class="stat-name">&Oslash; Verweildauer</span>
+                </div>
+                <div class="stat-kachel">
+                    <span class="stat-wert" id="stat-gesamt-besuche">&ndash;</span>
+                    <span class="stat-name">Besuche gesamt</span>
+                </div>
+            </div>
+            <h3 class="stat-titel">Heute nach Stunde</h3>
+            <div class="stat-stunden" id="stat-stunden"></div>
+            <h3 class="stat-titel">Letzte Tage</h3>
+            <div class="stat-tage" id="stat-tage"></div>
+            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+                <a class="btn btn-save" href="/api/statistik.csv">CSV herunterladen</a>
+                <button class="btn btn-stop" onclick="resetStatistik()">Z&auml;hler zur&uuml;cksetzen</button>
+            </div>
+            <div id="stat-feedback" class="feedback"></div>
+        </section>
+
+        <!-- Zeitsteuerung -->
+        <section class="card">
+            <h2>Zeitsteuerung</h2>
+            <p class="karten-hinweis">
+                Au&szlig;erhalb der &Ouml;ffnungszeiten bleibt der Schirm schwarz, der Ton aus,
+                und es wird nicht ausgel&ouml;st. Ist die Zeitsteuerung aus, spielt die
+                Station wie bisher rund um die Uhr.
+            </p>
+            <label class="checkbox-label">
+                <input type="checkbox" id="cfg-zeitplan-aktiv">
+                <span>Zeitsteuerung aktiv</span>
+            </label>
+            <div id="zeitplan-tage" class="zeitplan-tage"></div>
+            <p class="karten-hinweis">
+                Ende <strong>00:00</strong> bedeutet Mitternacht (Tagesende). Ein Ende
+                <em>vor</em> dem Beginn l&auml;uft &uuml;ber Mitternacht &mdash; z.&nbsp;B. 20:00 bis 02:00.
+            </p>
+            <label class="checkbox-label">
+                <input type="checkbox" id="cfg-cec">
+                <span>Fernseher au&szlig;erhalb der Zeiten per HDMI-CEC abschalten (braucht <code>cec-client</code>)</span>
+            </label>
+            <button class="btn btn-save" onclick="saveZeitplan()">Zeitsteuerung speichern</button>
+            <div id="zeitplan-feedback" class="feedback"></div>
         </section>
 
         <!-- Systemeinstellungen -->
@@ -194,17 +337,59 @@
                     <label for="cfg-display-ip">Anzeige-IP f&uuml;r Fernsteuerung (leer = Auto-Erkennung)</label>
                     <input type="text" id="cfg-display-ip" placeholder="z.B. 192.168.1.50">
                 </div>
-                <div class="form-group">
+                <div class="form-group span-2" style="border-top:1px solid #2a2a4a; padding-top:10px; margin-top:6px">
+                    <label for="cfg-sensor-type">Abstandsquelle</label>
+                    <select id="cfg-sensor-type">
+                        <option value="ultrasonic">Ultraschall (HC-SR04 am GPIO)</option>
+                        <option value="camera">Kamera (Webcam, auch Mac/Windows)</option>
+                        <option value="button">Taster (Besucher dr&uuml;ckt)</option>
+                    </select>
+                </div>
+                <!-- Nur bei Ultraschall sichtbar -->
+                <div class="form-group sensor-ultrasonic">
                     <label for="cfg-gpio-trigger">GPIO Trigger</label>
                     <input type="number" id="cfg-gpio-trigger" value="23" min="1" max="40">
                 </div>
-                <div class="form-group">
+                <div class="form-group sensor-ultrasonic">
                     <label for="cfg-gpio-echo">GPIO Echo</label>
                     <input type="number" id="cfg-gpio-echo" value="24" min="1" max="40">
                 </div>
+                <!-- Nur bei Kamera sichtbar -->
+                <div class="form-group sensor-camera">
+                    <label for="cfg-camera-index">Kamera-Index</label>
+                    <input type="number" id="cfg-camera-index" value="0" min="0" max="16">
+                </div>
+                <div class="form-group sensor-camera">
+                    <label for="cfg-camera-focal">Brennweite (px, kalibriert)</label>
+                    <input type="number" id="cfg-camera-focal" value="700" min="1" max="100000" step="1">
+                </div>
+                <div class="form-group span-2" style="border-top:1px solid #2a2a4a; padding-top:10px; margin-top:6px">
+                    <label for="cfg-sync-rolle">Gleichtakt mit anderen Stationen</label>
+                    <select id="cfg-sync-rolle">
+                        <option value="aus">Aus &mdash; eigener Sensor</option>
+                        <option value="follower">Folgt einer anderen Station</option>
+                    </select>
+                </div>
+                <div class="form-group sync-follower">
+                    <label for="cfg-sync-master">Taktgeber (IP/Hostname)</label>
+                    <input type="text" id="cfg-sync-master" placeholder="192.168.1.50">
+                </div>
+                <div class="form-group sync-follower">
+                    <label for="cfg-sync-port">Port des Taktgebers</label>
+                    <input type="number" id="cfg-sync-port" value="5000" min="1" max="65535">
+                </div>
+                <!-- Nur bei Taster sichtbar -->
+                <div class="form-group sensor-button">
+                    <label for="cfg-button-pin">Taster GPIO (BCM)</label>
+                    <input type="number" id="cfg-button-pin" value="17" min="2" max="27">
+                </div>
+                <div class="form-group sensor-button">
+                    <label for="cfg-button-haltezeit">Haltezeit nach Druck (s)</label>
+                    <input type="number" id="cfg-button-haltezeit" value="30" min="1" max="600" step="1">
+                </div>
             </div>
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
-                <button class="btn btn-save" onclick="saveConfig()">Anzeige &amp; GPIO speichern</button>
+                <button class="btn btn-save" onclick="saveConfig()">Anzeige &amp; Sensor speichern</button>
                 <button class="btn btn-save" onclick="saveNetwork()">Netzwerk übernehmen</button>
                 <button class="btn btn-stop" onclick="rebootPi()">Pi neu starten</button>
             </div>

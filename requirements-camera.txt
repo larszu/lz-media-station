@@ -1,0 +1,13 @@
+# Zusatz-Abhaengigkeit fuer die KAMERA-Abstandsquelle (sensor_type = "camera").
+#
+# Bewusst NICHT in requirements.txt: die Standard-Station misst per
+# Ultraschall, und OpenCV ist ein grosser Download, den ein Pi ohne Kamera
+# nicht braucht. Nur installieren, wer die Kamera-Erkennung nutzt:
+#
+#     pip install -r requirements-camera.txt
+#
+# "headless" = ohne GUI-Bibliotheken (kleiner, keine X11-Abhaengigkeiten) --
+# die Station braucht kein OpenCV-Fenster, sie liest nur Frames. Fertige Wheels
+# gibt es fuer Raspberry Pi (aarch64), macOS (Intel + Apple Silicon) und
+# Windows. Details und Kalibrierung in docs/sensoren.md.
+opencv-python-headless>=4.8
