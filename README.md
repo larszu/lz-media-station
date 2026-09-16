@@ -37,6 +37,7 @@ publishes by itself — nothing in this repo needs changing.
 - [Multi-Station Manager (Desktop-App)](#multi-station-manager-desktop-app)
 - [Architektur](#architektur)
 - [API-Übersicht](#api-übersicht)
+- [Dokumentation](#dokumentation)
 - [Troubleshooting](#troubleshooting)
 - [Tailscale (Remote-Verwaltung)](#tailscale-remote-verwaltung)
 
@@ -53,11 +54,11 @@ publishes by itself — nothing in this repo needs changing.
 - **Zustandsprüfung**: Sensor ohne Messung, volle Platte, Zone ohne Medien, fehlende Dateien — sichtbar im Admin und über `/api/identity` für den Station Manager
 - **Besucher-Statistik**: Besuche und Verweildauer pro Tag/Stunde, CSV-Export — ohne irgendetwas über einzelne Personen zu speichern, siehe [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)
 - **Zeitsteuerung**: Wochenplan mit Öffnungszeiten (auch über Mitternacht) — außerhalb bleibt der Schirm schwarz, der Ton aus und es wird nicht ausgelöst; optional Fernseher per HDMI-CEC mit abschalten, siehe [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
-- **Zwei Zonen**: NAH (≤ Schwelle) / FERN (> Schwelle), mit konfigurierbarer Verzögerung gegen Flackern
+- **Zwei oder drei Zonen**: NAH / FERN, optional mit MITTE dazwischen — mit konfigurierbarer Verzögerung gegen Flackern, siehe [`docs/zonen.md`](docs/zonen.md)
 - **Pro Zone** beliebige Auswahl an Videos, Bildern und Audio
 - **Gleichtakt mehrerer Stationen**: eine Station folgt der Zone einer anderen über das LAN — ein Sensor treibt eine ganze Wand, siehe [`docs/gleichtakt.md`](docs/gleichtakt.md)
 - **Mehrsprachigkeit**: Untertitelspuren (WebVTT) je Video mit Sprachknöpfen auf der Anzeige, siehe [`docs/mehrsprachigkeit.md`](docs/mehrsprachigkeit.md)
-- **Playlist-Optionen je Zone**: zufällige Reihenfolge, „einmal abspielen", Reihenfolge umsortieren und eigene Standzeit je Bild
+- **Playlist-Optionen je Zone**: zufällige Reihenfolge, „einmal abspielen", Reihenfolge umsortieren und eigene Standzeit je Bild, siehe [`docs/zonen.md`](docs/zonen.md)
 - **Bildslideshow** mit einstellbarem Intervall
 - **Lautstärke** getrennt für Master / Video / Audio (0–100 %)
 - **Video-Resume**: Optional Wiedergabe an gleicher Stelle fortsetzen, statt von vorne
@@ -72,7 +73,8 @@ publishes by itself — nothing in this repo needs changing.
 - Einstellungen: Stationsname, Schwelle, Verzögerung, Bildwechsel, Lautstärken, Video-Resume
 
 ### Systemeinstellungen (eigener Bereich in `/admin`)
-- **Abstandsquelle wählbar**: Ultraschall (GPIO Trigger/Echo) oder Kamera (Index, Brennweite)
+- **Abstandsquelle wählbar**: Ultraschall (GPIO Trigger/Echo), Kamera (Index, Brennweite) oder Taster (Pin, Haltezeit)
+- **Gleichtakt**: dieser Station eine andere als Taktgeber zuweisen
 - **Anzeige-IP** für Fernsteuerung (leer = Auto-Erkennung)
 - **Netzwerk** via `nmcli`:
   - DHCP / statische IP wählbar
@@ -83,10 +85,11 @@ publishes by itself — nothing in this repo needs changing.
   - SSID per Klick übernehmen, Passwort eingeben → verbinden
 - **Pi-Reboot** direkt aus der UI
 
-### Display-Modus (`/`)
-- Vollbild-Player für Kiosk-Betrieb (Chromium `--kiosk`)
-- ESC öffnet `/admin`
-- Auto-Verstecken des Cursors
+### Startseite (`/`) und Anzeige (`/display`)
+- `/` ist ein kleines Menü mit den Links zu Anzeige und Verwaltung — **diese Seite öffnet der Kiosk beim Boot**
+- `/display` ist der Vollbild-Player (Chromium `--kiosk`), mit Überblendungen, Untertitel-Spuren und Sprachknöpfen
+- ESC öffnet von beiden aus `/admin`
+- Auto-Verstecken des Cursors auf der Anzeige
 
 ### Manager Desktop-App (`station-manager/`)
 - Verwaltet **mehrere Pi-Stationen** zentral
@@ -238,7 +241,7 @@ Der Installer erledigt automatisch:
 
 1. Systempakete (`python3-flask`, `python3-gpiozero`, `chromium-browser`, `avahi-daemon`, `git`)
 2. Klont das Repo nach `~/pi_media_station`
-3. Erstellt Medien-Ordner (`videos/`, `images/`, `audio/`)
+3. Erstellt Medien-Ordner (`videos/`, `images/`, `audio/`, `subtitles/`)
 4. Schreibt `~/.config/autostart/LZ_Media_Station.desktop`
 5. Chromium-Policy: deaktiviert Translate-Banner
 6. Unterdrückt störende Login-Dialoge (`gnome-keyring*`)
@@ -315,16 +318,28 @@ Station nichts; für eine Webcam im Admin unter **Abstandsquelle** auf
 
 | Bereich | Funktion |
 |---|---|
-| **Status** | Distanz, Zone, Start/Stop, Display-Link |
-| **Zonen** | Drag-Zuordnung Medien → NAH / FERN |
-| **Bibliothek** | Upload, Löschen (nur aus Zonen, Datei bleibt) |
-| **Einstellungen** | Name, Schwelle, Verzögerung, Bildintervall, Lautstärken, Video-Resume |
-| **Systemeinstellungen** | GPIO, Anzeige-IP, Netzwerk, WLAN, Reboot |
+| **Status** | Distanz (bzw. Gedrückt/Frei beim Taster), Zone, Start/Stop, Klartext-Zustand der Quelle |
+| **Zustand** | Befunde der Zustandsprüfung — toter Sensor, volle Platte, fehlende Dateien |
+| **Statistik** | Besuche heute/gesamt, Tagesverlauf, letzte Tage, CSV-Download |
+| **Sicherung** | Konfiguration exportieren und einspielen |
+| **Zonen** | Je Zone: Shuffle, „einmal abspielen", Reihenfolge (▲▼), Standzeit je Bild |
+| **Bibliothek** | Upload (mit Medien-Check), Zuweisung per Knopf je Zone, Löschen nur aus Zonen |
+| **Untertitel** | Sprachen festlegen, `.vtt` hochladen, je Video und Sprache zuordnen |
+| **Einstellungen** | Name, Zonen-Stufen, Schwellen, Verzögerung, Bildintervall, Lautstärken, Video-Resume |
+| **Zeitsteuerung** | Wochenplan, HDMI-CEC |
+| **Systemeinstellungen** | Abstandsquelle, Gleichtakt, Anzeige-IP, Netzwerk, WLAN, Reboot |
 
-### Display-Modus (`/`)
+Die Zuweisung eines Mediums zu einer Zone passiert in der **Bibliothek** über
+einen Knopf je Zone, die Reihenfolge in der **Zonen-Übersicht** über Pfeile —
+bewusst kein Drag-and-Drop: diese Seite wird vom Handy bedient, und Ziehen mit
+dem Daumen ist dort der unzuverlässigste Weg.
+
+### Anzeige (`/display`)
 
 - ESC → `/admin`
-- Wird beim Pi-Boot automatisch im Chromium-Kiosk geladen (siehe `start.sh`)
+- Beim Pi-Boot lädt der Chromium-Kiosk die **Startseite `/`** (siehe `start.sh`);
+  von dort geht es mit einem Klick auf die Anzeige. Ein zweites Gerät kann
+  `/display` auch direkt öffnen.
 
 ### Netzwerk konfigurieren
 
@@ -402,14 +417,26 @@ Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. 
    └─────────┘            └─────────┘            └─────────┘
 ```
 
-**Pi-Stack:**
-- `main.py` – Controller (Sensor-Loop, State-Machine, Player)
-- `web_ui.py` – Flask-Routes (`/`, `/admin`, `/api/*`)
-- `sensor.py` – Abstandsquellen-Basis + HC-SR04 (`gpiozero.DistanceSensor`); ohne Sensor kein Messwert
-- `camera_sensor.py` – Kamera-Abstandsquelle (OpenCV + YuNet/Haar), plattformübergreifend
-- `media_player.py` – Player
-- `static/`, `templates/` – Frontend
-- `lzstation.service` – Avahi mDNS
+**Pi-Stack:** (Wiedergabe passiert im Browser, nicht in Python — es gibt
+keinen Player-Prozess.)
+
+| Modul | Aufgabe |
+|---|---|
+| `main.py` | Controller: Zonen-Zustandsmaschine, Wochenplan, Statistik-Fortschreibung |
+| `web_ui.py` | Flask-Routen (`/`, `/admin`, `/display`, `/api/*`) |
+| `config_schema.py` | Vorgaben **und** Grenzen; Heilung beim Laden, Ablehnung beim Schreiben |
+| `sensor.py` | Basis aller Abstandsquellen (Mittelwert, Veralten) + HC-SR04 |
+| `camera_sensor.py` | Kamera-Quelle (OpenCV + YuNet/Haar), plattformübergreifend |
+| `button_sensor.py` | Taster-Quelle am GPIO |
+| `sync.py` | Gleichtakt: folgt der Zone einer anderen Station |
+| `zeitplan.py` | Öffnungszeiten (rein, ohne Uhr — deshalb testbar) |
+| `statistik.py` | Besuche zählen, auswerten, atomar speichern |
+| `gesundheit.py` | Zustandsprüfung (rein, Lage wird hereingereicht) |
+| `medien_check.py` | Beurteilt hochgeladene Videos (ffprobe optional) |
+| `tv_cec.py` | Fernseher per HDMI-CEC schalten (wirft nie) |
+| `displays.py` | Bildschirme dieses Rechners finden und bespielen |
+| `static/`, `templates/` | Frontend (Admin, Anzeige, Startseite) |
+| `lzstation.service` | Avahi mDNS für die Manager-Discovery |
 
 **Manager-Stack:**
 - `main.js` – Electron-Hauptprozess, mDNS (`bonjour-service`), HTTP-Multipart-Upload
@@ -422,21 +449,75 @@ Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. 
 
 Alle Endpoints unter `http://<pi-ip>:5000`.
 
+### Zustand und Wiedergabe
+
 | Method | Path | Beschreibung |
 |---|---|---|
-| GET | `/api/status` | Distanz, Zone, Active, IP, Config |
-| GET | `/api/scene` | Aktuelle Medien-Zuweisungen |
-| GET | `/api/identity` | Station-ID + Version (Manager-Discovery) |
-| POST | `/api/start` | Sensor-Loop starten |
-| POST | `/api/stop` | Stop |
-| GET/POST | `/api/config` | Konfiguration lesen/schreiben |
-| POST | `/api/zone` | Datei einer Zone zuweisen |
-| POST | `/api/upload/<type>` | Multipart-Upload (videos/images/audio) |
-| DELETE | `/api/media/<type>/<name>` | Aus allen Zonen entfernen (Datei bleibt) |
+| GET | `/api/status` | Distanz, Zone, Sensor-Zustand, Betriebsruhe, IP, komplette Config |
+| GET | `/api/scene` | Was gerade zu spielen ist: Zone, Zonen-Medien, Lautstärken, Untertitel |
+| GET | `/api/sync` | **Takt für andere Stationen**: nur Zone + Betriebsruhe (siehe [Gleichtakt](docs/gleichtakt.md)) |
+| GET | `/api/health` | Befunde der Zustandsprüfung + Gesamtstufe |
+| GET | `/api/identity` | Station-ID, Name, Version, Zustandsstufe (Manager-Discovery) |
+| POST | `/api/start` · `/api/stop` | Sensor-Steuerung starten / anhalten |
+
+### Konfiguration
+
+| Method | Path | Beschreibung |
+|---|---|---|
+| POST | `/api/config` | Konfiguration schreiben (**lehnt ab** und nennt das Feld). Gelesen wird sie über `/api/status` |
+| GET | `/api/backup` | Konfiguration als JSON-Datei herunterladen |
+| POST | `/api/restore` | Sicherung einspielen (**repariert** statt abzulehnen) |
+
+### Medien
+
+| Method | Path | Beschreibung |
+|---|---|---|
+| GET | `/api/media/<type>` | Dateiliste (`videos`, `images`, `audio`, `subtitles`) |
+| POST | `/api/upload/<type>` | Multipart-Upload; bei Videos mit **Medien-Check** in der Antwort |
+| DELETE | `/api/media/<type>/<name>` | Aus allen Zonen entfernen (Datei bleibt liegen) |
+| GET | `/media/<type>/<name>` | Datei ausliefern |
+
+### Statistik
+
+| Method | Path | Beschreibung |
+|---|---|---|
+| GET | `/api/statistik` | Besuche heute/gesamt, Tagesverlauf, letzte Tage |
+| GET | `/api/statistik.csv` | Tageswerte als CSV (Semikolon, Komma als Dezimalzeichen) |
+| POST | `/api/statistik/reset` | Zähler auf null |
+
+### Dieser Rechner und sein System
+
+| Method | Path | Beschreibung |
+|---|---|---|
+| GET | `/api/displays` | Angeschlossene Bildschirme dieses Rechners |
+| POST | `/api/displays/play` · `/api/displays/stop` | Anzeige-Fenster öffnen / schließen |
 | GET/POST | `/api/system/network` | nmcli IP-Konfiguration |
-| GET/POST | `/api/system/wifi` | WLAN ein/aus, Scan, Connect |
+| GET/POST | `/api/system/wifi` | WLAN ein/aus, Scan, Verbinden |
 | POST | `/api/system/reboot` | `sudo reboot` |
-| GET | `/media/<type>/<name>` | Datei-Download |
+
+---
+
+## Dokumentation
+
+Das README gibt den Überblick. Die Themen, die mehr als einen Absatz brauchen,
+stehen in [`docs/`](docs/README.md) — dort steht das Wie und, wichtiger, das
+**Warum**.
+
+| Dokument | Worum es geht |
+|---|---|
+| [Abstandsquellen](docs/sensoren.md) | Ultraschall, Kamera, Taster; Kalibrierung; **Vergleichsmatrix** aller gängigen Sensortypen mit Empfehlung je Anwendungsfall |
+| [Zonen und Wiedergabe](docs/zonen.md) | Zwei oder drei Stufen; Shuffle, „einmal abspielen", Reihenfolge, Standzeit je Bild |
+| [Zeitsteuerung](docs/zeitsteuerung.md) | Wochenplan (auch über Mitternacht), HDMI-CEC |
+| [Statistik und Zustand](docs/statistik-und-zustand.md) | Besucherzahlen, CSV-Export, Zustandsprüfung |
+| [Mehrsprachigkeit](docs/mehrsprachigkeit.md) | Untertitelspuren je Video, Sprachknöpfe |
+| [Gleichtakt](docs/gleichtakt.md) | Eine Station folgt der Zone einer anderen |
+| [Betrieb](docs/betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung |
+
+**Zwei Regeln gelten überall:** Ohne Messung wird nichts erfunden — fehlt der
+Sensor, die Kamera oder der Kontakt zum Taktgeber, gibt es *keinen* Wert, die
+Station löst nicht aus und sagt im Klartext, warum. Und alle Vorgaben sind
+rückwärtskompatibel: nach einem Update verhält sich eine bestehende
+Installation exakt wie vorher, bis jemand etwas einschaltet.
 
 ---
 
