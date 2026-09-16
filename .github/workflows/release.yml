@@ -1,0 +1,222 @@
+name: Release
+
+# Baut den Desktop-Teil dieses Repos -- den "LZ Station Manager"
+# (Electron, unter station-manager/) -- bei jedem `v*`-Tag als
+# Windows- und macOS-Installer und haengt sie ans GitHub-Release.
+# Spiegelbild von cable-planner/.github/workflows/release.yml, angepasst
+# an die Unterschiede dieses Repos:
+#   * die Electron-App liegt in station-manager/, nicht im Repo-Wurzelverzeichnis
+#     -> alle npm-Schritte laufen mit working-directory: station-manager
+#   * die electron-builder-Konfiguration steht inline in package.json (kein
+#     separates electron-builder.js) -> --config entfaellt
+#   * electron-builder schreibt nach station-manager/dist/ (Default), nicht release/
+#   * die App hat KEINEN Auto-Updater -> es werden nur die Installer
+#     (.exe, .dmg) verlangt, keine latest*.yml-Manifeste
+#
+# Achtung Node-Version der ACTIONS (nicht des Runners): scripts/actions_node_runtime.py
+# aus verify.yml liest jede hier gepinnte action.yml und faellt durch, sobald eine
+# davon auf node < 24 laeuft. Die Pins unten (checkout@v5, setup-node@v5,
+# upload-artifact@v6, download-artifact@v7, action-gh-release@v3) sind dieselben,
+# mit denen cable-planner diesen Guard gruen haelt.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            build_args: --win
+          - os: macos-latest
+            name: macos
+            # Beide Mac-Architekturen als getrennte DMGs (x64 + Apple Silicon),
+            # so wie es das dist:mac-Skript in package.json tut. Die Arch-Liste
+            # steht zwar auch in der build.mac-Konfig, hier explizit halten,
+            # damit der Lauf nicht still auf eine Arch zusammenschrumpft, wenn
+            # jemand die Konfig anfasst.
+            build_args: --mac --x64 --arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          # Node 22 (Maintenance LTS bis April 2027). Bewusst nicht die 24 von
+          # cable-planner: dort laeuft electron-builder 26, hier das aeltere
+          # electron-builder 24.13.3 aus station-manager/package.json, das mit 22
+          # verlaesslich baut. Wer electron-builder hebt, kann hier auf 24 gehen.
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: station-manager/package-lock.json
+
+      - name: Install dependencies
+        working-directory: station-manager
+        run: npm ci
+
+      - name: Sync package.json version to tag
+        # Der Installer-Dateiname kommt aus station-manager/package.json.version
+        # ("LZ Station Manager-X.Y.Z.exe"). Ohne diesen Schritt traegt jedes
+        # Release stur die 1.0.0 aus dem Repo, egal welcher Tag gebaut wurde.
+        # `npm version --no-git-tag-version` schreibt nur package.json (+ lock)
+        # im Runner um, ohne Commit/Tag. workflow_dispatch (kein Tag) uebersprungen.
+        shell: bash
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: station-manager
+        run: |
+          set -eu
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "Tag-Version: $TAG_VERSION"
+          npm version "$TAG_VERSION" --no-git-tag-version --allow-same-version
+          node -e "console.log('package.json nach Sync:', require('./package.json').version)"
+
+      - name: Package with electron-builder
+        # bash auf JEDEM OS erzwingen. Der Windows-Default ist pwsh, das bei
+        # cable-planner electron-builders Ausgabe UND Exit-Code verschluckt hat:
+        # der Schritt "gelang" in 1,5 s ohne Output, und erst der Upload fiel auf
+        # die Nase, weil dist/*.exe fehlte. Git Bash ist auf windows-latest
+        # vorhanden, verhaelt sich wie macos-latest und leitet Nicht-Null-Exits
+        # ueber -eo pipefail weiter. cli.js direkt via node aufrufen umgeht den
+        # .cmd-Shim, an dem pwsh haengen blieb.
+        shell: bash
+        working-directory: station-manager
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Kein bezahltes Signatur-Zertifikat vorhanden. build.mac.identity ist
+          # in package.json auf "-" (Ad-hoc) gesetzt, damit Gatekeeper auf Apple
+          # Silicon das Binary annimmt statt "... ist beschaedigt" zu melden.
+          # CSC_IDENTITY_AUTO_DISCOVERY absichtlich NICHT auf false: das wuerde
+          # in manchen electron-builder-Versionen die Ad-hoc-Signatur wieder
+          # aushebeln und ein voellig unsigniertes Binary erzeugen.
+        run: |
+          set -x
+          node --version
+          ls -la node_modules/electron-builder/cli.js
+          node node_modules/electron-builder/cli.js ${{ matrix.build_args }} --publish never
+
+      - name: List dist/ contents
+        # Macht im Log sichtbar, wenn electron-builder gar nichts erzeugt hat --
+        # genau der stille Fehlerfall, der cable-planner auf Windows gebissen hat.
+        shell: bash
+        working-directory: station-manager
+        run: ls -lh dist/ || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: station-manager-${{ matrix.name }}
+          path: |
+            station-manager/dist/*.exe
+            station-manager/dist/*.dmg
+            station-manager/dist/*.blockmap
+          # Laut scheitern, wenn ein Job keine Artefakte liefert, statt ein
+          # halbes Release entstehen zu lassen.
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: Release-Vollstaendigkeit pruefen
+        # Ein halbes Release ist schlimmer als keines: die Release-Seite sieht
+        # vollstaendig aus, obwohl ein Build-Job (z. B. macOS) abgebrochen ist.
+        # Dieser Schritt besteht darauf, dass BEIDE Installer-Gattungen da sind.
+        # Keine latest*.yml-Pruefung -- der Station Manager hat keinen
+        # Auto-Updater; diese Manifeste braucht (und erzeugt) er nicht.
+        shell: bash
+        run: |
+          set -eu
+          echo "--- heruntergeladene Artefakte ---"
+          find artifacts -type f | sort
+          echo "----------------------------------"
+          fehlt=0
+          pruefe() {
+            anzahl="$(find artifacts -type f -name "$1" | wc -l | tr -d ' ')"
+            if [ "$anzahl" -ge 1 ]; then
+              echo "ok   $1 ($anzahl)"
+            else
+              echo "FEHLT $1 -- $2"
+              fehlt=1
+            fi
+          }
+          pruefe '*.exe' 'Windows-Installer/Portable (windows-Job)'
+          pruefe '*.dmg' 'macOS-Download (macos-Job)'
+          if [ "$fehlt" -ne 0 ]; then
+            echo
+            echo "Erst den fehlenden Build-Job reparieren, dann den Tag neu setzen."
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            artifacts/**/*.exe
+            artifacts/**/*.dmg
+            artifacts/**/*.blockmap
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Nach dem Release die Tag-Version zurueck nach main schreiben, damit
+  # station-manager/package.json nicht hinter den Tags zurueckbleibt (sonst
+  # baut der naechste manuelle `npm run dist` wieder die alte Versionsnummer).
+  # Laeuft einmalig, nur bei Tag-Pushes, nach erfolgreichem Release.
+  # Hinweis: Pushes mit GITHUB_TOKEN loesen bewusst KEINE weiteren Workflows aus.
+  # Setzt voraus, dass main direkte Bot-Pushes erlaubt (Branch-Protection ggf.
+  # eine Ausnahme fuer github-actions[bot]).
+  sync-version-to-main:
+    needs: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: package.json auf Tag-Version setzen und nach main committen
+        shell: bash
+        working-directory: station-manager
+        run: |
+          set -eu
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "Tag-Version: $TAG_VERSION"
+          npm version "$TAG_VERSION" --no-git-tag-version --allow-same-version
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "package.json ist bereits auf $TAG_VERSION -- nichts zu committen."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(release): station-manager package.json auf v$TAG_VERSION (Tag-Sync)"
+          git pull --rebase origin main
+          git push origin HEAD:main
