@@ -45,7 +45,7 @@ fi
 chmod +x "$APP_DIR/start.sh" 2>/dev/null || true
 
 # 3) Medien-Ordner sicherstellen
-mkdir -p "$APP_DIR/videos" "$APP_DIR/images" "$APP_DIR/audio"
+mkdir -p "$APP_DIR/videos" "$APP_DIR/images" "$APP_DIR/audio" "$APP_DIR/subtitles"
 
 # 4) Autostart-Eintrag
 log "Schreibe Autostart-Datei ..."
