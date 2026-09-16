@@ -32,6 +32,12 @@
     var zoneAudioList = [];
     // Wiedergabe-Optionen der laufenden Zone.
     var zoneEinmal = false;
+    // Untertitel: die Sprachliste und die Zuordnung aus `/api/scene`, dazu die
+    // gerade gewaehlte Sprache.
+    var sprachen = [];
+    var untertitel = {};
+    var aktiveSprache = null;
+    var sprachwahlStand = '';
 
     var hintEl = document.getElementById('hint');
     var startAttempted = false;
@@ -126,6 +132,10 @@
             }
 
             resumeEnabled = !!scene.video_resume;
+            // VOR der Hash-Abkuerzung: die Sprachliste haengt nicht an der
+            // Zone. Stuende sie dahinter, erschienen die Knoepfe erst beim
+            // naechsten Zonenwechsel — also womoeglich nie.
+            uebernimmSprachen(scene);
 
             if (hash === currentHash) return;
             currentHash = hash;
@@ -215,6 +225,73 @@
         }
     }
 
+    /* ---- Untertitel und Sprachwahl ---- */
+
+    function uebernimmSprachen(scene) {
+        sprachen = scene.sprachen || [];
+        untertitel = scene.untertitel || {};
+        if (aktiveSprache === null || sprachen.indexOf(aktiveSprache) < 0) {
+            aktiveSprache = sprachen.length ? sprachen[0] : null;
+        }
+        zeichneSprachwahl();
+    }
+
+    function zeichneSprachwahl() {
+        var box = document.getElementById('sprachwahl');
+        if (!box) return;
+        // Nur neu zeichnen, wenn sich etwas geaendert hat: die Seite pollt
+        // zweimal je Sekunde, und ein Neubau bei jedem Poll wuerde einen
+        // gerade beruehrten Knopf unter dem Finger wegziehen.
+        var stand = sprachen.join(',') + '|' + aktiveSprache;
+        if (stand === sprachwahlStand) return;
+        sprachwahlStand = stand;
+        if (sprachen.length < 2) {
+            // Eine einzige Sprache ist keine Wahl.
+            box.innerHTML = '';
+            box.classList.remove('sichtbar');
+            return;
+        }
+        box.innerHTML = sprachen.map(function (code) {
+            return '<button class="sprach-knopf' + (code === aktiveSprache ? ' aktiv' : '') +
+                '" data-code="' + code + '">' + code.toUpperCase() + '</button>';
+        }).join('');
+        box.classList.add('sichtbar');
+        Array.prototype.forEach.call(box.querySelectorAll('.sprach-knopf'), function (k) {
+            k.addEventListener('click', function () {
+                aktiveSprache = k.getAttribute('data-code');
+                sprachwahlStand = '';
+                zeichneSprachwahl();
+                wendeSpracheAn(activeVideoEl);
+            });
+        });
+    }
+
+    function setzeUntertitel(el, datei) {
+        // Alte Spuren entfernen: das Element wird wiederverwendet (A/B-Paar),
+        // und uebrig gebliebene <track> eines anderen Films wuerden mitlaufen.
+        Array.prototype.forEach.call(el.querySelectorAll('track'), function (t) {
+            el.removeChild(t);
+        });
+        var spuren = untertitel[datei] || {};
+        sprachen.forEach(function (code) {
+            if (!spuren[code]) return;
+            var track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.srclang = code;
+            track.label = code.toUpperCase();
+            track.src = '/media/subtitles/' + encodeURIComponent(spuren[code]);
+            el.appendChild(track);
+        });
+    }
+
+    function wendeSpracheAn(el) {
+        if (!el || !el.textTracks) return;
+        for (var i = 0; i < el.textTracks.length; i++) {
+            el.textTracks[i].mode =
+                (el.textTracks[i].language === aktiveSprache) ? 'showing' : 'disabled';
+        }
+    }
+
     /* ---- Video ---- */
 
     function crossfadeVideo(file) {
@@ -230,6 +307,7 @@
         // soll es stehen bleiben — sonst laesst sich eine Praesentation nicht
         // von einer Endlosschleife unterscheiden.
         el.loop = zoneVideos.length <= 1 && !zoneEinmal;
+        setzeUntertitel(el, file);
         el.load();
 
         function onReady() {
@@ -240,6 +318,9 @@
                 try { el.currentTime = videoPositions[file]; } catch (e) { /* ignore */ }
             }
             el.play().catch(function () {});
+            // Erst nach `canplay`: vorher sind die Spuren dem Element zwar
+            // angehaengt, aber `textTracks` ist noch leer.
+            wendeSpracheAn(el);
             el.classList.add('active');
             activeVideoEl.classList.remove('active');
             var old = activeVideoEl;

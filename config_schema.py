@@ -8,6 +8,8 @@ Eigenes Modul, damit `main.py` (Ladeweg) und `web_ui.py` (Schreibweg) es
 teilen koennen — `main` importiert `web_ui`, ein Import zurueck waere ein
 Kreis.
 """
+import re
+
 from zeitplan import heile_zeitplan, standard_zeitplan
 
 #: ALLE moeglichen Zonen, von nah nach fern. "mid" ist optional und wird nur
@@ -17,6 +19,11 @@ ZONEN = ("near", "mid", "far")
 #: Klartext je Zone fuer Meldungen und Oberflaeche.
 ZONEN_NAMEN = {"near": "Nah", "mid": "Mitte", "far": "Fern"}
 MEDIENARTEN = ("videos", "images", "audio")
+
+#: Sprachcodes, die als Untertitelspur erlaubt sind (ISO 639-1, zwei Buchstaben).
+#: Keine Liste erlaubter Sprachen: wer Raetoromanisch braucht, soll es eintragen
+#: koennen. Geprueft wird die FORM, nicht die Auswahl.
+SPRACHCODE = re.compile(r"^[a-z]{2}$")
 
 #: Grenzen fuer eine eigene Standzeit je Bild.
 BILDZEIT_MIN_S = 1.0
@@ -140,6 +147,11 @@ DEFAULT_CONFIG = {
     # nichts ausser einer Zeile im Log.
     "cec_aktiv": False,
     "display_ip": "",
+    # Untertitel. `sprachen` sind die am Display anwaehlbaren Codes (leer =
+    # keine Umschaltung), `untertitel` ordnet je Video und Sprache eine
+    # .vtt-Datei zu: {"film.mp4": {"de": "film-de.vtt"}}.
+    "sprachen": [],
+    "untertitel": {},
     "near": standard_zone(),
     "mid": standard_zone(),
     "far": standard_zone(),
@@ -333,6 +345,8 @@ def heile_config(cfg):
     # GRENZEN-Tabelle — eigene Heilung, gleiche Politik (reparieren statt
     # abbrechen), genau wie bei den Zonen in `load_config`.
     cfg["zeitplan"] = heile_zeitplan(cfg.get("zeitplan"))
+    cfg["sprachen"] = heile_sprachen(cfg.get("sprachen"))
+    cfg["untertitel"] = heile_untertitel(cfg.get("untertitel"))
     # Und die Kreuzbedingung der Schwellen: liegt die Mitte nicht weiter weg
     # als die Nah-Schwelle, gibt es sie rechnerisch nicht. Beim Laden wird das
     # repariert statt abgebrochen (Politik wie oben).
@@ -343,3 +357,88 @@ def heile_config(cfg):
         cfg["threshold_m"] = DEFAULT_CONFIG["threshold_m"]
         cfg["threshold_mid_m"] = DEFAULT_CONFIG["threshold_mid_m"]
     return cfg
+
+
+def pruefe_sprachen(roh):
+    """Schreibweg: die Liste der am Display anwaehlbaren Sprachcodes.
+
+    Geprueft wird die FORM (zwei Kleinbuchstaben, ISO 639-1), nicht eine
+    Auswahl erlaubter Sprachen — wer Raetoromanisch braucht, soll es eintragen
+    koennen, ohne dass jemand die Liste pflegen muss.
+    """
+    if not isinstance(roh, list):
+        raise ValueError("sprachen: muss eine Liste sein")
+    heraus = []
+    for code in roh:
+        if not isinstance(code, str) or not SPRACHCODE.match(code):
+            raise ValueError(
+                f"sprachen: {code!r} ist kein Sprachcode aus zwei "
+                "Kleinbuchstaben (z. B. 'de', 'en')")
+        if code not in heraus:      # doppelte Knoepfe waeren nur verwirrend
+            heraus.append(code)
+    return heraus
+
+
+def heile_sprachen(roh):
+    """Ladeweg: alles Unbrauchbare stillschweigend weglassen."""
+    if not isinstance(roh, list):
+        return []
+    heraus = []
+    for code in roh:
+        if isinstance(code, str) and SPRACHCODE.match(code) and code not in heraus:
+            heraus.append(code)
+    return heraus
+
+
+def pruefe_untertitel(roh):
+    """Schreibweg: {Video: {Sprachcode: .vtt-Datei}}.
+
+    Ein leerer Dateiname loescht die Zuordnung — sonst gaebe es keinen Weg,
+    eine falsch gesetzte Spur wieder zu entfernen.
+    """
+    if not isinstance(roh, dict):
+        raise ValueError("untertitel: muss ein Objekt sein")
+    heraus = {}
+    for video, spuren in roh.items():
+        if not isinstance(video, str) or not video:
+            raise ValueError("untertitel: Videoname fehlt")
+        if not isinstance(spuren, dict):
+            raise ValueError(f"untertitel.{video}: muss ein Objekt sein")
+        sauber = {}
+        for code, datei in spuren.items():
+            if not isinstance(code, str) or not SPRACHCODE.match(code):
+                raise ValueError(f"untertitel.{video}: {code!r} ist kein Sprachcode")
+            if not datei:
+                continue
+            if not isinstance(datei, str) or not datei.lower().endswith(".vtt"):
+                raise ValueError(
+                    f"untertitel.{video}.{code}: Browser spielen nur WebVTT "
+                    "(.vtt) ab")
+            sauber[code] = datei
+        if sauber:
+            heraus[video] = sauber
+    return heraus
+
+
+def heile_untertitel(roh):
+    """Ladeweg: reparieren statt abbrechen — und zwar EINTRAGSWEISE.
+
+    Nicht ueber `pruefe_untertitel` mit einem try/except drumherum: dann
+    wuerfe ein einziger falscher Eintrag alle anderen mit weg. Wer zehn Videos
+    untertitelt hat und bei einem eine `.srt` erwischt, soll neun behalten.
+    (Dieselbe Politik wie bei den Bildzeiten in `heile_zone`.)
+    """
+    if not isinstance(roh, dict):
+        return {}
+    heraus = {}
+    for video, spuren in roh.items():
+        if not isinstance(video, str) or not video or not isinstance(spuren, dict):
+            continue
+        sauber = {}
+        for code, datei in spuren.items():
+            if (isinstance(code, str) and SPRACHCODE.match(code)
+                    and isinstance(datei, str) and datei.lower().endswith(".vtt")):
+                sauber[code] = datei
+        if sauber:
+            heraus[video] = sauber
+    return heraus

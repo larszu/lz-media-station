@@ -164,7 +164,9 @@ class JedesFeldDerVorgabeHatEineGrenze(unittest.TestCase):
     #                `config_schema.pruefe_zone` / `heile_zone`
     #   zeitplan  -> `zeitplan.pruefe_zeitplan` (Schreibweg) und
     #                `zeitplan.heile_zeitplan` (Ladeweg, aus `heile_config`)
-    OHNE_GRENZE = {"near", "mid", "far", "zeitplan"}
+    #   sprachen  -> `pruefe_sprachen` / `heile_sprachen`
+    #   untertitel -> `pruefe_untertitel` / `heile_untertitel`
+    OHNE_GRENZE = {"near", "mid", "far", "zeitplan", "sprachen", "untertitel"}
 
     def test_kein_feld_ohne_grenze(self):
         fehlen = sorted(set(cs.DEFAULT_CONFIG) - set(cs.GRENZEN) - self.OHNE_GRENZE)

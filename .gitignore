@@ -69,7 +69,11 @@ audio/*.m4a
 audio/*.flac
 audio/*.aac
 
+# Untertitel (Nutzerinhalt)
+subtitles/*.vtt
+
 # Keep directories but ignore contents
+!subtitles/.gitkeep
 !videos/.gitkeep
 !images/.gitkeep
 !audio/.gitkeep

@@ -150,6 +150,10 @@ class Controller:
             "video_volume": self.config.get("video_volume", 100),
             "audio_volume": self.config.get("audio_volume", 80),
             "video_resume": bool(self.config.get("video_resume", False)),
+            # Untertitel: die Anzeigeseite baut daraus ihre <track>-Elemente
+            # und die Sprachknoepfe. Leere Sprachliste = keine Umschaltung.
+            "sprachen": list(self.config.get("sprachen") or []),
+            "untertitel": dict(self.config.get("untertitel") or {}),
         }
         # Die Zonen-Objekte je AKTIVER Zone, damit die Wiedergabe-Optionen
         # (shuffle/einmal/bildzeiten) mitkommen, ohne hier einzeln aufgezaehlt
@@ -371,7 +375,7 @@ def main():
     config = load_config()
     port = args.port or config.get("web_port", 5000)
 
-    for d in ("videos", "images", "audio"):
+    for d in ("videos", "images", "audio", "subtitles"):
         os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
 
     controller = Controller(config)

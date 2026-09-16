@@ -9,7 +9,7 @@ import medien_check
 from config_schema import (
     DEFAULT_CONFIG, MEDIENARTEN, ZONEN, ZONEN_NAMEN, aktive_zonen,
     heile_config, heile_zone, pruefe_patch, pruefe_pins, pruefe_schwellen,
-    pruefe_zone, standard_zone,
+    pruefe_sprachen, pruefe_untertitel, pruefe_zone, standard_zone,
 )
 from zeitplan import pruefe_zeitplan
 
@@ -18,11 +18,19 @@ MEDIA_DIRS = {
     "videos": os.path.join(BASE_DIR, "videos"),
     "images": os.path.join(BASE_DIR, "images"),
     "audio": os.path.join(BASE_DIR, "audio"),
+    # Untertitel sind eine eigene Medienart: sie werden hochgeladen und
+    # aufgelistet wie Videos, aber nie einer Zone zugewiesen — sie haengen an
+    # einem Video, nicht an einer Entfernung.
+    "subtitles": os.path.join(BASE_DIR, "subtitles"),
 }
 ALLOWED_EXT = {
     "videos": {".mp4", ".mkv", ".avi", ".mov", ".webm"},
     "images": {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"},
     "audio": {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"},
+    # Nur WebVTT: das ist das einzige Format, das ein Browser ohne Umwege
+    # abspielt. Eine .srt anzunehmen und stumm nicht anzuzeigen waere
+    # schlimmer als sie abzulehnen.
+    "subtitles": {".vtt"},
 }
 
 
@@ -324,6 +332,15 @@ def create_app(controller, anzeigen=None):
             # Oeffnungszeit setzt, soll erfahren, dass sie nicht ankam.
             if "zeitplan" in data:
                 geprueft["zeitplan"] = pruefe_zeitplan(data["zeitplan"])
+            if "sprachen" in data:
+                geprueft["sprachen"] = pruefe_sprachen(data["sprachen"])
+            if "untertitel" in data:
+                geprueft["untertitel"] = {
+                    secure_filename(video): {
+                        code: secure_filename(datei) for code, datei in spuren.items()
+                    }
+                    for video, spuren in pruefe_untertitel(data["untertitel"]).items()
+                }
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         controller.config.update(geprueft)

@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // auch nicht im 500-ms-Takt geprueft werden: er liest die Platte aus.
     loadHealth();
     setInterval(loadHealth, 10000);
+    ladeUntertitelListe();
     // Umschalten der Quelle sofort auf die Felder anwenden — nicht erst beim
     // naechsten Status-Poll, sonst springt die Auswahl fuer den Nutzer zurueck.
     el('cfg-sensor-type').addEventListener('change', function (e) {
@@ -130,6 +131,7 @@ function updateStatusUI(d) {
     if (!a || a.id !== 'cfg-button-pin') el('cfg-button-pin').value = cfg.button_pin;
     if (!a || a.id !== 'cfg-button-haltezeit') el('cfg-button-haltezeit').value = cfg.button_haltezeit_s;
     if (!a || a.id !== 'cfg-sensor-type') { el('cfg-sensor-type').value = cfg.sensor_type || 'ultrasonic'; toggleSensorFields(cfg.sensor_type || 'ultrasonic'); }
+    if (!a || a.id !== 'cfg-sprachen') el('cfg-sprachen').value = (cfg.sprachen || []).join(', ');
     if (!a || a.id !== 'cfg-display-ip') el('cfg-display-ip').value = cfg.display_ip || '';
     if (!a || a.id !== 'cfg-video-resume') el('cfg-video-resume').checked = !!cfg.video_resume;
 
@@ -263,6 +265,104 @@ function slider(id, displayId, fmt) {
     el(id).addEventListener('input', function (e) {
         el(displayId).textContent = fmt(parseFloat(e.target.value));
     });
+}
+
+/* ---- Untertitel ---- */
+
+var vttDateien = [];
+
+async function ladeUntertitelListe() {
+    try {
+        var r = await fetch('/api/media/subtitles');
+        vttDateien = (await r.json()).map(function (f) { return f.name; });
+    } catch (e) { vttDateien = []; }
+    renderUntertitel();
+}
+
+async function ladeUntertitelHoch(eingabe) {
+    var fb = el('untertitel-feedback');
+    for (var i = 0; i < eingabe.files.length; i++) {
+        var fd = new FormData();
+        fd.append('file', eingabe.files[i]);
+        try {
+            var r = await fetch('/api/upload/subtitles', { method: 'POST', body: fd });
+            if (!r.ok) throw 0;
+        } catch (e) {
+            fb.textContent = '\u2717 ' + eingabe.files[i].name + ' abgelehnt (nur .vtt)';
+            fb.className = 'feedback error';
+        }
+    }
+    eingabe.value = '';
+    await ladeUntertitelListe();
+}
+
+function renderUntertitel() {
+    var kasten = el('untertitel-zuordnung');
+    if (!kasten) return;
+    var sprachen = config.sprachen || [];
+    var videos = (allMedia.videos || []).map(function (f) { return f.name; });
+    if (!sprachen.length) {
+        kasten.innerHTML = '<div class="zone-empty">Erst Sprachen eintragen und speichern.</div>';
+        return;
+    }
+    if (!videos.length) {
+        kasten.innerHTML = '<div class="zone-empty">Noch keine Videos hochgeladen.</div>';
+        return;
+    }
+    var zuordnung = config.untertitel || {};
+    kasten.innerHTML = videos.map(function (video) {
+        var spuren = zuordnung[video] || {};
+        var felder = sprachen.map(function (code) {
+            var gewaehlt = spuren[code] || '';
+            // Die leere Auswahl ist Absicht: sie ist der einzige Weg, eine
+            // falsch gesetzte Spur wieder zu entfernen.
+            var optionen = ['<option value="">\u2014 keine \u2014</option>'].concat(
+                vttDateien.map(function (d) {
+                    return '<option value="' + escAttr(d) + '"' +
+                        (d === gewaehlt ? ' selected' : '') + '>' + esc(d) + '</option>';
+                })).join('');
+            return '<label class="ut-spur"><span>' + code.toUpperCase() + '</span>' +
+                '<select data-video="' + escAttr(video) + '" data-code="' + code + '">' +
+                optionen + '</select></label>';
+        }).join('');
+        return '<div class="ut-zeile"><div class="ut-video">\uD83C\uDFAC ' + esc(video) +
+            '</div><div class="ut-spuren">' + felder + '</div></div>';
+    }).join('');
+}
+
+async function saveUntertitel() {
+    var untertitel = {};
+    document.querySelectorAll('#untertitel-zuordnung select').forEach(function (sel) {
+        var video = sel.getAttribute('data-video');
+        if (!sel.value) return;
+        untertitel[video] = untertitel[video] || {};
+        untertitel[video][sel.getAttribute('data-code')] = sel.value;
+    });
+    var sprachen = el('cfg-sprachen').value.split(',')
+        .map(function (t) { return t.trim().toLowerCase(); })
+        .filter(function (t) { return t.length > 0; });
+    var fb = el('untertitel-feedback');
+    try {
+        var r = await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sprachen: sprachen, untertitel: untertitel }),
+        });
+        var d = await r.json();
+        if (r.ok) {
+            fb.textContent = '\u2713 Gespeichert';
+            fb.className = 'feedback success';
+            await fetchStatus();
+            renderUntertitel();
+        } else {
+            fb.textContent = '\u2717 ' + (d.error || 'Fehler');
+            fb.className = 'feedback error';
+        }
+    } catch (e) {
+        fb.textContent = '\u2717 Fehler';
+        fb.className = 'feedback error';
+    }
+    setTimeout(function () { fb.textContent = ''; }, 4000);
 }
 
 /* ---- Sicherung ---- */

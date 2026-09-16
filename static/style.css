@@ -355,3 +355,10 @@ select:focus-visible, textarea:focus-visible {
     outline: 2px solid var(--signal);
     outline-offset: 3px;
 }
+
+/* --- Untertitel-Zuordnung --- */
+.ut-zeile { padding: 7px 0; border-bottom: 1px solid var(--border); }
+.ut-video { font-size: 0.82rem; margin-bottom: 4px; }
+.ut-spuren { display: flex; gap: 10px; flex-wrap: wrap; }
+.ut-spur { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-dim); }
+.ut-spur select { min-height: 28px; border-radius: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border); font-size: 0.75rem; }
