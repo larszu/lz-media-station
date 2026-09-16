@@ -149,6 +149,24 @@ def create_app(controller, anzeigen=None):
     def api_scene():
         return jsonify(controller.get_scene())
 
+    @app.route("/api/sync")
+    def api_sync():
+        """Der Takt fuer andere Stationen: welche Zone laeuft hier gerade?
+
+        JEDE Station beantwortet das — deshalb gibt es keine „master"-Rolle
+        einzustellen. Absichtlich schmal: nur Zone und Betriebsruhe. Wer den
+        ganzen Szenen-Zustand braucht, nimmt /api/scene; wer folgt, braucht
+        genau diese zwei Angaben, und eine schmale Antwort haelt den Takt
+        billig (der Follower fragt mehrmals je Sekunde).
+        """
+        szene = controller.get_scene()
+        return jsonify({
+            "zone": szene["zone"],
+            "geschlossen": szene["geschlossen"],
+            "zonen": szene["zonen"],
+            "name": controller.config.get("system_name", "LZ Station"),
+        })
+
     # ── Besucher-Statistik ────────────────────────────────────────────────
     #
     # Die Zahlen entstehen ohnehin im Sensor und wurden bisher weggeworfen.
@@ -185,6 +203,9 @@ def create_app(controller, anzeigen=None):
             aktiv=controller.active,
             geschlossen=not controller.ist_offen(),
             zonen=[(z, ZONEN_NAMEN.get(z, z)) for z in aktive_zonen(controller.config)],
+            sync_ok=(None if not controller.follower
+                     else controller.follower.zone is not None),
+            sync_status=(controller.follower.status if controller.follower else None),
         )
 
     @app.route("/api/health")

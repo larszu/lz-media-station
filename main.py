@@ -12,6 +12,7 @@ from datetime import datetime
 
 import displays
 import statistik as statistik_modul
+import sync as sync_modul
 import tv_cec
 import zeitplan
 from sensor import SensorThread
@@ -85,6 +86,13 @@ class Controller:
         # Neustart (oder ein Stromausfall) die Zahlen der Ausstellung nicht
         # zuruecksetzt.
         self.statistik = statistik_modul.laden(STATISTIK_FILE)
+        # Gleichtakt: folgt diese Station einer anderen? `None` heisst „nein",
+        # und dann bleibt alles wie bisher.
+        self.follower = None
+        if config.get("sync_rolle") == "follower":
+            self.follower = sync_modul.SyncFollower(
+                host=config.get("sync_master", ""),
+                port=config.get("sync_port", 5000))
 
     @property
     def state(self):
@@ -122,10 +130,17 @@ class Controller:
     def ist_offen(self, jetzt=None):
         """Spielt die Station gerade laut Wochenplan?
 
+        Ein Follower uebernimmt die Betriebsruhe des Taktgebers — sonst
+        spielte eine Wand nachts zur Haelfte weiter, weil nur eine der
+        Stationen einen Zeitplan hat. Der EIGENE Plan gilt zusaetzlich: wer
+        eine Station frueher schliessen will, kann das.
+
         Eine Stelle, die das beantwortet — die Steuerschleife und `get_scene`
         fragen dieselbe. Zwei Rechnungen wuerden bedeuten, dass der Schirm
         schwarz ist, waehrend die Zonenlogik noch schaltet.
         """
+        if self.follower and self.follower.geschlossen:
+            return False
         return zeitplan.ist_offen(self.config.get("zeitplan"),
                                   jetzt or datetime.now())
 
@@ -170,6 +185,8 @@ class Controller:
         self.zone = "far"
         self._kandidat = None
         self._pending_since = None
+        if self.follower and not self.follower.is_alive():
+            self.follower.start()
         self._thread = threading.Thread(target=self._control_loop, daemon=True)
         self._thread.start()
         print("[Controller] Gestartet")
@@ -267,6 +284,23 @@ class Controller:
                 # Zustandsuebergaengen vergessen.
                 self._zaehle()
                 time.sleep(0.5)
+                continue
+
+            # Folgt diese Station einer anderen, wird der eigene Sensor gar
+            # nicht ausgewertet — auch keine Hysterese: der Taktgeber hat sie
+            # schon angewandt, ein zweites Mal warten hiesse, dass die Wand
+            # sichtbar nacheinander umschaltet.
+            if self.follower:
+                fremde = self.follower.zone
+                # Kein Kontakt heisst kein Wert (wie beim Sensor): dann faellt
+                # die Station auf „fern" zurueck, statt die zuletzt empfangene
+                # Zone weiterzubehaupten. Ein abgerissenes Netzkabel darf nicht
+                # aussehen wie ein Besucher, der sich nicht vom Fleck ruehrt.
+                self.zone = fremde or "far"
+                self._kandidat = None
+                self._pending_since = None
+                self._zaehle()
+                time.sleep(0.1)
                 continue
 
             dist = self.sensor.distance
@@ -379,7 +413,11 @@ def main():
         os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
 
     controller = Controller(config)
-    controller.sensor.start()
+    # Ein Follower wertet den eigenen Sensor nicht aus — dann ist auch kein
+    # Grund, GPIO oder eine Kamera zu belegen. Auf einem Rechner, der nur
+    # einen zweiten Schirm bespielt, ist oft gar keine Hardware angeschlossen.
+    if not controller.follower:
+        controller.sensor.start()
 
     if not os.path.isfile(CONFIG_FILE):
         controller.save_config()
@@ -417,7 +455,11 @@ def main():
     # `status` fuellt sich erst, wenn der Quellen-Thread seinen ersten
     # Durchlauf hatte; deshalb der Kurzname der Quelle als sofort sichtbare
     # Angabe und der Status daneben, sobald er da ist.
-    print(f"    Sensor: {controller.sensor.LABEL} — {controller.sensor.status}")
+    if controller.follower:
+        print(f"    Takt:   folgt {controller.config.get('sync_master')} "
+              f"(eigener Sensor bleibt aus)")
+    else:
+        print(f"    Sensor: {controller.sensor.LABEL} — {controller.sensor.status}")
     print()
 
     def shutdown(sig, frame):

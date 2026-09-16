@@ -152,6 +152,12 @@ DEFAULT_CONFIG = {
     # .vtt-Datei zu: {"film.mp4": {"de": "film-de.vtt"}}.
     "sprachen": [],
     "untertitel": {},
+    # Gleichtakt mehrerer Stationen. "aus" (Vorgabe) wertet den eigenen Sensor
+    # aus; "follower" uebernimmt die Zone von `sync_master`. Eine „master"-
+    # Rolle gibt es NICHT: jede Station beantwortet /api/sync ohnehin.
+    "sync_rolle": "aus",
+    "sync_master": "",
+    "sync_port": 5000,
     "near": standard_zone(),
     "mid": standard_zone(),
     "far": standard_zone(),
@@ -244,6 +250,10 @@ GRENZEN = {
     "audio_volume": (int, lambda v: 0 <= v <= 100, "0..100 %"),
     "video_resume": (bool, lambda v: True, "true/false"),
     "cec_aktiv": (bool, lambda v: True, "true/false"),
+    "sync_rolle": (str, lambda v: v in ("aus", "follower"), "aus|follower"),
+    "sync_master": (str, lambda v: len(v) <= 64 and all(c.isalnum() or c in ".-" for c in v),
+                    "Hostname oder IP, max. 64 Zeichen"),
+    "sync_port": (int, lambda v: 1 <= v <= 65535, "1..65535"),
 }
 
 

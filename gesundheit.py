@@ -45,11 +45,16 @@ def gesamtstufe(befunde):
 
 
 def pruefe(config, sensor_ok, sensor_status, freier_platz_b, vorhandene,
-           aktiv, geschlossen, zonen=None):
+           aktiv, geschlossen, zonen=None, sync_status=None, sync_ok=None):
     """Alle Befunde als Liste. Leer heisst: nichts zu melden.
 
     `vorhandene` ist {"videos": {...}, "images": {...}, "audio": {...}} mit den
     Dateinamen, die wirklich auf der Platte liegen.
+
+    `sync_ok` ist None, wenn diese Station ihren EIGENEN Sensor auswertet —
+    dann wird der Sensor geprueft. Ist sie ein Follower (True/False), zaehlt
+    stattdessen der Kontakt zum Taktgeber: ihr eigener Sensor laeuft gar
+    nicht, und ihn zu melden waere ein Dauerfehler ohne Ursache.
 
     `zonen` ist [(schluessel, klartext)] der AKTIVEN Zonen. Ohne Angabe die
     beiden Standardzonen. Wichtig, weil eine Station mit zwei Stufen die
@@ -58,12 +63,22 @@ def pruefe(config, sensor_ok, sensor_status, freier_platz_b, vorhandene,
     """
     befunde = []
 
+    # --- Gleichtakt ---------------------------------------------------------
+    # Folgt diese Station einer anderen, ist der Kontakt zum Taktgeber ihr
+    # Sensor. Reisst er ab, faellt sie auf „fern" zurueck und spielt still die
+    # falsche Szene — das gehoert gemeldet.
+    if sync_ok is False and not geschlossen:
+        befunde.append(_befund(
+            "fehler", "sync",
+            f"Kein Kontakt zum Taktgeber — es wird die Fern-Szene gespielt. "
+            f"({sync_status})"))
+
     # --- Sensor -----------------------------------------------------------
     # Ausserhalb der Oeffnungszeiten ist „keine Messung" kein Befund: dann
     # soll gar nicht ausgeloest werden. Das sonst zu melden waere ein
     # Fehlalarm jede Nacht — und ein Melder, der jede Nacht anschlaegt, wird
     # abgeschaltet.
-    if not sensor_ok and not geschlossen:
+    if not sensor_ok and not geschlossen and sync_ok is None:
         befunde.append(_befund(
             "fehler", "sensor",
             f"Keine Messung — es wird nicht ausgeloest. ({sensor_status})"))

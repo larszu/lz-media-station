@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', function () {
     el('cfg-zonen-stufen').addEventListener('change', function (e) {
         toggleStufen(Number(e.target.value));
     });
+    el('cfg-sync-rolle').addEventListener('change', function (e) {
+        toggleSync(e.target.value);
+    });
     // Zonen-Optionen wirken sofort: sie gehoeren zur Zonen-Uebersicht und
     // nicht zum Einstellungen-Formular, also gibt es dort auch keinen
     // Speichern-Knopf, auf den jemand warten muesste.
@@ -131,6 +134,9 @@ function updateStatusUI(d) {
     if (!a || a.id !== 'cfg-button-pin') el('cfg-button-pin').value = cfg.button_pin;
     if (!a || a.id !== 'cfg-button-haltezeit') el('cfg-button-haltezeit').value = cfg.button_haltezeit_s;
     if (!a || a.id !== 'cfg-sensor-type') { el('cfg-sensor-type').value = cfg.sensor_type || 'ultrasonic'; toggleSensorFields(cfg.sensor_type || 'ultrasonic'); }
+    if (!a || a.id !== 'cfg-sync-master') el('cfg-sync-master').value = cfg.sync_master || '';
+    if (!a || a.id !== 'cfg-sync-port') el('cfg-sync-port').value = cfg.sync_port;
+    if (!a || a.id !== 'cfg-sync-rolle') { el('cfg-sync-rolle').value = cfg.sync_rolle || 'aus'; toggleSync(cfg.sync_rolle || 'aus'); }
     if (!a || a.id !== 'cfg-sprachen') el('cfg-sprachen').value = (cfg.sprachen || []).join(', ');
     if (!a || a.id !== 'cfg-display-ip') el('cfg-display-ip').value = cfg.display_ip || '';
     if (!a || a.id !== 'cfg-video-resume') el('cfg-video-resume').checked = !!cfg.video_resume;
@@ -564,6 +570,15 @@ async function saveZeitplan() {
     setTimeout(function () { fb.textContent = ''; }, 4000);
 }
 
+/* ---- Gleichtakt ---- */
+
+function toggleSync(rolle) {
+    var folgt = (rolle === 'follower');
+    document.querySelectorAll('.sync-follower').forEach(function (e) {
+        e.style.display = folgt ? '' : 'none';
+    });
+}
+
 /* ---- Zonen-Stufen ---- */
 
 // Die Mitte verschwindet aus der Oberflaeche, wenn sie nicht benutzt wird.
@@ -701,6 +716,9 @@ async function saveConfig() {
         gpio_echo: parseInt(el('cfg-gpio-echo').value),
         camera_index: parseInt(el('cfg-camera-index').value),
         camera_focal_px: parseFloat(el('cfg-camera-focal').value),
+        sync_rolle: el('cfg-sync-rolle').value,
+        sync_master: el('cfg-sync-master').value.trim(),
+        sync_port: parseInt(el('cfg-sync-port').value),
         button_pin: parseInt(el('cfg-button-pin').value),
         button_haltezeit_s: parseFloat(el('cfg-button-haltezeit').value),
         display_ip: el('cfg-display-ip').value.trim(),
