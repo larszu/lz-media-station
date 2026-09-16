@@ -63,7 +63,8 @@ publishes by itself — nothing in this repo needs changing.
 ### Web-Admin (`/admin`)
 - Zonen-Übersicht mit Drag-Zuordnung
 - Medien-Bibliothek mit Tabs (Videos / Bilder / Audio)
-- **Drag-and-Drop-Upload** mit Fortschrittsanzeige
+- **Drag-and-Drop-Upload** mit Fortschrittsanzeige und **Medien-Check** (warnt vor 4K/60fps/fremdem Codec, der auf dem Pi ruckelt)
+- **Sicherung**: Konfiguration exportieren und einspielen — zum Klonen einer Station oder nach SD-Karten-Defekt, siehe [`docs/betrieb.md`](docs/betrieb.md)
 - Datei-Löschung **nicht-destruktiv**: entfernt nur aus Zonen, die Datei bleibt auf dem Pi
 - Live-Status: Distanz, aktive Zone, Klartext-Zustand der Abstandsquelle
 - Einstellungen: Stationsname, Schwelle, Verzögerung, Bildwechsel, Lautstärken, Video-Resume

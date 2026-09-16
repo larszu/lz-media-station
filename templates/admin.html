@@ -84,6 +84,9 @@
         <!-- Medienbibliothek -->
         <section class="card">
             <h2>Medienbibliothek</h2>
+            <!-- Hinweise des Medien-Checks nach einem Upload (z. B. 4K, das
+                 auf einem Pi ruckelt). Keine Ablehnung: die Datei ist da. -->
+            <div id="upload-hinweise"></div>
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('videos', this)">&#127916; Videos</button>
                 <button class="tab" onclick="switchTab('images', this)">&#128444; Bilder</button>
@@ -168,6 +171,25 @@
             </div>
             <button class="btn btn-save" onclick="saveConfig()">Einstellungen speichern</button>
             <div id="save-feedback" class="feedback"></div>
+        </section>
+
+        <!-- Sicherung -->
+        <section class="card">
+            <h2>Sicherung</h2>
+            <p class="karten-hinweis">
+                Sichert alle Einstellungen (Zonen, Zeitplan, Sensor, Lautst&auml;rken) als
+                Datei &mdash; zum Klonen einer Station oder zur Wiederherstellung nach
+                einem SD-Karten-Defekt. <strong>Medien-Dateien sind nicht enthalten.</strong>
+            </p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+                <a class="btn btn-save" href="/api/backup">Konfiguration sichern</a>
+                <label class="btn btn-save" style="cursor:pointer">
+                    Sicherung einspielen
+                    <input type="file" id="restore-datei" accept="application/json,.json"
+                           style="display:none" onchange="spieleEin(this)">
+                </label>
+            </div>
+            <div id="restore-feedback" class="feedback"></div>
         </section>
 
         <!-- Zustand -->

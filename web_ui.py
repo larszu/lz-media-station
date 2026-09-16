@@ -1,11 +1,14 @@
 """Flask Web-UI + Media-Server für LZ Media Station"""
+import json
 import os
 import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 import gesundheit
+import medien_check
 from config_schema import (
-    MEDIENARTEN, ZONEN, pruefe_patch, pruefe_pins, pruefe_zone, standard_zone,
+    DEFAULT_CONFIG, MEDIENARTEN, ZONEN, heile_config, heile_zone,
+    pruefe_patch, pruefe_pins, pruefe_zone, standard_zone,
 )
 from zeitplan import pruefe_zeitplan
 
@@ -370,8 +373,63 @@ def create_app(controller, anzeigen=None):
         if os.path.splitext(name)[1].lower() not in ALLOWED_EXT[media_type]:
             return jsonify({"error": "Format nicht erlaubt"}), 400
         os.makedirs(MEDIA_DIRS[media_type], exist_ok=True)
-        f.save(os.path.join(MEDIA_DIRS[media_type], name))
-        return jsonify({"ok": True, "name": name})
+        ziel = os.path.join(MEDIA_DIRS[media_type], name)
+        f.save(ziel)
+        # Hinweise, KEINE Ablehnung: wer weiss, was er tut (ein Pi 5 mit einem
+        # kurzen 4K-Clip), soll nicht vom Werkzeug ausgebremst werden. Der
+        # haeufigste Ausfallgrund einer Station ist aber kein Defekt, sondern
+        # eine Datei, die der Pi nicht fluessig dekodiert — und der Upload war
+        # dazu bisher stumm.
+        hinweise = []
+        if media_type == "videos":
+            _geprueft, hinweise = medien_check.pruefe_datei(ziel)
+        return jsonify({"ok": True, "name": name, "hinweise": hinweise})
+
+    # ── Sicherung und Wiederherstellung ───────────────────────────────────
+    #
+    # Eine Station wird geklont (die naechste Ausstellung, derselbe Aufbau)
+    # oder nach einem SD-Karten-Tod wiederhergestellt. Bisher hiess das: die
+    # `config.json` von Hand ueber SSH kopieren.
+
+    @app.route("/api/backup")
+    def api_backup():
+        from flask import Response
+        name = (controller.config.get("system_name") or "station").replace(" ", "_")
+        return Response(
+            json.dumps(controller.config, indent=2, ensure_ascii=False),
+            mimetype="application/json; charset=utf-8",
+            headers={"Content-Disposition":
+                     f'attachment; filename="{secure_filename(name)}-konfiguration.json"'})
+
+    @app.route("/api/restore", methods=["POST"])
+    def api_restore():
+        """Eine gesicherte Konfiguration einspielen.
+
+        HEILEN statt ablehnen — anders als `/api/config`. Eine Sicherung kann
+        aus einer aelteren Fassung stammen, in der es Felder noch nicht gab
+        oder anders hiessen. Eine Wiederherstellung, die an einem einzigen
+        veralteten Feld scheitert, ist im Ernstfall (Karte tot, Ausstellung
+        oeffnet) genau das, was niemand gebrauchen kann.
+        """
+        daten = request.get_json(silent=True)
+        if not isinstance(daten, dict):
+            return jsonify({"error": "Kein lesbares Konfigurations-Objekt"}), 400
+        neu = json.loads(json.dumps(DEFAULT_CONFIG))
+        for schluessel, wert in daten.items():
+            if schluessel in neu:
+                neu[schluessel] = wert
+        for zone in ZONEN:
+            neu[zone] = heile_zone(neu.get(zone))
+        neu = heile_config(neu)
+        controller.config.clear()
+        controller.config.update(neu)
+        controller.save_config()
+        # Die Quelle wird beim Programmstart gebaut; ein geaenderter Sensortyp
+        # oder Pin wirkt erst danach. Das gehoert gesagt, sonst sucht jemand
+        # den Fehler in der Verdrahtung.
+        return jsonify({"ok": True, "config": controller.config,
+                        "hinweis": "Wiederhergestellt. Fuer Sensor- und "
+                                   "Port-Aenderungen die Station neu starten."})
 
     @app.route("/api/media/<media_type>/<name>", methods=["DELETE"])
     def api_delete_media(media_type, name):

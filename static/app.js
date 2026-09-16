@@ -254,6 +254,42 @@ function slider(id, displayId, fmt) {
     });
 }
 
+/* ---- Sicherung ---- */
+
+async function spieleEin(eingabe) {
+    var datei = eingabe.files && eingabe.files[0];
+    var fb = el('restore-feedback');
+    if (!datei) return;
+    // Rueckfrage, weil das die laufende Konfiguration ERSETZT — und zwar
+    // vollstaendig, nicht ergaenzend.
+    if (!confirm('Die aktuelle Konfiguration durch "' + datei.name + '" ersetzen?')) {
+        eingabe.value = '';
+        return;
+    }
+    try {
+        var text = await datei.text();
+        var r = await fetch('/api/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: text,
+        });
+        var d = await r.json();
+        if (r.ok) {
+            fb.textContent = '✓ ' + (d.hinweis || 'Wiederhergestellt');
+            fb.className = 'feedback success';
+            fetchStatus();
+        } else {
+            fb.textContent = '✗ ' + (d.error || 'Fehler');
+            fb.className = 'feedback error';
+        }
+    } catch (e) {
+        fb.textContent = '✗ Datei nicht lesbar';
+        fb.className = 'feedback error';
+    }
+    eingabe.value = '';
+    setTimeout(function () { fb.textContent = ''; }, 8000);
+}
+
 /* ---- Zustand ---- */
 
 var HEALTH_TEXT = {
@@ -601,7 +637,19 @@ async function uploadFiles(type, files, area) {
                         ptext.textContent = file.name + ': ' + p + '%';
                     }
                 };
-                xhr.onload = function () { xhr.status === 200 ? ok() : fail(); };
+                xhr.onload = function () {
+                    if (xhr.status !== 200) return fail();
+                    // Hinweise des Medien-Checks einsammeln (z. B. 4K, das auf
+                    // einem Pi ruckelt). Sie sind KEINE Ablehnung — die Datei
+                    // ist hochgeladen.
+                    try {
+                        var antwort = JSON.parse(xhr.responseText);
+                        (antwort.hinweise || []).forEach(function (h) {
+                            uploadHinweise.push(file.name + ': ' + h);
+                        });
+                    } catch (e) { /* ohne Hinweise weiter */ }
+                    ok();
+                };
                 xhr.onerror = fail;
                 xhr.open('POST', '/api/upload/' + type);
                 xhr.send(fd);
@@ -611,7 +659,24 @@ async function uploadFiles(type, files, area) {
     text.hidden = false;
     prog.hidden = true;
     fill.style.width = '0%';
+    zeigeUploadHinweise();
     await loadAllMedia();
+}
+
+// Gesammelt und EINMAL am Ende gezeigt: bei einem Stapel-Upload waere eine
+// Meldung je Datei eine Kette von Dialogen, die niemand liest.
+var uploadHinweise = [];
+
+function zeigeUploadHinweise() {
+    var kasten = el('upload-hinweise');
+    if (!kasten) { uploadHinweise = []; return; }
+    kasten.innerHTML = uploadHinweise.length
+        ? '<div class="health-befund warnung"><strong>Wiedergabe-Hinweise</strong></div>'
+          + uploadHinweise.map(function (h) {
+              return '<div class="health-befund warnung">' + esc(h) + '</div>';
+          }).join('')
+        : '';
+    uploadHinweise = [];
 }
 
 /* ---- API Shortcut ---- */
