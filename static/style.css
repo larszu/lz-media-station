@@ -91,6 +91,21 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 .sensor-status.warn { color: var(--warning); }
 .sensor-status:empty { display: none; }
 
+/* --- Zeitsteuerung --- */
+.karten-hinweis { font-size: 0.8rem; color: var(--text-dim); margin: 0 0 10px; }
+.zeitplan-tage { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.zeitplan-zeile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Feste Breite, damit die Uhrzeiten aller sieben Tage untereinander stehen
+   statt je nach Tagesname zu springen. */
+.zeitplan-zeile .zp-tag { min-width: 130px; margin: 0; }
+.zeitplan-zeile .zp-bis { color: var(--text-dim); font-size: 0.8rem; }
+/* 24px Mindesthoehe wie bei den Schiebereglern (WCAG 2.2, 2.5.8): diese
+   Seite wird vom Handy bedient. */
+.zeitplan-zeile input[type="time"] {
+    min-height: 32px; padding: 4px 6px; border-radius: 0;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+}
+
 /* --- Badge --- */
 .badge { display: inline-block; padding: 3px 12px; border-radius: 0; font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.06); color: var(--text-dim); }
 .badge.near { background: rgba(0,230,118,0.15); color: var(--near); }

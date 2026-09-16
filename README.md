@@ -49,6 +49,7 @@ publishes by itself — nothing in this repo needs changing.
   - **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) / GPIO 24 (Echo) — frei konfigurierbar (Vorgabe)
   - **Kamera-Erkennung** über eine Webcam (OpenCV + YuNet/Haar) — läuft auch auf **Mac und Windows**, siehe [`docs/sensoren.md`](docs/sensoren.md)
 - **Kein Demo-Modus mehr**: ist kein Sensor angeschlossen, misst die Station nichts und löst nicht aus — die Oberfläche sagt es im Klartext, statt eine erfundene Distanz zu zeigen
+- **Zeitsteuerung**: Wochenplan mit Öffnungszeiten (auch über Mitternacht) — außerhalb bleibt der Schirm schwarz, der Ton aus und es wird nicht ausgelöst; optional Fernseher per HDMI-CEC mit abschalten, siehe [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
 - **Zwei Zonen**: NAH (≤ Schwelle) / FERN (> Schwelle), mit konfigurierbarer Verzögerung gegen Flackern
 - **Pro Zone** beliebige Auswahl an Videos, Bildern und Audio
 - **Bildslideshow** mit einstellbarem Intervall

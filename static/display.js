@@ -53,6 +53,18 @@
             var resp = await fetch('/api/scene');
             var scene = await resp.json();
 
+            // Der Wochenplan steht VOR allem anderen: ausserhalb der
+            // Oeffnungszeit bleibt der Schirm schwarz und der Ton aus — kein
+            // Hinweistext ("Warte auf Sensor" waere nachts schlicht falsch)
+            // und vor allem KEIN Auto-Start, der die Steuerung wieder
+            // anwerfen wuerde.
+            if (scene.geschlossen) {
+                if (currentHash) { fadeAllOut(); currentHash = ''; }
+                clearRedirect();
+                hideHint();
+                return;
+            }
+
             if (!scene.active) {
                 if (currentHash) { fadeAllOut(); currentHash = ''; }
                 if (!startAttempted) {

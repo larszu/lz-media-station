@@ -69,6 +69,9 @@ function updateStatusUI(d) {
         pending_far: ['\u2192 Fern\u2026', 'pending'],
     };
     var s = states[d.state] || ['?', ''];
+    // Der Wochenplan schlaegt den Zonen-Zustand: „Fern" waere nachts
+    // irrefuehrend — es spielt ja gar nichts, und zwar absichtlich.
+    if (d.geschlossen) s = ['Geschlossen', 'pending'];
     badge.textContent = s[0];
     badge.className = 'badge ' + s[1];
 
@@ -92,9 +95,19 @@ function updateStatusUI(d) {
     // „kein Sensor angeschlossen" statt einer stumm erfundenen Zahl.
     var st = el('sensor-status');
     if (st) {
-        st.textContent = d.sensor_status || '';
-        st.className = 'sensor-status' + (d.sensor_ok ? ' ok' : ' warn');
+        if (d.geschlossen) {
+            // Erklaeren, warum nichts spielt — sonst sieht der Wochenplan aus
+            // wie ein Defekt, und jemand sucht am Sensor.
+            st.textContent = 'Außerhalb der Öffnungszeiten — Schirm schwarz, Ton aus. '
+                + (d.sensor_status || '');
+            st.className = 'sensor-status warn';
+        } else {
+            st.textContent = d.sensor_status || '';
+            st.className = 'sensor-status' + (d.sensor_ok ? ' ok' : ' warn');
+        }
     }
+
+    renderZeitplan(cfg);
 
     document.querySelectorAll('.threshold-val').forEach(function (e) { e.textContent = cfg.threshold_m.toFixed(1); });
 
@@ -128,6 +141,85 @@ function slider(id, displayId, fmt) {
     el(id).addEventListener('input', function (e) {
         el(displayId).textContent = fmt(parseFloat(e.target.value));
     });
+}
+
+/* ---- Zeitsteuerung ---- */
+
+var ZP_TAGE = [
+    ['mo', 'Montag'], ['di', 'Dienstag'], ['mi', 'Mittwoch'], ['do', 'Donnerstag'],
+    ['fr', 'Freitag'], ['sa', 'Samstag'], ['so', 'Sonntag'],
+];
+var zeitplanGebaut = false;
+
+// `<input type="time">` kennt kein 24:00 -- das Feld geht bis 23:59. Im Kern
+// ist 24:00 aber genau das, was "bis Mitternacht" heisst, und 23:59 waere eine
+// Minute Luecke. Deshalb wird in der Oberflaeche 00:00 als Ende angezeigt und
+// beim Speichern wieder zu 24:00. Fuer den Nutzer liest sich "20:00 bis 00:00"
+// ohnehin natuerlicher als "20:00 bis 24:00".
+function bisFuerUi(v) { return (v === '24:00') ? '00:00' : (v || '00:00'); }
+function bisAusUi(v) { return (!v || v === '00:00') ? '24:00' : v; }
+
+function renderZeitplan(cfg) {
+    var box = el('zeitplan-tage');
+    if (!box) return;
+    if (!zeitplanGebaut) {
+        box.innerHTML = ZP_TAGE.map(function (t) {
+            return '<div class="zeitplan-zeile">' +
+                '<label class="checkbox-label zp-tag">' +
+                '<input type="checkbox" id="zp-an-' + t[0] + '"><span>' + t[1] + '</span></label>' +
+                '<input type="time" id="zp-von-' + t[0] + '">' +
+                '<span class="zp-bis">bis</span>' +
+                '<input type="time" id="zp-bis-' + t[0] + '">' +
+                '</div>';
+        }).join('');
+        zeitplanGebaut = true;
+    }
+    var zp = cfg.zeitplan || { aktiv: false, tage: {} };
+    var a = document.activeElement;
+    if (!a || a.id !== 'cfg-zeitplan-aktiv') el('cfg-zeitplan-aktiv').checked = !!zp.aktiv;
+    if (!a || a.id !== 'cfg-cec') el('cfg-cec').checked = !!cfg.cec_aktiv;
+    ZP_TAGE.forEach(function (t) {
+        var tag = (zp.tage || {})[t[0]] || { an: true, von: '00:00', bis: '24:00' };
+        if (!a || a.id !== 'zp-an-' + t[0]) el('zp-an-' + t[0]).checked = !!tag.an;
+        if (!a || a.id !== 'zp-von-' + t[0]) el('zp-von-' + t[0]).value = tag.von || '00:00';
+        if (!a || a.id !== 'zp-bis-' + t[0]) el('zp-bis-' + t[0]).value = bisFuerUi(tag.bis);
+    });
+}
+
+async function saveZeitplan() {
+    var tage = {};
+    ZP_TAGE.forEach(function (t) {
+        tage[t[0]] = {
+            an: el('zp-an-' + t[0]).checked,
+            von: el('zp-von-' + t[0]).value || '00:00',
+            bis: bisAusUi(el('zp-bis-' + t[0]).value),
+        };
+    });
+    var fb = el('zeitplan-feedback');
+    try {
+        var r = await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                zeitplan: { aktiv: el('cfg-zeitplan-aktiv').checked, tage: tage },
+                cec_aktiv: el('cfg-cec').checked,
+            }),
+        });
+        var d = await r.json();
+        if (r.ok) {
+            fb.textContent = '✓ Gespeichert';
+            fb.className = 'feedback success';
+        } else {
+            // Der Kern lehnt ab und sagt WELCHES Feld -- das gehoert angezeigt,
+            // sonst sucht jemand den Fehler in der falschen Zeile.
+            fb.textContent = '✗ ' + (d.error || 'Fehler');
+            fb.className = 'feedback error';
+        }
+    } catch (e) {
+        fb.textContent = '✗ Fehler';
+        fb.className = 'feedback error';
+    }
+    setTimeout(function () { fb.textContent = ''; }, 4000);
 }
 
 /* ---- Abstandsquelle: Felder je nach Typ zeigen/verbergen ---- */

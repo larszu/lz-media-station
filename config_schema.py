@@ -8,6 +8,7 @@ Eigenes Modul, damit `main.py` (Ladeweg) und `web_ui.py` (Schreibweg) es
 teilen koennen — `main` importiert `web_ui`, ein Import zurueck waere ein
 Kreis.
 """
+from zeitplan import heile_zeitplan, standard_zeitplan
 
 DEFAULT_CONFIG = {
     "system_name": "LZ Station 1",
@@ -29,6 +30,13 @@ DEFAULT_CONFIG = {
     "video_volume": 100,
     "audio_volume": 80,
     "video_resume": False,
+    # Zeitsteuerung (Wochenplan). `aktiv` ist in der Vorgabe False, damit sich
+    # eine bestehende Installation exakt wie vorher verhaelt. Siehe zeitplan.py.
+    "zeitplan": standard_zeitplan(),
+    # Ausserhalb der Oeffnungszeiten zusaetzlich den Fernseher per HDMI-CEC
+    # abschalten. Braucht `cec-client` auf dem Geraet; fehlt es, passiert
+    # nichts ausser einer Zeile im Log.
+    "cec_aktiv": False,
     "display_ip": "",
     "near": {"videos": [], "images": [], "audio": []},
     "far": {"videos": [], "images": [], "audio": []},
@@ -101,6 +109,7 @@ GRENZEN = {
     "video_volume": (int, lambda v: 0 <= v <= 100, "0..100 %"),
     "audio_volume": (int, lambda v: 0 <= v <= 100, "0..100 %"),
     "video_resume": (bool, lambda v: True, "true/false"),
+    "cec_aktiv": (bool, lambda v: True, "true/false"),
 }
 
 
@@ -177,4 +186,8 @@ def heile_config(cfg):
               f"{cfg.get('gpio_trigger')!r} — nehme die Vorgaben")
         cfg["gpio_trigger"] = DEFAULT_CONFIG["gpio_trigger"]
         cfg["gpio_echo"] = DEFAULT_CONFIG["gpio_echo"]
+    # Der Zeitplan ist verschachtelt und passt nicht in die flache
+    # GRENZEN-Tabelle — eigene Heilung, gleiche Politik (reparieren statt
+    # abbrechen), genau wie bei den Zonen in `load_config`.
+    cfg["zeitplan"] = heile_zeitplan(cfg.get("zeitplan"))
     return cfg

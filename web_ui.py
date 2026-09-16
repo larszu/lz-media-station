@@ -4,6 +4,7 @@ import socket
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from config_schema import pruefe_patch, pruefe_pins
+from zeitplan import pruefe_zeitplan
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEDIA_DIRS = {
@@ -114,6 +115,9 @@ def create_app(controller, anzeigen=None):
             "sensor_type": controller.config.get("sensor_type", "ultrasonic"),
             "sensor_label": controller.sensor.LABEL,
             "sensor_status": controller.sensor.status,
+            # Wochenplan: die Verwaltung soll erklaeren koennen, warum nichts
+            # spielt, statt dass es wie ein Defekt aussieht.
+            "geschlossen": not controller.ist_offen(),
             "host_ip": host_ip,
             "web_port": port,
             "remote_url": "http://" + host_ip + ":" + str(port) + "/admin",
@@ -224,6 +228,11 @@ def create_app(controller, anzeigen=None):
         try:
             geprueft = pruefe_patch(data)
             pruefe_pins(controller.config, geprueft)
+            # Der Zeitplan ist verschachtelt und steht darum nicht in GRENZEN.
+            # Gleiche Politik wie dort: ABLEHNEN statt heilen — wer eine
+            # Oeffnungszeit setzt, soll erfahren, dass sie nicht ankam.
+            if "zeitplan" in data:
+                geprueft["zeitplan"] = pruefe_zeitplan(data["zeitplan"])
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         controller.config.update(geprueft)

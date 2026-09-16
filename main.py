@@ -8,7 +8,11 @@ import signal
 import threading
 import argparse
 
+from datetime import datetime
+
 import displays
+import tv_cec
+import zeitplan
 from sensor import SensorThread
 from camera_sensor import CameraSensorThread
 from web_ui import create_app, lan_adresse
@@ -59,17 +63,37 @@ class Controller:
         # Startwert True, damit der erste Ausfall gemeldet wird und nicht der
         # erste Erfolg.
         self._sensor_misst = True
+        # `None` und nicht True/False: der erste Durchlauf soll die Lage
+        # melden (und ggf. CEC schalten), egal ob offen oder geschlossen.
+        self._war_offen = None
+
+    def ist_offen(self, jetzt=None):
+        """Spielt die Station gerade laut Wochenplan?
+
+        Eine Stelle, die das beantwortet — die Steuerschleife und `get_scene`
+        fragen dieselbe. Zwei Rechnungen wuerden bedeuten, dass der Schirm
+        schwarz ist, waehrend die Zonenlogik noch schaltet.
+        """
+        return zeitplan.ist_offen(self.config.get("zeitplan"),
+                                  jetzt or datetime.now())
 
     def get_scene(self):
         """Aktueller Zustand für die Display-Seite"""
+        geschlossen = not self.ist_offen()
         zone = None
-        if self.active:
+        # Ausserhalb der Oeffnungszeiten gibt es KEINE Zone. Das ist die
+        # Absicherung an der Quelle: selbst wenn die Steuerschleife gerade
+        # nicht laeuft (Controller gestoppt), bekommt die Anzeigeseite nichts
+        # zu spielen — sie muss sich nicht darauf verlassen, das Flag zu
+        # beachten.
+        if self.active and not geschlossen:
             if self.state in ("near", "pending_far"):
                 zone = "near"
             elif self.state in ("far", "pending_near"):
                 zone = "far"
         return {
             "active": self.active,
+            "geschlossen": geschlossen,
             "zone": zone,
             "near": self.config.get("near", {"videos": [], "images": [], "audio": []}),
             "far": self.config.get("far", {"videos": [], "images": [], "audio": []}),
@@ -111,6 +135,22 @@ class Controller:
         print("[Sensor] Messung wieder da" if misst
               else "[Sensor] KEINE Messung — es wird nicht ausgeloest")
 
+    def _melde_zeitlage(self, offen):
+        """Einmal melden, wenn der Wochenplan zu- oder aufmacht.
+
+        Bei jedem Durchlauf zu melden waere zehn Zeilen je Sekunde. Am Wechsel
+        haengt ausserdem das optionale CEC-Schalten — auch das gehoert genau
+        einmal getan und nicht zehnmal pro Sekunde.
+        """
+        if offen == self._war_offen:
+            return
+        self._war_offen = offen
+        print("[Zeitplan] Oeffnungszeit — die Station spielt" if offen
+              else "[Zeitplan] ausserhalb der Oeffnungszeit — Schirm bleibt schwarz")
+        if self.config.get("cec_aktiv"):
+            _ok, meldung = tv_cec.schalte(offen)
+            print(f"[Zeitplan] {meldung}")
+
     def save_config(self):
         try:
             with open(CONFIG_FILE, "w") as f:
@@ -121,6 +161,18 @@ class Controller:
     def _control_loop(self):
         """Zustandsmaschine mit Hysterese"""
         while self.active:
+            # Der Wochenplan steht VOR dem Sensor. Ausserhalb der
+            # Oeffnungszeit wird nicht ausgeloest — egal, wer davorsteht.
+            # Der Zustand faellt dabei auf "far" zurueck, damit die Station
+            # beim Aufmachen nicht mit einer alten Nah-Szene aufwacht.
+            offen = self.ist_offen()
+            self._melde_zeitlage(offen)
+            if not offen:
+                self.state = "far"
+                self._pending_since = None
+                time.sleep(0.5)
+                continue
+
             dist = self.sensor.distance
             threshold = self.config.get("threshold_m", 1.0)
             delay = self.config.get("delay_s", 1.5)
