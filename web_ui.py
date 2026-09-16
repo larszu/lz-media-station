@@ -66,7 +66,15 @@ def lan_adresse():
     return "127.0.0.1"
 
 
-def create_app(controller):
+def create_app(controller, anzeigen=None):
+    """`anzeigen` ist der Mehrschirm-Spieler dieses Rechners (`displays.py`).
+
+    Er ist OPTIONAL, und zwar nicht aus Bequemlichkeit: die Tests bauen die
+    App ohne ihn, und auf einem Pi ohne Grafik gibt es nichts zu bespielen.
+    Fehlt er, antwortet `/api/displays` mit einer leeren Liste und dem
+    Grund — nicht mit einem Fehler, denn „dieser Rechner hat keine Schirme"
+    ist kein Fehler.
+    """
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024
 
@@ -121,6 +129,62 @@ def create_app(controller):
     @app.route("/api/scene")
     def api_scene():
         return jsonify(controller.get_scene())
+
+    # ── Die Bildschirme DIESES Rechners (Nutzer, 2026-09-15) ──────────────
+    #
+    # „im mediaplayer das endgeraet selbst und externe displays die ans
+    #  endgeraet angeschlossen sind als mediaplayer nutzen koennen."
+    #
+    # Die Anzeige war bis hierher ein Browser auf dem einen HDMI-Ausgang
+    # eines Pi. Auf einem Notebook oder einem Rechner am Aufbau haengt oft
+    # mehr als ein Schirm; der eingebaute zaehlt mit.
+
+    @app.route("/api/displays")
+    def api_displays():
+        if anzeigen is None:
+            return jsonify({
+                "schirme": [],
+                "browser": None,
+                "grund": "Diese Station laeuft ohne Mehrschirm-Spieler.",
+            })
+        import displays as _d
+        return jsonify({
+            "schirme": anzeigen.zustand(),
+            "browser": _d.finde_browser(),
+            "suchorte": _d.suchorte(),
+        })
+
+    @app.route("/api/displays/play", methods=["POST"])
+    def api_displays_play():
+        if anzeigen is None:
+            return jsonify({"ok": False,
+                            "meldungen": ["Kein Mehrschirm-Spieler."]}), 409
+        daten = request.get_json(silent=True) or {}
+        auswahl = daten.get("schirme")
+        if auswahl is not None and not isinstance(auswahl, list):
+            return jsonify({"ok": False,
+                            "meldungen": ["`schirme` muss eine Liste sein."]}), 400
+        # `127.0.0.1` und nicht die LAN-Adresse: die Fenster laufen auf
+        # DIESEM Rechner. Ueber die eigene Netzadresse zu gehen hiesse, sich
+        # von der Netzwerkkarte abhaengig zu machen, die man gar nicht
+        # braucht — in einem Gastnetz mit Client-Isolation faellt das aus.
+        port = controller.config.get("web_port", 5000)
+        url = f"http://127.0.0.1:{port}/display"
+        gestartet, meldungen = anzeigen.starte(url, auswahl)
+        return jsonify({"ok": bool(gestartet), "gestartet": gestartet,
+                        "meldungen": meldungen})
+
+    @app.route("/api/displays/stop", methods=["POST"])
+    def api_displays_stop():
+        if anzeigen is None:
+            return jsonify({"ok": False,
+                            "meldungen": ["Kein Mehrschirm-Spieler."]}), 409
+        daten = request.get_json(silent=True) or {}
+        auswahl = daten.get("schirme")
+        if auswahl is not None and not isinstance(auswahl, list):
+            return jsonify({"ok": False,
+                            "meldungen": ["`schirme` muss eine Liste sein."]}), 400
+        return jsonify({"ok": True, "beendet": anzeigen.beende(auswahl)})
 
     @app.route("/api/identity")
     def api_identity():

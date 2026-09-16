@@ -28,7 +28,7 @@ jobs:
       - name: Abhaengigkeiten
         run: pip install -r requirements.txt
       - name: Compile Python services
-        run: python -m compileall -q main.py web_ui.py sensor.py camera_sensor.py config_schema.py
+        run: python -m compileall -q main.py web_ui.py sensor.py camera_sensor.py config_schema.py displays.py
       - name: Check shell scripts
         run: for f in *.sh; do bash -n "$f"; done
       # Fragt die action.yml jedes Pins nach ihrer Node-Version, statt sie in

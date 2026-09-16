@@ -8,6 +8,7 @@ import signal
 import threading
 import argparse
 
+import displays
 from sensor import SensorThread
 from camera_sensor import CameraSensorThread
 from web_ui import create_app, lan_adresse
@@ -194,7 +195,42 @@ def main():
     parser.add_argument("--host", default="0.0.0.0",
                         help="Bind-Adresse. Vorgabe 0.0.0.0 = im ganzen "
                              "Netz erreichbar; 127.0.0.1 = nur dieser Rechner.")
+    # DIESER RECHNER IST AUCH EIN MEDIENSPIELER (Nutzer, 2026-09-15: „im
+    # mediaplayer das endgeraet selbst und externe displays die ans endgeraet
+    # angeschlossen sind als mediaplayer nutzen koennen. mac und windows").
+    #
+    # Die Anzeige ist seit jeher eine Browser-Seite; auf dem Pi oeffnet sie
+    # ein Chromium auf dem einen HDMI-Ausgang. Auf einem Notebook oder einem
+    # Rechner am Aufbau haengt oft mehr als ein Schirm, und der eingebaute
+    # zaehlt mit — davon konnte die Station nichts nutzen.
+    parser.add_argument("--play-on", default="", metavar="all|0,1",
+                        help="die Anzeige auf den Bildschirmen DIESES "
+                             "Rechners oeffnen: `all` fuer alle, sonst die "
+                             "Nummern aus --list-displays (0-basiert).")
+    parser.add_argument("--list-displays", action="store_true",
+                        help="die gefundenen Bildschirme nennen und beenden")
     args = parser.parse_args()
+
+    if args.list_displays:
+        gefunden = displays.schirme()
+        if not gefunden:
+            print("Keine Bildschirme gefunden.")
+            print(f"  System: {sys.platform}")
+            print("  Ein Rechner ohne Grafik (ein Pi ohne X, ein Server) hat "
+                  "keine — die Station laeuft dort weiter, sie bespielt nur "
+                  "nichts vor Ort.")
+            return 0
+        for i, s in enumerate(gefunden):
+            marke = " (Hauptschirm)" if s.get("haupt") else ""
+            print(f"  {i}: {s['name']}  {s['breite']}x{s['hoehe']} "
+                  f"bei {s['x']},{s['y']}{marke}")
+        browser = displays.finde_browser()
+        print()
+        print(f"  Browser: {browser or 'KEINER GEFUNDEN'}")
+        if not browser:
+            for ort in displays.suchorte():
+                print(f"    gesucht: {ort}")
+        return 0
 
     config = load_config()
     port = args.port or config.get("web_port", 5000)
@@ -208,7 +244,8 @@ def main():
     if not os.path.isfile(CONFIG_FILE):
         controller.save_config()
 
-    app = create_app(controller)
+    anzeigen = displays.Anzeigen()
+    app = create_app(controller, anzeigen)
 
     # Controller automatisch starten (Kiosk-Betrieb)
     controller.start()
@@ -244,12 +281,49 @@ def main():
     print()
 
     def shutdown(sig, frame):
+        # Die selbst geoeffneten Anzeige-Fenster gehen mit. Ohne das bleiben
+        # sie als Vollbild auf den Schirmen stehen, nachdem die Station weg
+        # ist — und der Aufbau zeigt ein totes Bild statt eines schwarzen.
+        anzeigen.beende()
         controller.stop()
         controller.sensor.stop()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
+
+    if args.play_on:
+        # ERST DER SERVER, DANN DIE FENSTER. `app.run` blockiert, also wird
+        # der Start in einen Faden gelegt, der kurz wartet: ein Browser, der
+        # vor dem Server da ist, zeigt „nicht erreichbar" und laedt nicht von
+        # selbst nach.
+        #
+        # Und `127.0.0.1` und nicht die LAN-Adresse: die Fenster laufen auf
+        # DIESEM Rechner. Ueber die eigene Netzadresse zu gehen hiesse, sich
+        # von der Netzwerkkarte abhaengig zu machen, die man gar nicht
+        # braucht — in einem Gastnetz mit Client-Isolation faellt das aus.
+        url = f"http://127.0.0.1:{port}/display"
+        auswahl = None
+        if args.play_on.strip().lower() != "all":
+            try:
+                auswahl = [int(t) for t in args.play_on.replace(" ", "").split(",") if t]
+            except ValueError:
+                print(f"[Anzeige] --play-on {args.play_on!r} ist keine "
+                      "Liste von Nummern. `all` oder z. B. `0,2`.")
+                auswahl = []
+
+        def anzeigen_oeffnen():
+            time.sleep(1.5)
+            gestartet, meldungen = anzeigen.starte(url, auswahl)
+            if gestartet:
+                print(f"[Anzeige] geoeffnet auf Schirm: "
+                      f"{', '.join(str(i) for i in gestartet)}")
+            for m in meldungen:
+                print(f"[Anzeige] {m}")
+            if not gestartet and not meldungen:
+                print("[Anzeige] nichts geoeffnet.")
+
+        threading.Thread(target=anzeigen_oeffnen, daemon=True).start()
 
     app.run(host=args.host, port=port, threaded=True)
 

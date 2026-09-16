@@ -517,3 +517,101 @@ function esc(s) {
 function escAttr(s) {
     return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   DIE BILDSCHIRME DIESES RECHNERS (Nutzer, 2026-09-15)
+
+   „im mediaplayer das endgeraet selbst und externe displays die ans
+    endgeraet angeschlossen sind als mediaplayer nutzen koennen."
+
+   Die Karte ist VERSTECKT, solange es nichts zu zeigen gibt — auf einem Pi
+   ohne X, auf einem Server, auf einem Rechner ohne zweiten Schirm. Eine
+   Karte mit einer leeren Liste und zwei Knoepfen, die nichts tun, ist
+   schlimmer als keine: sie sieht aus wie ein Defekt.
+   ───────────────────────────────────────────────────────────────────────── */
+
+async function ladeSchirme() {
+    var karte = el('card-displays');
+    if (!karte) { return; }
+    try {
+        var r = await fetch('/api/displays');
+        var d = await r.json();
+        var schirme = d.schirme || [];
+        if (!schirme.length && !d.browser) {
+            karte.hidden = true;
+            return;
+        }
+        karte.hidden = false;
+        zeichneSchirme(schirme, d);
+    } catch (e) {
+        karte.hidden = true;
+    }
+}
+
+function zeichneSchirme(schirme, d) {
+    var liste = el('displays-list');
+    if (!schirme.length) {
+        liste.innerHTML = '<div class="empty">Keine Bildschirme gefunden.</div>';
+    } else {
+        liste.innerHTML = schirme.map(function (s) {
+            var marke = s.haupt ? ' &middot; Hauptschirm' : '';
+            var zustand = s.zeigt
+                ? '<span class="badge">zeigt</span>'
+                : '<span class="badge badge-off">aus</span>';
+            return '<div class="media-item">' +
+                '<span>' + esc(s.name) + ' &mdash; ' + s.breite + '&times;' + s.hoehe +
+                ' bei ' + s.x + ',' + s.y + marke + '</span>' +
+                zustand +
+                '<button class="btn btn-small" data-schirm="' + s.index + '" ' +
+                'data-was="' + (s.zeigt ? 'stop' : 'play') + '">' +
+                (s.zeigt ? 'Schliessen' : 'Zeigen') + '</button>' +
+                '</div>';
+        }).join('');
+        liste.querySelectorAll('button[data-schirm]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                schalteSchirm(Number(b.dataset.schirm), b.dataset.was);
+            });
+        });
+    }
+
+    // OHNE BROWSER GEHT NICHTS, und dann steht da, WO gesucht wurde.
+    // Ein „geht nicht" ohne Ort ist fuer den Nutzer dasselbe wie Schweigen.
+    var hint = el('displays-hint');
+    if (!d.browser) {
+        hint.innerHTML = '<strong>Kein Chrome, Chromium oder Edge gefunden.</strong> ' +
+            'Gesucht wurde: ' + esc((d.suchorte || []).join(', ')) +
+            '. (Firefox und Safari koennen kein Fenster auf einem bestimmten ' +
+            'Schirm oeffnen.)';
+    }
+}
+
+async function schalteSchirm(index, was) {
+    await schirmBefehl(was, [index]);
+}
+
+async function schirmBefehl(was, auswahl) {
+    var fb = el('displays-feedback');
+    try {
+        var r = await fetch('/api/displays/' + was, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(auswahl ? { schirme: auswahl } : {}),
+        });
+        var d = await r.json();
+        var meldungen = d.meldungen || [];
+        fb.textContent = meldungen.length ? meldungen.join(' · ') : '✓';
+        fb.className = 'feedback' + (meldungen.length ? ' error' : '');
+    } catch (e) {
+        fb.textContent = '✗ ' + e.message;
+        fb.className = 'feedback error';
+    }
+    await ladeSchirme();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    var auf = el('btn-displays-play');
+    var zu = el('btn-displays-stop');
+    if (auf) { auf.addEventListener('click', function () { schirmBefehl('play', null); }); }
+    if (zu) { zu.addEventListener('click', function () { schirmBefehl('stop', null); }); }
+    ladeSchirme();
+});
