@@ -119,11 +119,17 @@ DEFAULT_CONFIG = {
     # `threshold_m` — sonst gaebe es die Mitte rechnerisch nicht.
     "threshold_mid_m": 2.5,
     "delay_s": 1.5,
-    # Welche Abstandsquelle die Station benutzt: "ultrasonic" (HC-SR04 am GPIO,
-    # Vorgabe), "camera" (Webcam + Gesichtserkennung, laeuft auch auf
-    # Mac/Windows) oder "button" (GPIO-Taster: der Besucher drueckt, statt dass
-    # gemessen wird). Details in docs/sensoren.md.
-    "sensor_type": "ultrasonic",
+    # Welche Abstandsquelle die Station benutzt: "auto" (Vorgabe seit Issue
+    # #13 — HC-SR04 am GPIO, und wenn es den nicht gibt, die Kamera),
+    # "ultrasonic" (nur der HC-SR04), "camera" (Webcam + Gesichtserkennung,
+    # laeuft auch auf Mac/Windows) oder "button" (GPIO-Taster: der Besucher
+    # drueckt, statt dass gemessen wird). Details in docs/sensoren.md.
+    #
+    # "ultrasonic" bleibt und ist nicht dasselbe wie "auto": es ist die Ansage
+    # „an dieser Station gehoert ein Sensor hin". Faellt er aus, soll sie
+    # schweigen und es melden, statt still mit einer anderen Reichweite und
+    # einem anderen Blickfeld weiterzulaufen.
+    "sensor_type": "auto",
     "gpio_trigger": 23,
     "gpio_echo": 24,
     # Kamera-Quelle: welcher Kamera-Index und die kalibrierte Brennweite in
@@ -235,8 +241,8 @@ GRENZEN = {
     "threshold_mid_m": (float, lambda v: 0.05 <= v <= 20.0, "0.05..20.0 m"),
     "zonen_stufen": (int, lambda v: v in (2, 3), "2 oder 3"),
     "delay_s": (float, lambda v: 0.0 <= v <= 60.0, "0..60 s"),
-    "sensor_type": (str, lambda v: v in ("ultrasonic", "camera", "button"),
-                    "ultrasonic|camera|button"),
+    "sensor_type": (str, lambda v: v in ("auto", "ultrasonic", "camera", "button"),
+                    "auto|ultrasonic|camera|button"),
     "gpio_trigger": (int, lambda v: v in NUTZBARE_BCM, f"BCM {NUTZBARE_BCM[0]}..{NUTZBARE_BCM[-1]}"),
     "gpio_echo": (int, lambda v: v in NUTZBARE_BCM, f"BCM {NUTZBARE_BCM[0]}..{NUTZBARE_BCM[-1]}"),
     "camera_index": (int, lambda v: 0 <= v <= 16, "0..16"),

@@ -94,9 +94,21 @@ class QuellenwahlNachKonfiguration(unittest.TestCase):
         self.assertIsInstance(q, camera_sensor.CameraSensorThread)
         self.assertEqual(q.camera_index, 3)
 
-    def test_ultraschall_ist_die_vorgabe(self):
+    def test_die_vorgabe_faellt_auf_die_kamera_zurueck(self):
+        # Bis Issue #13 stand hier „Ultraschall ist die Vorgabe". Das ist es
+        # nicht mehr: die Vorgabe ist `auto` — HC-SR04, und wenn es den auf
+        # diesem Geraet nicht gibt, die Kamera. Der Sensor bleibt die erste
+        # Wahl, er ist nur nicht mehr die einzige.
         import main
+        import auto_sensor
         q = main.erzeuge_abstandsquelle(dict(main.DEFAULT_CONFIG))
+        self.assertIsInstance(q, auto_sensor.AutoAbstandsQuelle)
+
+    def test_ultrasonic_waehlt_weiter_nur_den_sensor(self):
+        import main
+        q = main.erzeuge_abstandsquelle(
+            dict(main.DEFAULT_CONFIG, sensor_type="ultrasonic"),
+        )
         self.assertIsInstance(q, sensor.SensorThread)
 
 

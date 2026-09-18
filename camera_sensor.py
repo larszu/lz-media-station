@@ -150,6 +150,7 @@ class CameraSensorThread(AbstandsQuelle):
         try:
             import cv2
         except ImportError:
+            self._setze_verfuegbar(False)
             self._setze_status("Kamera: opencv nicht installiert "
                                "(pip install opencv-python-headless)")
             print(f"[Kamera] {self._status} — es wird nicht ausgeloest")
@@ -157,11 +158,13 @@ class CameraSensorThread(AbstandsQuelle):
 
         self._cap = self._oeffne_kamera(cv2)
         if not self._cap or not self._cap.isOpened():
+            self._setze_verfuegbar(False)
             self._setze_status(f"Kamera: Index {self.camera_index} nicht gefunden")
             print(f"[Kamera] {self._status} — es wird nicht ausgeloest")
             return
 
         self._baue_detektor(cv2)
+        self._setze_verfuegbar(True)
         self._setze_status(f"Kamera aktiv (Index {self.camera_index}, {self._detector_art})")
         print(f"[Kamera] {self._status}")
 

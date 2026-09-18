@@ -18,6 +18,7 @@ import zeitplan
 from sensor import SensorThread
 from button_sensor import ButtonSensorThread
 from camera_sensor import CameraSensorThread
+from auto_sensor import AutoAbstandsQuelle
 from web_ui import create_app, lan_adresse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,11 +42,24 @@ __all__ = ["DEFAULT_CONFIG", "GRENZEN", "NUTZBARE_BCM", "ZONEN", "ZONEN_NAMEN",
 def erzeuge_abstandsquelle(config):
     """Die zur Konfiguration passende Abstandsquelle bauen.
 
-    `sensor_type` entscheidet: „camera" -> Webcam-Erkennung, „button" ->
-    GPIO-Taster, sonst der HC-SR04 am GPIO (Vorgabe). Eine Stelle, an der die Wahl faellt — damit
-    `main` und die Tests dieselbe Quelle bekommen.
+    `sensor_type` entscheidet: „auto" -> Ultraschall mit Rueckfall auf die
+    Kamera (Vorgabe, Issue #13), „camera" -> Webcam-Erkennung, „button" ->
+    GPIO-Taster, „ultrasonic" -> nur der HC-SR04 am GPIO. Eine Stelle, an der
+    die Wahl faellt — damit `main` und die Tests dieselbe Quelle bekommen.
+
+    WARUM „ultrasonic" BLEIBT, obwohl „auto" es einschliesst: es ist die
+    Ansage „an dieser Station gehoert ein Sensor hin". Faellt er aus, soll sie
+    schweigen und es melden, statt still mit einem anderen Blickfeld und einer
+    anderen Reichweite weiterzulaufen.
     """
     art = config.get("sensor_type")
+    if art == "auto":
+        return AutoAbstandsQuelle(
+            trigger_pin=config["gpio_trigger"],
+            echo_pin=config["gpio_echo"],
+            camera_index=config.get("camera_index", 0),
+            focal_px=config.get("camera_focal_px", 700.0),
+        )
     if art == "camera":
         return CameraSensorThread(
             camera_index=config.get("camera_index", 0),

@@ -6,7 +6,8 @@ Schwelle ist, sonst die **Fern**-Szene. Woher der Abstand kommt, entscheidet
 
 | `sensor_type` | Quelle | Läuft auf |
 |---|---|---|
-| `ultrasonic` (Vorgabe) | HC-SR04 Ultraschallsensor am GPIO | Raspberry Pi |
+| `auto` (Vorgabe) | HC-SR04 — und wenn es den nicht gibt, die Kamera | überall |
+| `ultrasonic` | nur der HC-SR04 Ultraschallsensor am GPIO | Raspberry Pi |
 | `camera` | Webcam + Gesichtserkennung (OpenCV) | Pi, **macOS, Windows** |
 | `button` | GPIO-Taster: der Besucher **drückt**, statt gemessen zu werden | Raspberry Pi |
 
@@ -16,6 +17,39 @@ siehe unten). **Ist keine Hardware angeschlossen, wird nichts erfunden**
 (kein Demo-Modus): die Station löst nicht aus, und der Admin zeigt im Klartext,
 warum. Das war früher anders und für Endnutzer irreführend — ein nicht
 angeschlossener Sensor sah aus wie ein ruhiger Besucher.
+
+---
+
+## Rückfall auf die Kamera (`sensor_type: "auto"`, Issue #13)
+
+„Wenn kein Sensor verfügbar, dann Abstandserkennung mit Kamera." Genau das tut
+`auto`, und es ist seit Issue #13 die Vorgabe: die Station startet den
+HC-SR04, und **nur wenn es ihn auf diesem Gerät nicht gibt**, übernimmt die
+Kamera. Auf einem Mac oder Windows-Rechner heißt das: es läuft sofort etwas,
+ohne dass jemand erst in den Admin geht.
+
+**Woran „nicht verfügbar" erkannt wird — und woran nicht.** Nicht an einem
+fehlenden Messwert. Kein Messwert heißt „niemand steht davor" genauso wie
+„kein Sensor angeschlossen"; wer das gleichsetzt, schaltet mitten im Betrieb
+auf die Kamera um, weil gerade niemand im Raum war, und wieder zurück, sobald
+jemand kommt. Erkannt wird es daran, dass die Quelle es **selbst sagt**
+(`AbstandsQuelle.verfuegbar`), nach ihrer Initialisierung. Solange das noch
+nicht feststeht, wird gewartet — höchstens zwei Sekunden, danach bleibt es
+beim Sensor: im Zweifel die konfigurierte Quelle und nicht die geratene.
+
+**Einmal, nicht ständig.** Der Rückfall passiert beim Start. Ein Sensor, der
+später ausfällt, wird **nicht** durch die Kamera ersetzt: ein Ausfall im
+Betrieb gehört gemeldet und nicht kaschiert. Die Kamera hat eine andere
+Reichweite, eine andere Genauigkeit und ein anderes Blickfeld; dass die
+Station „irgendwie weiterläuft", wäre schlimmer als dass sie schweigt.
+
+**`ultrasonic` bleibt** und ist nicht dasselbe wie `auto`: es ist die Ansage
+„an dieser Station gehört ein Sensor hin". Fällt er aus, soll sie schweigen
+und es melden.
+
+Im Admin steht der Rückfall im Klartext: „Kamera aktiv (Index 0, YuNet)
+(Rückfall: kein Ultraschallsensor)". „Kamera aktiv" allein ließe offen, ob das
+jemand so eingestellt hat oder ob der Sensor fehlt.
 
 ---
 
