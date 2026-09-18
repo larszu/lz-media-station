@@ -133,7 +133,7 @@ function updateStatusUI(d) {
     if (!a || a.id !== 'cfg-camera-focal') el('cfg-camera-focal').value = cfg.camera_focal_px;
     if (!a || a.id !== 'cfg-button-pin') el('cfg-button-pin').value = cfg.button_pin;
     if (!a || a.id !== 'cfg-button-haltezeit') el('cfg-button-haltezeit').value = cfg.button_haltezeit_s;
-    if (!a || a.id !== 'cfg-sensor-type') { el('cfg-sensor-type').value = cfg.sensor_type || 'ultrasonic'; toggleSensorFields(cfg.sensor_type || 'ultrasonic'); }
+    if (!a || a.id !== 'cfg-sensor-type') { el('cfg-sensor-type').value = cfg.sensor_type || 'auto'; toggleSensorFields(cfg.sensor_type || 'auto'); }
     if (!a || a.id !== 'cfg-sync-master') el('cfg-sync-master').value = cfg.sync_master || '';
     if (!a || a.id !== 'cfg-sync-port') el('cfg-sync-port').value = cfg.sync_port;
     if (!a || a.id !== 'cfg-sync-rolle') { el('cfg-sync-rolle').value = cfg.sync_rolle || 'aus'; toggleSync(cfg.sync_rolle || 'aus'); }
@@ -600,14 +600,21 @@ function toggleSensorFields(type) {
     // („Kamera ja/nein"); mit einer dritten Quelle waere daraus stillschweigend
     // „alles ausser Kamera zeigt GPIO-Trigger/Echo" geworden — also Felder, die
     // fuer den Taster nichts bedeuten.
+    //
+    // „auto" (Issue #13) zeigt BEIDE Bloecke: es benutzt den Sensor, und wenn
+    // es den nicht gibt, die Kamera — also braucht es auch beider Angaben.
+    // Nur die des gerade Aktiven zu zeigen hiesse, die Brennweite erst
+    // einstellen zu koennen, wenn der Sensor schon fehlt.
     var klassen = {
-        ultrasonic: '.sensor-ultrasonic',
-        camera: '.sensor-camera',
-        button: '.sensor-button',
+        auto: ['.sensor-ultrasonic', '.sensor-camera'],
+        ultrasonic: ['.sensor-ultrasonic'],
+        camera: ['.sensor-camera'],
+        button: ['.sensor-button'],
     };
-    Object.keys(klassen).forEach(function (art) {
-        document.querySelectorAll(klassen[art]).forEach(function (e) {
-            e.style.display = (art === type) ? '' : 'none';
+    var sichtbar = klassen[type] || [];
+    ['.sensor-ultrasonic', '.sensor-camera', '.sensor-button'].forEach(function (k) {
+        document.querySelectorAll(k).forEach(function (e) {
+            e.style.display = (sichtbar.indexOf(k) >= 0) ? '' : 'none';
         });
     });
 }

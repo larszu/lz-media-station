@@ -57,6 +57,7 @@ class ButtonSensorThread(AbstandsQuelle):
     def run(self):
         self._running = True
         if not GPIOZERO_AVAILABLE:
+            self._setze_verfuegbar(False)
             self._setze_status("kein Taster: gpiozero nicht installiert")
             print(f"[Taster] {self._status} — es wird nicht ausgeloest")
             return
@@ -65,10 +66,12 @@ class ButtonSensorThread(AbstandsQuelle):
             # `bounce_time` gegen das Prellen mechanischer Taster: ohne das
             # meldet ein einziger Druck mehrere Flanken.
             self._button = Button(self.pin, pull_up=True, bounce_time=0.05)
+            self._setze_verfuegbar(True)
             self._setze_status(f"Taster an BCM {self.pin} "
                                f"(Haltezeit {self.haltezeit_s:.0f} s)")
             print(f"[Taster] {self._status} initialisiert")
         except Exception as e:
+            self._setze_verfuegbar(False)
             self._setze_status(f"kein Taster: GPIO-Fehler ({e})")
             print(f"[Taster] {self._status} — es wird nicht ausgeloest")
             return

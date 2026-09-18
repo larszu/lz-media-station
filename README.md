@@ -2,6 +2,7 @@
 
 > Sensor-gesteuerte Medien-Station mit Web-Admin, Display-Modus und Multi-Station Manager.
 > Läuft auf **Raspberry Pi** (HC-SR04 Ultraschallsensor) sowie auf **Mac/Windows** (Kamera-Erkennung als Abstandsquelle).
+> Ist kein Sensor da, übernimmt die Kamera von selbst — `sensor_type: "auto"` ist die Vorgabe ([Details](docs/sensoren.md)).
 
 [![Release](https://img.shields.io/badge/release-v2.1.0-blue)](https://github.com/larszu/pi-media-station/releases)
 
@@ -428,6 +429,7 @@ keinen Player-Prozess.)
 | `sensor.py` | Basis aller Abstandsquellen (Mittelwert, Veralten) + HC-SR04 |
 | `camera_sensor.py` | Kamera-Quelle (OpenCV + YuNet/Haar), plattformübergreifend |
 | `button_sensor.py` | Taster-Quelle am GPIO |
+| `auto_sensor.py` | Wahl mit Rückfall: HC-SR04, und wenn es den nicht gibt, die Kamera |
 | `sync.py` | Gleichtakt: folgt der Zone einer anderen Station |
 | `zeitplan.py` | Öffnungszeiten (rein, ohne Uhr — deshalb testbar) |
 | `statistik.py` | Besuche zählen, auswerten, atomar speichern |

@@ -65,6 +65,12 @@ class AbstandsQuelle(threading.Thread):
         # Klartext-Zustand fuer Log und Oberflaeche. Beginnt mit „startet",
         # weil vor dem ersten `run`-Durchlauf noch nichts feststeht.
         self._status = "startet"
+        # Drei Zustaende, und der dritte ist der Punkt: `None` heisst NOCH
+        # NICHT ENTSCHIEDEN. Eine Quelle, die gerade startet, ist nicht
+        # dasselbe wie eine, die es nicht gibt — wer das gleichsetzt, schaltet
+        # beim Start jedes Mal fuer einen Augenblick auf den Rueckfall um
+        # (Issue #13).
+        self._verfuegbar = None
 
     # -- von Unterklassen genutzt ------------------------------------------
 
@@ -94,6 +100,17 @@ class AbstandsQuelle(threading.Thread):
         """Klartext-Zustand setzen (Zuweisung ist unter dem GIL atomar)."""
         self._status = text
 
+    def _setze_verfuegbar(self, wert):
+        """Festhalten, ob es diese Quelle auf diesem Geraet ueberhaupt gibt.
+
+        Von der Unterklasse gesetzt, sobald sie es WEISS — nach der
+        Initialisierung der Hardware, nicht davor. `AutoAbstandsQuelle`
+        (Issue #13) wartet darauf, statt aus einem fehlenden Messwert auf
+        einen fehlenden Sensor zu schliessen: ein Besucher, der weit weg
+        steht, liefert auch keinen.
+        """
+        self._verfuegbar = wert
+
     def _quelle_schliessen(self):
         """Hardware freigeben. Unterklasse ueberschreibt bei Bedarf."""
         pass
@@ -115,6 +132,16 @@ class AbstandsQuelle(threading.Thread):
             if time.monotonic() - self._measured_at > STALE_AFTER_S:
                 return None
             return self._distance
+
+    @property
+    def verfuegbar(self):
+        """`True`/`False` — oder `None`, solange es noch nicht feststeht.
+
+        Nicht aus `distance` abzuleiten: kein Messwert heisst „niemand da"
+        genauso wie „kein Sensor da", und die beiden zu verwechseln ist
+        genau der Fehler, den Issue #13 vermeidet.
+        """
+        return self._verfuegbar
 
     @property
     def status(self):
@@ -152,6 +179,7 @@ class SensorThread(AbstandsQuelle):
     def run(self):
         self._running = True
         if not GPIOZERO_AVAILABLE:
+            self._setze_verfuegbar(False)
             self._setze_status("kein Sensor: gpiozero nicht installiert")
             print(f"[Sensor] {self._status} — es wird nicht ausgeloest")
             return
@@ -161,11 +189,13 @@ class SensorThread(AbstandsQuelle):
                 trigger=self.trigger_pin,
                 max_distance=4.0,
             )
+            self._setze_verfuegbar(True)
             self._setze_status(f"HC-SR04 (Trigger={self.trigger_pin}, Echo={self.echo_pin})")
             print(f"[Sensor] {self._status} initialisiert")
         except Exception as e:
             # Kein Rueckfall auf erfundene Werte. Der Thread endet, `distance`
             # bleibt None, der Grund steht in `status` und im Log.
+            self._setze_verfuegbar(False)
             self._setze_status(f"kein Sensor: GPIO-Fehler ({e})")
             print(f"[Sensor] {self._status} — es wird nicht ausgeloest")
             return
