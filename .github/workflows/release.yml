@@ -16,7 +16,7 @@ name: Release
 # Achtung Node-Version der ACTIONS (nicht des Runners): scripts/actions_node_runtime.py
 # aus verify.yml liest jede hier gepinnte action.yml und faellt durch, sobald eine
 # davon auf node < 24 laeuft. Die Pins unten (checkout@v5, setup-node@v5,
-# upload-artifact@v6, download-artifact@v7, action-gh-release@v3) sind dieselben,
+# upload-artifact@v6) sind dieselben,
 # mit denen cable-planner diesen Guard gruen haelt.
 
 on:
@@ -29,7 +29,27 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    # Legt den Release-Entwurf an, an den die Build-Jobs ihre Installer haengen.
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Release-Entwurf anlegen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          if gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME existiert schon."
+          else
+            gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --draft --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          fi
+
   build:
+    needs: prepare
+    # Auch ohne Tag (workflow_dispatch, prepare uebersprungen) bauen.
+    if: ${{ !cancelled() && needs.prepare.result != 'failure' }}
     strategy:
       fail-fast: false
       matrix:
@@ -114,7 +134,29 @@ jobs:
         working-directory: station-manager
         run: ls -lh dist/ || true
 
+      - name: Installer an den Release-Entwurf haengen
+        # Direkt ans Release statt ueber upload-artifact: das kontoweite
+        # Artifact-Kontingent war voll und hat Releases blockiert, obwohl der
+        # Build gelungen war. Der prepare-Job legt den Entwurf an; erst der
+        # release-Job veroeffentlicht ihn, wenn beide Installer dran sind.
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: station-manager
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          shopt -s nullglob
+          dateien=(dist/*.exe dist/*.dmg dist/*.blockmap)
+          if [ "${#dateien[@]}" -eq 0 ]; then
+            echo "Keine Installer in dist/ -- electron-builder hat nichts erzeugt."
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" "${dateien[@]}" --clobber -R "$GITHUB_REPOSITORY"
+
       - name: Upload artifacts
+        # Nur bei workflow_dispatch (kein Tag, also kein Release).
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v6
         with:
           name: station-manager-${{ matrix.name }}
@@ -122,63 +164,40 @@ jobs:
             station-manager/dist/*.exe
             station-manager/dist/*.dmg
             station-manager/dist/*.blockmap
-          # Laut scheitern, wenn ein Job keine Artefakte liefert, statt ein
-          # halbes Release entstehen zu lassen.
           if-no-files-found: error
-          # Nur Uebergabe an den release-Job; die Installer liegen danach am Release.
-          # Laengere Aufbewahrung fuellt das kontoweite Artifact-Kontingent.
           retention-days: 1
 
   release:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v7
-        with:
-          path: artifacts
-
-      - name: Release-Vollstaendigkeit pruefen
-        # Ein halbes Release ist schlimmer als keines: die Release-Seite sieht
-        # vollstaendig aus, obwohl ein Build-Job (z. B. macOS) abgebrochen ist.
-        # Dieser Schritt besteht darauf, dass BEIDE Installer-Gattungen da sind.
+      - name: Release-Vollstaendigkeit pruefen und veroeffentlichen
+        # Ein halbes Release ist schlimmer als keines: der Entwurf wird nur
+        # veroeffentlicht, wenn BEIDE Installer-Gattungen dranhaengen.
         # Keine latest*.yml-Pruefung -- der Station Manager hat keinen
         # Auto-Updater; diese Manifeste braucht (und erzeugt) er nicht.
         shell: bash
         run: |
           set -eu
-          echo "--- heruntergeladene Artefakte ---"
-          find artifacts -type f | sort
-          echo "----------------------------------"
+          namen="$(gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')"
+          echo "--- Assets am Entwurf ---"
+          echo "$namen"
+          echo "-------------------------"
           fehlt=0
           pruefe() {
-            anzahl="$(find artifacts -type f -name "$1" | wc -l | tr -d ' ')"
-            if [ "$anzahl" -ge 1 ]; then
-              echo "ok   $1 ($anzahl)"
-            else
-              echo "FEHLT $1 -- $2"
-              fehlt=1
-            fi
+            if echo "$namen" | grep -q "$1\$"; then echo "ok   $1"; else echo "FEHLT $1 -- $2"; fehlt=1; fi
           }
-          pruefe '*.exe' 'Windows-Installer/Portable (windows-Job)'
-          pruefe '*.dmg' 'macOS-Download (macos-Job)'
+          pruefe '.exe' 'Windows-Installer/Portable (windows-Job)'
+          pruefe '.dmg' 'macOS-Download (macos-Job)'
           if [ "$fehlt" -ne 0 ]; then
             echo
-            echo "Erst den fehlenden Build-Job reparieren, dann den Tag neu setzen."
+            echo "Erst den fehlenden Build-Job reparieren, dann die fehlgeschlagenen Jobs neu starten."
             exit 1
           fi
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            artifacts/**/*.exe
-            artifacts/**/*.dmg
-            artifacts/**/*.blockmap
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          gh release edit "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --draft=false
 
   # Nach dem Release die Tag-Version zurueck nach main schreiben, damit
   # station-manager/package.json nicht hinter den Tags zurueckbleibt (sonst
