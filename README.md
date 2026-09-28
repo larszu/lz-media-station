@@ -45,6 +45,13 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
   **validity period** (`from`/`to`, filtered in the core). Templates: full
   screen, split, L-shape, ticker. Every zone plays one layout — see
   [`docs/architektur-v3.md`](docs/architektur-v3.md)
+- **Layout editor with live preview**: draw regions on a canvas (drag,
+  resize at the corners, 5 % grid — mouse and one finger on a phone), build
+  mixed playlists from the library with a duration and a validity per entry,
+  configure widget regions from the widget catalogue; next to it the layout
+  runs in the very page the screen uses, with a **simulated point in time**
+  ("show me Tuesday 18:00"), and "What is playing now?" shows the real scene
+  muted — see [`docs/layouts.md`](docs/layouts.md)
 - **Instant publish**: `GET /api/events` (Server-Sent Events) pushes the new
   scene the moment it changes; polling is only the fallback
 - **Commands to all displays** (`POST /api/befehl`): reload, show a layout
@@ -554,6 +561,7 @@ This README is the overview. Topics that need more than a paragraph live in
 | [Multiple languages](docs/mehrsprachigkeit.md) | Subtitle tracks per video, language buttons |
 | [Lockstep](docs/gleichtakt.md) | One station follows another station's zone |
 | [Operation](docs/betrieb.md) | Media check on upload, backup and restore |
+| [Layouts](docs/layouts.md) | Regions with mixed playlists, templates, the editor (drag and resize with mouse and finger, validity per entry), live preview with a point in time, "What is playing now?" |
 | [Weekly programme and instant message](docs/programm.md) | Which layout a zone plays when: calendar with priorities, exception days; one message over everything |
 | [Triggers](docs/ausloeser.md) | When … then …: webhook, button, time, video ended, zone change → layout, message, screen off |
 | [Architecture 3.0](docs/architektur-v3.md) | Layouts and regions, validity per item, SSE instead of polling, commands, preview, extension points |

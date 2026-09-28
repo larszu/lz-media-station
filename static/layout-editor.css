@@ -1,0 +1,151 @@
+/* Layout-Editor (Karte „Layouts", seit 3.0).
+
+   Gestaltung wie der Rest der Verwaltung: die Marken-Tokens aus style.css,
+   keine Rundungen, keine Schatten, keine Verlaeufe (Brand Guide 2.0). Die
+   Leinwand ist ein Rechteck im Seitenverhaeltnis des Schirms; jede Region
+   darauf ist ein absolut gesetztes Rechteck in Prozent — dieselbe Rechnung
+   wie in display.css, nur klein. */
+
+.le-kopf { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.le-wahl-label { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-dim); flex: 1; min-width: 200px; }
+.le-wahl-label select { flex: 1; min-width: 0; }
+.le-kopf-aktionen { display: flex; gap: 4px; flex-wrap: wrap; }
+.le-loeschen[disabled] { opacity: 0.4; cursor: default; }
+.le-loeschen[disabled]:hover { border-color: var(--line-steel); color: var(--text); transform: none; }
+
+.le-neu { border: 1px solid var(--border); padding: 10px; margin-bottom: 10px; background: rgba(255,255,255,0.02); }
+.le-neu-aktionen { display: flex; gap: 6px; margin-top: 8px; }
+
+.le-editor { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 14px; }
+.le-links, .le-rechts { min-width: 0; }
+
+.le-leiste { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.le-format { display: flex; }
+.le-format-knopf {
+    padding: 5px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 0;
+}
+.le-format-knopf + .le-format-knopf { border-left: 0; }
+.le-format-knopf.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.le-farbe { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-dim); margin-left: auto; }
+.le-farbe input[type="color"] { width: 32px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 0; background: transparent; cursor: pointer; }
+
+/* Die Leinwand: 16:9 oder 9:16, Regionen in Prozent. `touch-action: none`,
+   damit der Browser beim Ziehen mit dem Finger nicht scrollt. */
+.le-leinwand {
+    position: relative; width: 100%; aspect-ratio: 16 / 9;
+    background: #000; border: 1px solid var(--line-steel); overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    /* Raster 5 %: eine Kachel als SVG, kein Verlauf (Brand Guide). */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cpath d='M19.5 0V20M0 19.5H20' stroke='rgba(255,255,255,0.08)' stroke-width='1'/%3E%3C/svg%3E");
+    background-size: 5% 5%;
+}
+.le-leinwand.hoch { aspect-ratio: 9 / 16; max-width: 320px; margin: 0 auto; }
+.le-leinwand:focus { outline: 2px solid var(--signal); outline-offset: 3px; }
+
+.le-region {
+    position: absolute; overflow: hidden; cursor: move;
+    border: 1px solid rgba(246, 245, 240, 0.55);
+    background: rgba(246, 245, 240, 0.08);
+    color: var(--text); font-size: 0.7rem;
+}
+.le-region.widget { background: rgba(200, 137, 43, 0.16); border-color: rgba(200, 137, 43, 0.7); }
+.le-region.gewaehlt { border: 2px solid var(--accent); background: rgba(246, 245, 240, 0.16); z-index: 100 !important; }
+.le-region .le-region-name {
+    position: absolute; left: 4px; top: 3px; right: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+}
+.le-region .le-region-info { position: absolute; left: 4px; bottom: 3px; color: var(--text-dim); pointer-events: none; }
+/* Griffe an den Ecken: 18 px, damit sie sich mit dem Daumen treffen lassen. */
+.le-griff {
+    position: absolute; width: 18px; height: 18px;
+    background: var(--accent); border: 1px solid var(--bg);
+    display: none;
+}
+.le-region.gewaehlt .le-griff { display: block; }
+.le-griff.nw { left: -1px; top: -1px; cursor: nwse-resize; }
+.le-griff.ne { right: -1px; top: -1px; cursor: nesw-resize; }
+.le-griff.sw { left: -1px; bottom: -1px; cursor: nesw-resize; }
+.le-griff.se { right: -1px; bottom: -1px; cursor: nwse-resize; }
+
+.le-tipp { font-size: 0.7rem; color: var(--text-dim); margin-top: 6px; }
+
+.le-region-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.le-region-ebene { display: flex; gap: 2px; }
+.le-region-felder .form-group input[type="text"], .le-region-felder .form-group select { width: 100%; }
+.le-geo { grid-column: span 2; }
+.le-geo-felder { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.le-geo-felder label { display: flex; flex-direction: column; font-size: 0.7rem; color: var(--text-dim); }
+.le-geo-felder input[type="number"] {
+    width: 100%; padding: 5px 6px; background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); border-radius: 0; color: var(--text); font-size: 0.8rem;
+}
+.le-schalter { display: flex; gap: 12px; flex-wrap: wrap; }
+.le-schalter .checkbox-label { padding: 2px 0; font-size: 0.8rem; }
+
+.le-playlist { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+.le-eintrag {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px;
+    padding: 4px 6px; background: rgba(255,255,255,0.02); font-size: 0.8rem;
+    border: 1px solid transparent;
+}
+.le-eintrag.ziehbar { cursor: grab; }
+.le-eintrag.ziel { border-color: var(--accent); }
+.le-eintrag.ungueltig .le-eintrag-name { color: var(--warning); }
+.le-eintrag-griff { color: var(--text-dim); cursor: grab; padding: 0 2px; }
+.le-eintrag-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.le-eintrag-felder { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.le-eintrag-felder input[type="number"] { width: 62px; }
+.le-eintrag-felder input[type="date"] {
+    padding: 3px 4px; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 0; color: var(--text); font-size: 0.7rem; width: 118px;
+}
+.le-eintrag-felder .ord-btn { font-size: 0.7rem; }
+
+.le-tabs { margin-bottom: 8px; }
+.le-tabs .tab { padding: 5px 10px; font-size: 0.75rem; }
+.le-medien { max-height: 220px; overflow: auto; border: 1px solid var(--border); }
+.le-medien .media-item { cursor: pointer; }
+.le-medien .media-item[draggable="true"] { cursor: grab; }
+.le-medien .empty { font-size: 0.8rem; }
+.le-web { display: flex; gap: 6px; }
+.le-web input[type="url"] {
+    flex: 1; min-width: 0; padding: 6px 8px; background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); border-radius: 0; color: var(--text); font-size: 0.8rem;
+}
+#le-widget-json {
+    width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); border-radius: 0; color: var(--text);
+    font-family: 'Consolas', 'SF Mono', monospace; font-size: 0.75rem;
+}
+#le-widget-felder .form-group input[type="text"], #le-widget-felder .form-group input[type="number"],
+#le-widget-felder .form-group input[type="url"], #le-widget-felder .form-group select,
+#le-widget-felder .form-group textarea {
+    width: 100%; padding: 6px 8px; background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); border-radius: 0; color: var(--text); font-size: 0.8rem;
+}
+
+.le-speichern { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.le-speichern .btn-save { width: auto; flex: 1; min-width: 200px; }
+.le-schmutzig { font-size: 0.75rem; color: var(--warning); margin-top: 10px; }
+
+.le-vorschau-leiste { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.le-vorschau-feld { display: flex; flex-direction: column; font-size: 0.7rem; color: var(--text-dim); gap: 3px; }
+.le-vorschau-feld input[type="datetime-local"] {
+    padding: 5px 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: 0; color: var(--text); font-size: 0.8rem;
+}
+.le-vorschau { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line-steel); }
+.le-vorschau.hoch { aspect-ratio: 9 / 16; max-width: 320px; margin: 0 auto; }
+.le-vorschau iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+
+/* „Was laeuft gerade" in der Status-Karte */
+.laeuft-gerade { margin-top: 10px; }
+.laeuft-gerade .le-vorschau { max-width: 480px; }
+
+@media (max-width: 700px) {
+    .le-editor { grid-template-columns: 1fr; }
+    .le-geo-felder { grid-template-columns: repeat(2, 1fr); }
+    .le-eintrag { grid-template-columns: auto minmax(0, 1fr); }
+    .le-eintrag-felder { grid-column: span 2; justify-content: flex-start; }
+}

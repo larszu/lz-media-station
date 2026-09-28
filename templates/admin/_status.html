@@ -20,4 +20,10 @@
          angeschlossen" statt einer erfundenen Zahl, seit der
          Demo-Modus entfernt ist. -->
     <div id="sensor-status" class="sensor-status"></div>
+    <!-- Was der Schirm gerade zeigt — die Anzeigeseite selbst, stumm und
+         ohne Auto-Start (static/module/layout-editor.js). -->
+    <div class="laeuft-gerade">
+        <button type="button" class="btn btn-small btn-secondary" onclick="LZ_EDITOR.zeigeLaeuftGerade()">Was l&auml;uft gerade?</button>
+        <div id="laeuft-gerade" hidden></div>
+    </div>
 </section>
