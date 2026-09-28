@@ -5,6 +5,11 @@
   "main": "main.js",
   "author": "Lars Zumpe Medienproduktion",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/larszu/pi-media-station.git",
+    "directory": "station-manager"
+  },
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
