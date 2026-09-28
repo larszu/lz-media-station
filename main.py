@@ -118,6 +118,8 @@ class Controller:
         # Datei. Wiedereintrittsfaehig, weil `save_config` darin aufgerufen
         # wird und selbst sperrt.
         self.lock = threading.RLock()
+        # Regeln, die das Zonen-Layout uebersteuern (siehe layout_fuer_zone)
+        self.layout_regeln = []
         self._gemeldete_szene = None
 
     @property
@@ -227,11 +229,31 @@ class Controller:
         if vorschau:
             lid = layout_id
         elif aktive_zone:
-            lid = layouts_modul.layout_id_der_zone(self.config, aktive_zone)
+            lid = self.layout_fuer_zone(aktive_zone, jetzt)
         layout = (self.config.get("layouts") or {}).get(lid) if lid else None
         szene["layout_id"] = lid if layout is not None else None
         szene["layout"] = layouts_modul.filtere_layout(layout, heute) if layout is not None else None
         return szene
+
+    def layout_fuer_zone(self, zone, jetzt):
+        """Welches Layout die Zone JETZT spielt.
+
+        Andockpunkt fuer Regeln (Welle 2: Wochenprogramm, Ausloeser): jede
+        Regel in `self.layout_regeln` ist ein Aufruf `(zone, jetzt, config)`
+        und liefert eine Layout-Kennung oder None. Die erste Antwort gewinnt;
+        eine Kennung, die es nicht gibt, zaehlt nicht. Ohne Treffer gilt das
+        Layout der Zone aus der Konfiguration.
+        """
+        layouts = self.config.get("layouts") or {}
+        for regel in list(self.layout_regeln):
+            try:
+                lid = regel(zone, jetzt, self.config)
+            except Exception as e:  # eine kaputte Regel darf den Schirm nicht schwarz machen
+                print(f"[Layout] Regel {getattr(regel, '__name__', regel)} gescheitert: {e}")
+                continue
+            if lid and lid in layouts:
+                return lid
+        return layouts_modul.layout_id_der_zone(self.config, zone)
 
     def melde_szene(self):
         """Die Szene an alle Anzeigen schicken — aber nur bei einem Wechsel.

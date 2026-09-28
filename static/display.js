@@ -131,8 +131,29 @@
 
     /* ---- Befehle von /api/befehl ---- */
 
+    // Andockpunkt fuer Zusatzskripte unter static/anzeige/*.js (Welle 2):
+    // Ereignisse kommen als CustomEvent 'lz-<typ>' am document an, mit den
+    // Daten in e.detail. Befehle, die dieser Kern nicht kennt, gehen als
+    // 'lz-befehl' weiter; jede angewandte Szene als 'lz-szene'; jeder
+    // gestartete Eintrag als 'lz-eintrag' {region, item, idx}.
+    function melde(typ, daten) {
+        try { document.dispatchEvent(new CustomEvent('lz-' + typ, { detail: daten })); } catch (e) { /* alt */ }
+    }
+    window.LZ_ANZEIGE = {
+        melde: melde,
+        buehne: function () { return buehne; },
+        regionen: function () {
+            return Object.keys(regionen).map(function (id) {
+                var r = regionen[id];
+                return { id: id, idx: r.idx, item: r.playlist ? r.playlist[r.idx] : null, typ: r.typ };
+            });
+        },
+        vorschau: function () { return !!vorschau; }
+    };
+
     function befehl(b) {
         if (!b || !b.typ) return;
+        melde('befehl', b);
         if (b.typ === 'reload') { window.location.reload(); return; }
         if (b.typ === 'zeige_layout') {
             if (ueberblendungTimer) { clearTimeout(ueberblendungTimer); ueberblendungTimer = null; }
@@ -192,6 +213,7 @@
     function verarbeite(scene) {
         if (!scene) return;
         stationsname = scene.stationsname || stationsname;
+        melde('szene', scene);
 
         // Der Wochenplan steht VOR allem anderen: ausserhalb der
         // Oeffnungszeit bleibt der Schirm schwarz und der Ton aus — kein
@@ -461,6 +483,7 @@
         if (!r.playlist.length) return;
         r.idx = ((idx % r.playlist.length) + r.playlist.length) % r.playlist.length;
         var item = r.playlist[r.idx];
+        melde('eintrag', { region: r.id, item: item, idx: r.idx });
         if (item.typ === 'video') { crossfadeVideo(r, item); return; }
         if (item.typ === 'image') { zeigeBild(r, item); startSlideshow(r); return; }
         if (item.typ === 'web') { zeigeWeb(r, item); startSlideshow(r); return; }
