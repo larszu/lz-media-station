@@ -1,4 +1,4 @@
-// Renderer for LZ Station Manager
+// Renderer for LZ Media Station Manager
 const grid = document.getElementById('station-grid');
 const selCount = document.getElementById('sel-count');
 const feedback = document.getElementById('bulk-feedback');
@@ -34,11 +34,11 @@ function render() {
                 <span style="float:right; opacity:0.6">${s.source || ''}</span>
             </div>
             <div class="station-actions">
-                <button data-act="start">▶ Start</button>
-                <button data-act="stop">■ Stop</button>
-                <button data-act="open">🌐 Admin</button>
-                <button data-act="reboot" class="danger">⟲</button>
-                <button data-act="remove" style="margin-left:auto">🗑</button>
+                <button data-act="start">Start</button>
+                <button data-act="stop">Stop</button>
+                <button data-act="open">Admin</button>
+                <button data-act="reboot" class="danger">Neustart</button>
+                <button data-act="remove" style="margin-left:auto">Entfernen</button>
             </div>`;
         card.addEventListener('click', (e) => {
             if (e.target.tagName === 'BUTTON') return;
@@ -96,7 +96,7 @@ el('add-ok').onclick = async () => {
     el('add-feedback').className = '';
     const ok = await window.station.addStation(host, port);
     if (ok) {
-        el('add-feedback').textContent = '✓ Hinzugefügt';
+        el('add-feedback').textContent = 'Hinzugefügt';
         el('add-feedback').className = 'success';
         setTimeout(() => {
             el('add-dialog').classList.add('hidden');
@@ -104,7 +104,7 @@ el('add-ok').onclick = async () => {
             el('add-host').value = '';
         }, 800);
     } else {
-        el('add-feedback').textContent = '✗ Nicht erreichbar';
+        el('add-feedback').textContent = 'Nicht erreichbar';
         el('add-feedback').className = 'error';
     }
 };
@@ -112,18 +112,18 @@ el('add-ok').onclick = async () => {
 el('bulk-start').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
     for (const id of selected) await window.station.api(id, 'start', 'POST');
-    setFeedback(`✓ ${selected.size} gestartet`, 'success');
+    setFeedback(`${selected.size} gestartet`, 'success');
 };
 el('bulk-stop').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
     for (const id of selected) await window.station.api(id, 'stop', 'POST');
-    setFeedback(`✓ ${selected.size} gestoppt`, 'success');
+    setFeedback(`${selected.size} gestoppt`, 'success');
 };
 el('bulk-reboot').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
     if (!confirm(`${selected.size} Stationen neu starten?`)) return;
     for (const id of selected) await window.station.api(id, 'system/reboot', 'POST');
-    setFeedback(`✓ Reboot an ${selected.size}`, 'success');
+    setFeedback(`Neustart an ${selected.size} gesendet`, 'success');
 };
 
 document.querySelectorAll('[data-upload]').forEach(btn => {
@@ -136,8 +136,8 @@ document.querySelectorAll('[data-upload]').forEach(btn => {
         const r = await window.station.uploadTo(Array.from(selected), type, files);
         const fails = r.filter(x => !x.ok);
         setFeedback(fails.length
-            ? `✗ ${fails.length} Fehler von ${r.length}`
-            : `✓ Alle ${r.length} Uploads ok`,
+            ? `${fails.length} Fehler von ${r.length}`
+            : `Alle ${r.length} Uploads ok`,
             fails.length ? 'error' : 'success');
     };
 });
@@ -154,7 +154,7 @@ el('bulk-push-config').onclick = async () => {
     if (!Object.keys(cfg).length) return setFeedback('Keine Felder gesetzt', 'error');
     const r = await window.station.pushConfig(Array.from(selected), cfg);
     const fails = r.filter(x => !x.ok);
-    setFeedback(fails.length ? `✗ ${fails.length} Fehler` : `✓ Config an ${r.length} gepusht`,
+    setFeedback(fails.length ? `${fails.length} Fehler` : `Config an ${r.length} gepusht`,
         fails.length ? 'error' : 'success');
 };
 

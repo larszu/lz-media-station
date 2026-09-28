@@ -370,7 +370,7 @@ In `/admin` → **Systemeinstellungen** → **WLAN**:
 
 ## Multi-Station Manager (Desktop-App)
 
-Im Ordner `station-manager/` liegt eine Electron-App für Win/Mac/Linux.
+Im Ordner `station-manager/` liegt der **LZ Media Station Manager**, eine Electron-App für Win/Mac/Linux.
 
 ### Entwicklung
 
@@ -398,7 +398,7 @@ Artefakte in `station-manager/dist/`.
 4. **Bulk**: Start / Stop / Reboot, Media-Upload, Config-Push
 5. **Admin öffnen**: pro Karte öffnet `/admin` im System-Browser
 
-Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. `~/Library/Application Support/station-manager/` (Mac).
+Persistente Daten der installierten App: `%APPDATA%\LZ Station Manager\stations.json` (Win) bzw. `~/Library/Application Support/LZ Station Manager/` (Mac) – der Ordnername von vor der Umbenennung bleibt, damit Updates ihre Stationen finden. Beim Start aus dem Quellcode (`npm start`) heißt der Ordner `station-manager`.
 
 ---
 
@@ -406,8 +406,8 @@ Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. 
 
 ```
                 ┌─────────────────────────────┐
-                │   LZ Station Manager (Electron)  │
-                │   Win / macOS / Linux       │
+                │  LZ Media Station Manager   │
+                │  Electron · Win/macOS/Linux │
                 └──────────────┬──────────────┘
                                │ HTTP/JSON (LAN oder Tailscale)
         ┌──────────────────────┼──────────────────────┐
@@ -597,7 +597,7 @@ Alle Oberflächen folgen dem Brand Guide 2.0 der Lars Zumpe Medienproduktion: De
 |---|---|
 | `static/brand/` | Favicon, App-Icon (192/512, Apple Touch), Signet „lz.", Hauptlogo und Wortmarke als Kontur — Web-Admin, Startseite, Anzeige, Projektseite |
 | `static/manifest.webmanifest` | Name und Icons, wenn der Admin auf einem Handy zum Startbildschirm hinzugefügt wird |
-| `station-manager/build/` | App-Icon des Station Managers (`icon.png`, `icon.ico`) für electron-builder |
+| `station-manager/build/` | App-Icon des LZ Media Station Managers (`icon.png`, `icon.ico`) für electron-builder |
 | `station-manager/renderer/brand/` | Signet, Hauptlogo und Fenster-Icon der Desktop-App |
 
 Die Desktop-Einträge des Pi (`install_pi.sh`, `LZ_Media_Station.desktop`) zeigen `static/brand/icon-512.png`. Unter 640 px Breite fällt das Signet aus der Kopfzeile.

@@ -392,15 +392,15 @@ async function spieleEin(eingabe) {
         });
         var d = await r.json();
         if (r.ok) {
-            fb.textContent = '✓ ' + (d.hinweis || 'Wiederhergestellt');
+            fb.textContent = (d.hinweis || 'Wiederhergestellt');
             fb.className = 'feedback success';
             fetchStatus();
         } else {
-            fb.textContent = '✗ ' + (d.error || 'Fehler');
+            fb.textContent = (d.error || 'Fehler');
             fb.className = 'feedback error';
         }
     } catch (e) {
-        fb.textContent = '✗ Datei nicht lesbar';
+        fb.textContent = 'Datei nicht lesbar';
         fb.className = 'feedback error';
     }
     eingabe.value = '';
@@ -481,11 +481,11 @@ async function resetStatistik() {
     var fb = el('stat-feedback');
     try {
         await fetch('/api/statistik/reset', { method: 'POST' });
-        fb.textContent = '✓ Zurückgesetzt';
+        fb.textContent = 'Zurückgesetzt';
         fb.className = 'feedback success';
         loadStatistik();
     } catch (e) {
-        fb.textContent = '✗ Fehler';
+        fb.textContent = 'Fehler';
         fb.className = 'feedback error';
     }
     setTimeout(function () { fb.textContent = ''; }, 2000);
@@ -555,16 +555,16 @@ async function saveZeitplan() {
         });
         var d = await r.json();
         if (r.ok) {
-            fb.textContent = '✓ Gespeichert';
+            fb.textContent = 'Gespeichert';
             fb.className = 'feedback success';
         } else {
             // Der Kern lehnt ab und sagt WELCHES Feld -- das gehoert angezeigt,
             // sonst sucht jemand den Fehler in der falschen Zeile.
-            fb.textContent = '✗ ' + (d.error || 'Fehler');
+            fb.textContent = (d.error || 'Fehler');
             fb.className = 'feedback error';
         }
     } catch (e) {
-        fb.textContent = '✗ Fehler';
+        fb.textContent = 'Fehler';
         fb.className = 'feedback error';
     }
     setTimeout(function () { fb.textContent = ''; }, 4000);
@@ -901,15 +901,15 @@ async function saveNetwork() {
         });
         var d = await r.json();
         if (r.ok) {
-            fb.textContent = '✓ Übernommen. Neue IP ggf. im Browser eingeben.';
+            fb.textContent = 'Übernommen. Neue IP ggf. im Browser eingeben.';
             fb.className = 'feedback success';
             setTimeout(loadNetwork, 2000);
         } else {
-            fb.textContent = '✗ ' + (d.error || 'Fehler');
+            fb.textContent = (d.error || 'Fehler');
             fb.className = 'feedback error';
         }
     } catch (e) {
-        fb.textContent = '✗ Verbindung verloren (evtl. neue IP aktiv).';
+        fb.textContent = 'Verbindung verloren (evtl. neue IP aktiv).';
         fb.className = 'feedback error';
     }
 }
@@ -945,11 +945,11 @@ async function loadWifi() {
         (d.networks || []).forEach(function (n) {
             var card = document.createElement('div');
             card.className = 'form-group';
-            var lock = (n.security && n.security !== '--') ? '🔒 ' : '';
-            var act = n.active ? ' ✓' : '';
+            var lock = (n.security && n.security !== '--') ? ' · verschlüsselt' : '';
+            var act = n.active ? ' · verbunden' : '';
             card.innerHTML = '<button class="btn" style="text-align:left" onclick="pickWifi(\'' +
-                escAttr(n.ssid) + '\')">' + lock + esc(n.ssid) +
-                ' <small>(' + n.signal + '%)' + act + '</small></button>';
+                escAttr(n.ssid) + '\')">' + esc(n.ssid) +
+                ' <small>(' + n.signal + '%' + lock + act + ')</small></button>';
             list.appendChild(card);
         });
     } catch (e) {
@@ -975,15 +975,15 @@ async function toggleWifi() {
         });
         var d = await r.json();
         if (r.ok) {
-            fb.textContent = '✓ ' + (enabled ? 'WLAN aktiv' : 'WLAN aus');
+            fb.textContent = (enabled ? 'WLAN aktiv' : 'WLAN aus');
             fb.className = 'feedback success';
             setTimeout(loadWifi, 1500);
         } else {
-            fb.textContent = '✗ ' + (d.error || 'Fehler');
+            fb.textContent = (d.error || 'Fehler');
             fb.className = 'feedback error';
         }
     } catch (e) {
-        fb.textContent = '✗ ' + e.message;
+        fb.textContent = 'Fehler: ' + e.message;
         fb.className = 'feedback error';
     }
 }
@@ -1003,16 +1003,16 @@ async function connectWifi() {
         });
         var d = await r.json();
         if (r.ok) {
-            fb.textContent = '✓ Verbunden mit ' + ssid;
+            fb.textContent = 'Verbunden mit ' + ssid;
             fb.className = 'feedback success';
             el('wifi-password').value = '';
             setTimeout(function () { loadWifi(); loadNetwork(); }, 2500);
         } else {
-            fb.textContent = '✗ ' + (d.error || 'Verbindung fehlgeschlagen');
+            fb.textContent = (d.error || 'Verbindung fehlgeschlagen');
             fb.className = 'feedback error';
         }
     } catch (e) {
-        fb.textContent = '✗ ' + e.message;
+        fb.textContent = 'Fehler: ' + e.message;
         fb.className = 'feedback error';
     }
 }
@@ -1112,10 +1112,10 @@ async function schirmBefehl(was, auswahl) {
         });
         var d = await r.json();
         var meldungen = d.meldungen || [];
-        fb.textContent = meldungen.length ? meldungen.join(' · ') : '✓';
+        fb.textContent = meldungen.length ? meldungen.join(' · ') : 'OK';
         fb.className = 'feedback' + (meldungen.length ? ' error' : '');
     } catch (e) {
-        fb.textContent = '✗ ' + e.message;
+        fb.textContent = 'Fehler: ' + e.message;
         fb.className = 'feedback error';
     }
     await ladeSchirme();

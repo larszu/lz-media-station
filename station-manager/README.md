@@ -1,4 +1,4 @@
-# LZ Station Manager – Desktop App
+# LZ Media Station Manager – Desktop App
 
 Verwaltet mehrere LZ Media Stations (Raspberry Pi) im LAN über eine Electron-Oberfläche.
 
@@ -36,7 +36,9 @@ npm run dist:win
 npm run dist:mac
 ```
 
-Artefakte landen in `dist/`.
+Artefakte landen in `dist/`, etwa `LZ Media Station Manager Setup X.Y.Z.exe` und `LZ Media Station Manager-X.Y.Z-arm64.dmg`.
+
+Gespeicherte Stationen (`stations.json`) liegen in der installierten App weiter im Ordner `LZ Station Manager` unter `%APPDATA%` bzw. `~/Library/Application Support/` – der Name vor der Umbenennung, damit Updates ihre Daten finden. Beim Entwicklungsstart (`npm start`) ist es der Ordner `station-manager`.
 
 ## Tailscale (optional, empfohlen für Remote-Verwaltung)
 
