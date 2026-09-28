@@ -10,6 +10,10 @@
 
 ![Web admin of the LZ Media Station](docs/screenshot-admin-en.png)
 
+| Start page | Admin on a phone | Station Manager |
+|---|---|---|
+| ![Start page with addresses for other devices](docs/screenshot-start-en.png) | ![Web admin on a phone](docs/screenshot-handy-en.png) | ![Station Manager with four stations](docs/screenshot-manager-en.png) |
+
 **Project page:** https://larszu.github.io/lz-media-station/ — README and docs, rebuilt on every push to `main` (`.github/workflows/pages.yml`).
 
 The detailed documentation in [`docs/`](docs/README.md) is written in German.
