@@ -6,8 +6,11 @@
 set -e
 
 REPO_URL="https://github.com/larszu/lz-media-station.git"
-APP_NAME="pi_media_station"
+APP_NAME="lz-media-station"
 APP_DIR="$HOME/$APP_NAME"
+# Frueherer Installationsort; wird beim naechsten Lauf samt Medien und
+# config.json hierher umgezogen.
+ALT_DIR="$HOME/pi_media_station"
 BRANCH="${BRANCH:-main}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -30,6 +33,11 @@ sudo apt install -y --no-install-recommends \
     chromium-browser git curl avahi-daemon
 
 # 2) Quellcode
+if [ -d "$ALT_DIR/.git" ] && [ ! -e "$APP_DIR" ]; then
+    log "Ziehe $ALT_DIR nach $APP_DIR um ..."
+    mv "$ALT_DIR" "$APP_DIR"
+    git -C "$APP_DIR" remote set-url origin "$REPO_URL"
+fi
 if [ -d "$APP_DIR/.git" ]; then
     log "Update vorhandenes Repo in $APP_DIR ..."
     git -C "$APP_DIR" fetch --all

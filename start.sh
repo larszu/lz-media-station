@@ -16,7 +16,7 @@ done
 if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
     echo "[LZ] Wayland-Socket nicht verfügbar, Chromium-Start übersprungen."
     # Boot-Race: Session ist oft noch nicht komplett oben. Einmal verzögert neu versuchen.
-    nohup /bin/bash -lc 'sleep 25; /home/pi/pi_media_station/start.sh' >/tmp/lz_retry.log 2>&1 &
+    nohup /bin/bash -lc "sleep 25; $(cd "$(dirname "$0")" && pwd)/start.sh" >/tmp/lz_retry.log 2>&1 &
     exit 0
 fi
 
