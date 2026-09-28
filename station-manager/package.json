@@ -1,6 +1,6 @@
 {
   "name": "station-manager",
-  "version": "1.0.0",
+  "version": "2.0.4",
   "description": "LZ Media Station Manager – discover and control multiple Pi stations on the LAN",
   "main": "main.js",
   "author": "Lars Zumpe Medienproduktion",
