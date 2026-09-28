@@ -100,10 +100,24 @@
             document.getElementById('ip-addr').textContent = hostStr;
             document.getElementById('remote-url').textContent = d.remote_url || ('http://' + hostStr + '/admin');
             document.getElementById('remote-display').textContent = d.display_url || ('http://' + hostStr + '/display');
-            // Nur Auto-Start wenn near oder far Medien hat
-            var n = d.config.near || {}, f = d.config.far || {};
-            var hasMedia = (n.videos||[]).length || (n.images||[]).length || (n.audio||[]).length
-                        || (f.videos||[]).length || (f.images||[]).length || (f.audio||[]).length;
+            // Auto-Start nur, wenn eine aktive Zone etwas zu zeigen hat.
+            // Seit 3.0 zaehlt das LAYOUT der Zone: eine Region mit Playlist
+            // oder ein Widget ist Inhalt, auch ohne einzige Datei (Webseite,
+            // Uhr). Der Ton der Zone zaehlt weiter. Ein Kern von vor 3.0
+            // ohne `layouts` wird an den alten Listen gemessen.
+            var cfg = d.config || {};
+            var zonen = Number(cfg.zonen_stufen) === 3 ? ['near', 'mid', 'far'] : ['near', 'far'];
+            function zoneHatInhalt(name) {
+                var z = cfg[name] || {};
+                if ((z.audio || []).length) return true;
+                var layouts = cfg.layouts;
+                if (!layouts) return (z.videos || []).length || (z.images || []).length;
+                var layout = layouts[z.layout || ('zone-' + name)] || layouts['zone-' + name] || {};
+                return (layout.regionen || []).some(function (r) {
+                    return r.typ === 'widget' || (r.playlist || []).length;
+                });
+            }
+            var hasMedia = zonen.some(zoneHatInhalt);
             if (hasMedia) {
                 startCountdown();
             } else {

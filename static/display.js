@@ -32,6 +32,11 @@
     var vorschauLayout = params.get('layout') || '';
     var vorschauZone = params.get('zone') || '';
     var vorschauZeit = params.get('zeit') || '';
+    // `zuschauen=1`: die echte Szene wie auf dem Schirm, aber STUMM und ohne
+    // den Auto-Start — fuer das Fenster „Was laeuft gerade" im Admin. Ein
+    // zweiter Betrachter darf die Steuerung nicht anwerfen und nicht aus
+    // dem Buero heraus Ton machen.
+    var zuschauen = params.get('zuschauen') === '1';
 
     var currentHash = '';
     // Kennung der laufenden Regionen (der Name stammt aus der Zeit, in der
@@ -228,7 +233,7 @@
 
         if (!scene.active && !vorschau) {
             if (currentHash) { fadeAllOut(); currentHash = ''; }
-            if (!startAttempted) {
+            if (!startAttempted && !zuschauen) {
                 startAttempted = true;
                 fetch('/api/start', { method: 'POST' }).catch(function () {});
             }
@@ -254,7 +259,7 @@
         // 0 % zog, bekam volle Lautstaerke; der Regler geht bis 0, und er
         // ist der einzige Stumm-Schalter, den die Station hat. Fuer Video
         // und Audio galt dasselbe.
-        var master = anteil(scene.master_volume);
+        var master = zuschauen ? 0 : anteil(scene.master_volume);
         var vid = anteil(scene.video_volume);
         var aud = anteil(scene.audio_volume);
         if (master !== null && vid !== null) {
