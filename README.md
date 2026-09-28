@@ -8,7 +8,7 @@
 
 [![Release](https://img.shields.io/github/v/release/larszu/lz-media-station)](https://github.com/larszu/lz-media-station/releases/latest)
 
-![Web admin of the LZ Media Station](docs/screenshot-admin.png)
+![Web admin of the LZ Media Station](docs/screenshot-admin-en.png)
 
 **Project page:** https://larszu.github.io/lz-media-station/ — README and docs, rebuilt on every push to `main` (`.github/workflows/pages.yml`).
 
@@ -53,6 +53,7 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
 - **Video resume**: optionally continue playback where it left off instead of from the start
 
 ### Web admin (`/admin`)
+- **German and English**: the DE/EN button in the header switches the language; without a choice the browser language decides, `?lang=en` in the address fixes it (also for a kiosk). The Station Manager has the same switch
 - Zone overview
 - Media library with tabs (videos / images / audio)
 - **Drag-and-drop upload** with progress and **media check** (warns about 4K/60 fps/foreign codecs that stutter on the Pi)
@@ -282,8 +283,6 @@ to **Camera** (see [`docs/sensoren.md`](docs/sensoren.md)).
 
 ## Usage
 
-The interface itself is in German.
-
 ### Web admin (`/admin`)
 
 | Section | Function |
@@ -314,7 +313,7 @@ the least reliable way there.
 
 ### Configuring the network
 
-In `/admin` → **Systemeinstellungen** → **Netzwerk**:
+In `/admin` → **System settings** → **Connection**:
 
 1. Choose the active connection
 2. **DHCP** or **static**
@@ -325,12 +324,12 @@ In `/admin` → **Systemeinstellungen** → **Netzwerk**:
 
 ### Configuring Wi-Fi
 
-In `/admin` → **Systemeinstellungen** → **WLAN**:
+In `/admin` → **System settings** → **Wi-Fi**:
 
 1. Enable the Wi-Fi toggle
 2. **Scan networks**
 3. Click an SSID → enter the password
-4. **Connect**
+4. **Connect to Wi-Fi**
 
 > An active Ethernet connection stays up — you can put the Pi on Wi-Fi in parallel.
 
@@ -408,6 +407,7 @@ player process.)
 | `tv_cec.py` | Switch the TV via HDMI-CEC (never throws) |
 | `displays.py` | Find and drive this computer's screens |
 | `static/`, `templates/` | Frontend (admin, display, start page) |
+| `static/i18n.js`, `static/i18n-en.js` | Interface language: German source, English dictionary; `tests/test_i18n.py` finds missing entries |
 | `lzstation.service` | Avahi mDNS for manager discovery |
 
 **Manager stack:**

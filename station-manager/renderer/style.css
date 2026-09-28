@@ -2,6 +2,7 @@
 /* ADR-007 (av-planner-suite) — dieselbe Palette wie die Web-Oberflaeche
    und die uebrigen Werkzeuge der Suite. */
 :root {
+    color-scheme: dark;
     --bg: #132040;      /* Deep Navy */
     --bg2: #1D324F;     /* Zumpe Navy — Kopf und Seitenleiste */
     --card: #1D324F;    /* Zumpe Navy */
@@ -175,3 +176,6 @@ select:focus-visible, textarea:focus-visible {
     outline: 2px solid var(--signal);
     outline-offset: 3px;
 }
+
+/* Sprachumschalter (i18n.js): nennt die ANDERE Sprache. */
+.lang-switch { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; }

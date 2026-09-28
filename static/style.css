@@ -9,6 +9,10 @@
    jemand steht davor oder nicht. Sie folgen den Status-Toenen des Handbuchs
    (Erfolg / Stahlblau) statt einem eigenen Gruen-Blau. */
 :root {
+    /* Das Web der Marke ist dunkel (Guide: 70 % Deep Navy). `color-scheme`
+       sagt das auch dem Browser — ohne es zeichnet er Checkboxen, Radios,
+       Selects, Zeitfelder und Scrollbalken hell. */
+    color-scheme: dark;
     --bg: #132040;          /* Deep Navy — Grund */
     --surface: #1D324F;     /* Zumpe Navy — Karten */
     --border: rgba(246, 245, 240, 0.14);
@@ -193,6 +197,13 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 /* --- Buttons --- */
 .btn { padding: 7px 18px; border: none; border-radius: 0; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s; text-decoration: none; display: inline-block; }
 .btn:hover { transform: translateY(-1px); }
+/* Grundknopf: Aktionsflaeche der Marke. Vorher fiel ein .btn ohne weitere
+   Klasse auf den Browser-Standard zurueck — hell im hellen Schema, grau im
+   dunklen, also je nach System anders. */
+.btn { background: var(--accent); color: var(--accent-text); }
+.btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--line-steel); }
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn-small { padding: 5px 12px; font-size: 0.8rem; }
 .btn-start { background: var(--near); color: var(--accent); }
 .btn-stop { background: transparent; color: var(--accent); border: 1px solid var(--danger); }
 .btn-stop:hover { background: color-mix(in srgb, var(--danger) 20%, transparent); }
@@ -250,7 +261,9 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 .settings-grid .span-2 { grid-column: span 2; }
 .form-group label { display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 3px; }
 .form-group input[type="text"],
-.form-group input[type="number"] {
+.form-group input[type="number"],
+.form-group input[type="password"],
+.form-group select {
     width: 100%;
     padding: 7px 10px;
     background: rgba(255,255,255,0.04);
@@ -261,7 +274,32 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 }
 .form-group input:focus { outline: none; border-color: var(--accent); box-shadow: none; }
 .checkbox-label { display: flex !important; align-items: center; gap: 10px; cursor: pointer; color: var(--text); font-size: 0.85rem; padding: 6px 0; }
-.checkbox-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+.checkbox-label input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+
+/* Checkbox und Radio selbst gezeichnet: eckig, Navy mit Linie, gesetzt
+   Off-White — dieselbe Sprache wie die Knoepfe, keine Systemoptik. */
+input[type="checkbox"], input[type="radio"] {
+    appearance: none; -webkit-appearance: none;
+    flex: none; width: 18px; height: 18px; margin: 0;
+    background: var(--bg); border: 1px solid var(--line-steel); border-radius: 0;
+    display: inline-grid; place-content: center; cursor: pointer;
+}
+input[type="checkbox"]::after {
+    content: ""; width: 5px; height: 10px; margin-top: -2px;
+    border: solid var(--accent-text); border-width: 0 2px 2px 0;
+    transform: rotate(45deg); visibility: hidden;
+}
+input[type="radio"]::after { content: ""; width: 8px; height: 8px; background: var(--accent-text); visibility: hidden; }
+input[type="checkbox"]:checked, input[type="radio"]:checked { background: var(--accent); border-color: var(--accent); }
+input[type="checkbox"]:checked::after, input[type="radio"]:checked::after { visibility: visible; }
+input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: 0.4; cursor: default; }
+
+select {
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 0;
+    padding: 6px 8px; font: inherit; font-size: 0.85rem;
+}
+select option { background: var(--bg); color: var(--text); }
 
 /* Schieberegler: 24 px Trefferflaeche (WCAG 2.2 SC 2.5.8, Stufe AA).
  *
@@ -375,3 +413,14 @@ select:focus-visible, textarea:focus-visible {
 @media (max-width: 639px) {
     .nav-brand .logo-link { display: none; }
 }
+
+/* --- Sprachumschalter (i18n.js) ---
+   Nennt die ANDERE Sprache; eckig, Stahlblau-Linie wie die Kopflinie. */
+.lang-switch {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--line-steel); border-radius: 0;
+    padding: 4px 8px; font: inherit; font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.16em; cursor: pointer;
+}
+.lang-switch:hover { border-color: var(--accent); color: var(--accent); }
+.lang-switch-ecke { position: fixed; top: 16px; right: 16px; }

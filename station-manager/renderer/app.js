@@ -7,6 +7,9 @@ let stations = [];
 
 function el(id) { return document.getElementById(id); }
 
+// confirm-Dialoge gehen nicht durchs DOM — i18n.js uebersetzt sie nur hier.
+const tr = (text) => (window.LZ && window.LZ.t) ? window.LZ.t(text) : text;
+
 function render() {
     grid.innerHTML = '';
     if (!stations.length) {
@@ -66,11 +69,11 @@ async function handleAction(s, action) {
     else if (action === 'stop') await window.station.api(s.id, 'stop', 'POST');
     else if (action === 'open') await window.station.openAdmin(s.id);
     else if (action === 'reboot') {
-        if (confirm(`Station "${s.name}" neu starten?`))
+        if (confirm(tr(`Station "${s.name}" neu starten?`)))
             await window.station.api(s.id, 'system/reboot', 'POST');
     }
     else if (action === 'remove') {
-        if (confirm(`Station "${s.name}" aus der Liste entfernen?`))
+        if (confirm(tr(`Station "${s.name}" aus der Liste entfernen?`)))
             await window.station.removeStation(s.id);
     }
 }
@@ -121,7 +124,7 @@ el('bulk-stop').onclick = async () => {
 };
 el('bulk-reboot').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
-    if (!confirm(`${selected.size} Stationen neu starten?`)) return;
+    if (!confirm(tr(`${selected.size} Stationen neu starten?`))) return;
     for (const id of selected) await window.station.api(id, 'system/reboot', 'POST');
     setFeedback(`✓ Reboot an ${selected.size}`, 'success');
 };

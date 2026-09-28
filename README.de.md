@@ -50,6 +50,7 @@
 - **Video-Resume**: Optional Wiedergabe an gleicher Stelle fortsetzen, statt von vorne
 
 ### Web-Admin (`/admin`)
+- **Deutsch und Englisch**: der Knopf DE/EN in der Kopfzeile schaltet um; ohne Wahl entscheidet die Browsersprache, `?lang=en` in der Adresse legt sie fest (auch für einen Kiosk). Der Station Manager hat denselben Schalter
 - Zonen-Übersicht
 - Medien-Bibliothek mit Tabs (Videos / Bilder / Audio)
 - **Drag-and-Drop-Upload** mit Fortschrittsanzeige und **Medien-Check** (warnt vor 4K/60fps/fremdem Codec, der auf dem Pi ruckelt)
@@ -411,6 +412,7 @@ keinen Player-Prozess.)
 | `tv_cec.py` | Fernseher per HDMI-CEC schalten (wirft nie) |
 | `displays.py` | Bildschirme dieses Rechners finden und bespielen |
 | `static/`, `templates/` | Frontend (Admin, Anzeige, Startseite) |
+| `static/i18n.js`, `static/i18n-en.js` | Oberflächensprache: Deutsch als Quelle, englisches Wörterbuch; `tests/test_i18n.py` findet fehlende Einträge |
 | `lzstation.service` | Avahi mDNS für die Manager-Discovery |
 
 **Manager-Stack:**
