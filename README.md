@@ -28,6 +28,7 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
 - [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 - [Tailscale (remote management)](#tailscale-remote-management)
+- [Appearance](#appearance)
 
 ---
 
@@ -296,6 +297,7 @@ The interface itself is in German.
 | **Subtitles** | Define languages, upload `.vtt`, assign per video and language |
 | **Settings** | Name, number of zones, thresholds, delay, image interval, volumes, video resume |
 | **Scheduling** | Weekly plan, HDMI-CEC |
+| **About** | Main logo, name, version |
 | **System settings** | Distance source, lockstep, display IP, network, Wi-Fi, reboot |
 
 A medium is assigned to a zone in the **library** with one button per zone;
@@ -552,6 +554,21 @@ sudo tailscale up
 Install Tailscale on the manager computer as well and sign in to the same tailnet. The Pis are then reachable at `100.x.y.z` or `<pi-name>.<tailnet>.ts.net` (MagicDNS).
 
 > mDNS does **not** work over Tailscale → add stations once manually in the manager with their Tailscale address.
+
+---
+
+## Appearance
+
+All interfaces follow Brand Guide 2.0 of Lars Zumpe Medienproduktion: Deep Navy as the background, Off-White for action surfaces, Tally Red only for the focus ring and the dot in the signet, no rounded corners, shadows or gradients. `tests/test_brand_tokens.py` checks this.
+
+| File | Purpose |
+|---|---|
+| `static/brand/` | Favicon, app icon (192/512, Apple Touch), signet "lz.", main logo and word mark as outlines — web admin, start page, display, project page |
+| `static/manifest.webmanifest` | Name and icons when the admin is added to a phone's home screen |
+| `station-manager/build/` | App icon of the Station Manager (`icon.png`, `icon.ico`) for electron-builder |
+| `station-manager/renderer/brand/` | Signet, main logo and window icon of the desktop app |
+
+The Pi's desktop entries (`install_pi.sh`, `LZ_Media_Station.desktop`) use `static/brand/icon-512.png`. Below 640 px width the signet drops out of the header.
 
 ---
 

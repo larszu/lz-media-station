@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LZ Media Station – Admin</title>
+    <link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+    <link rel="manifest" href="/static/manifest.webmanifest">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <nav>
         <div class="nav-brand">
-            <a href="/" class="logo-link"><span class="logo">◉</span></a>
+            <a href="/" class="logo-link"><img class="signet" src="/static/brand/lzm_signet_offwhite_tally.svg" alt="Startseite" height="32"></a>
             <h1>LZ Media Station – Admin</h1>
         </div>
         <div class="nav-right">
@@ -333,11 +336,11 @@
                     <label for="net-dns">DNS (kommagetrennt)</label>
                     <input type="text" id="net-dns" placeholder="1.1.1.1,8.8.8.8">
                 </div>
-                <div class="form-group span-2" style="border-top:1px solid #2a2a4a; padding-top:10px; margin-top:6px">
+                <div class="form-group span-2" style="border-top:1px solid var(--border); padding-top:10px; margin-top:6px">
                     <label for="cfg-display-ip">Anzeige-IP f&uuml;r Fernsteuerung (leer = Auto-Erkennung)</label>
                     <input type="text" id="cfg-display-ip" placeholder="z.B. 192.168.1.50">
                 </div>
-                <div class="form-group span-2" style="border-top:1px solid #2a2a4a; padding-top:10px; margin-top:6px">
+                <div class="form-group span-2" style="border-top:1px solid var(--border); padding-top:10px; margin-top:6px">
                     <label for="cfg-sensor-type">Abstandsquelle</label>
                     <select id="cfg-sensor-type">
                         <option value="auto">Automatisch (Ultraschall, sonst Kamera)</option>
@@ -364,7 +367,7 @@
                     <label for="cfg-camera-focal">Brennweite (px, kalibriert)</label>
                     <input type="number" id="cfg-camera-focal" value="700" min="1" max="100000" step="1">
                 </div>
-                <div class="form-group span-2" style="border-top:1px solid #2a2a4a; padding-top:10px; margin-top:6px">
+                <div class="form-group span-2" style="border-top:1px solid var(--border); padding-top:10px; margin-top:6px">
                     <label for="cfg-sync-rolle">Gleichtakt mit anderen Stationen</label>
                     <select id="cfg-sync-rolle">
                         <option value="aus">Aus &mdash; eigener Sensor</option>
@@ -395,7 +398,7 @@
                 <button class="btn btn-stop" onclick="rebootPi()">Pi neu starten</button>
             </div>
             <div id="net-feedback" class="feedback"></div>
-            <p style="margin-top:8px; font-size:0.75rem; color:#6060a0">
+            <p style="margin-top:8px; font-size:0.75rem; color:var(--text-dim)">
                 Hinweis: Eine geänderte IP unterbricht die Verbindung. Die neue Adresse danach im Browser eingeben.
             </p>
 
@@ -421,6 +424,14 @@
             </div>
             <button class="btn btn-save" style="margin-top:8px" onclick="connectWifi()">Mit WLAN verbinden</button>
             <div id="wifi-feedback" class="feedback"></div>
+        </section>
+
+        <section class="card about">
+            <h2>&Uuml;ber</h2>
+            <img class="about-logo" src="/static/brand/lzm_hauptlogo_offwhite.svg" alt="Lars Zumpe Medienproduktion" width="160">
+            <p class="about-name">LZ Media Station</p>
+            <p>Version <span id="about-version">&ndash;</span></p>
+            <p>Lars Zumpe Medienproduktion</p>
         </section>
     </main>
 
