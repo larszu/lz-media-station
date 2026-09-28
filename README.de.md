@@ -42,6 +42,13 @@
   (`von`/`bis`, gefiltert im Kern). Vorlagen: Vollbild, geteilt, L-Form,
   Ticker. Jede Zone spielt ein Layout — siehe
   [`docs/architektur-v3.md`](docs/architektur-v3.md)
+- **Layout-Editor mit Live-Vorschau**: Regionen auf einer Leinwand zeichnen
+  (ziehen, an den Ecken skalieren, Raster 5 % — mit der Maus wie mit einem
+  Finger am Handy), gemischte Playlists aus der Bibliothek mit Standzeit und
+  Gültigkeit je Eintrag, Widget-Regionen aus dem Widget-Katalog; daneben
+  läuft das Layout in derselben Seite wie auf dem Schirm, mit **simuliertem
+  Zeitpunkt** („zeig mir Dienstag 18:00"), und „Was läuft gerade?" zeigt die
+  echte Szene stumm — siehe [`docs/layouts.md`](docs/layouts.md)
 - **Sofort-Veröffentlichung**: `GET /api/events` (Server-Sent Events) schickt
   die neue Szene in dem Moment, in dem sie feststeht; gefragt wird nur noch
   als Rückfall
@@ -557,6 +564,7 @@ stehen in [`docs/`](docs/README.md) — dort steht das Wie und, wichtiger, das
 | [Mehrsprachigkeit](docs/mehrsprachigkeit.md) | Untertitelspuren je Video, Sprachknöpfe |
 | [Gleichtakt](docs/gleichtakt.md) | Eine Station folgt der Zone einer anderen |
 | [Betrieb](docs/betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung |
+| [Layouts](docs/layouts.md) | Regionen mit gemischten Playlists, Vorlagen, der Editor (ziehen und skalieren mit Maus und Finger, Gültigkeit je Eintrag), Live-Vorschau mit Zeitpunkt, „Was läuft gerade?" |
 | [Architektur 3.0](docs/architektur-v3.md) | Layouts und Regionen, Gültigkeit je Eintrag, SSE statt Polling, Befehle, Vorschau, Erweiterungspunkte |
 | [Widgets](docs/widgets.md) | Uhr, Text-Folie, Laufschrift, Wetter, RSS, Kalender, QR, Webseite, Zähler, eigene HTML-Widgets; Proxys, Zwischenspeicher, Verhalten ohne Netz |
 
