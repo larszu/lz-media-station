@@ -1,0 +1,121 @@
+<!-- Systemeinstellungen -->
+<section class="card">
+    <h2>Systemeinstellungen</h2>
+    <div id="net-info" class="zone-empty">Lade Netzwerkstatus...</div>
+    <div class="settings-grid" style="margin-top:12px">
+        <div class="form-group span-2">
+            <label for="net-connection">Verbindung</label>
+            <select id="net-connection"></select>
+        </div>
+        <div class="form-group span-2">
+            <label>Modus</label>
+            <label class="checkbox-label" style="margin-top:4px">
+                <input type="radio" name="net-method" value="auto" id="net-method-auto" checked>
+                <span>DHCP (automatisch)</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="radio" name="net-method" value="manual" id="net-method-manual">
+                <span>Statische IP</span>
+            </label>
+        </div>
+        <div class="form-group span-2">
+            <label for="net-address">IP-Adresse / CIDR</label>
+            <input type="text" id="net-address" placeholder="z.B. 192.168.1.50/24">
+        </div>
+        <div class="form-group">
+            <label for="net-gateway">Gateway</label>
+            <input type="text" id="net-gateway" placeholder="192.168.1.1">
+        </div>
+        <div class="form-group">
+            <label for="net-dns">DNS (kommagetrennt)</label>
+            <input type="text" id="net-dns" placeholder="1.1.1.1,8.8.8.8">
+        </div>
+        <div class="form-group span-2" style="border-top:1px solid var(--border); padding-top:10px; margin-top:6px">
+            <label for="cfg-display-ip">Anzeige-IP f&uuml;r Fernsteuerung (leer = Auto-Erkennung)</label>
+            <input type="text" id="cfg-display-ip" placeholder="z.B. 192.168.1.50">
+        </div>
+        <div class="form-group span-2" style="border-top:1px solid var(--border); padding-top:10px; margin-top:6px">
+            <label for="cfg-sensor-type">Abstandsquelle</label>
+            <select id="cfg-sensor-type">
+                <option value="auto">Automatisch (Ultraschall, sonst Kamera)</option>
+                <option value="ultrasonic">Nur Ultraschall (HC-SR04 am GPIO)</option>
+                <option value="camera">Kamera (Webcam, auch Mac/Windows)</option>
+                <option value="button">Taster (Besucher dr&uuml;ckt)</option>
+            </select>
+        </div>
+        <!-- Nur bei Ultraschall sichtbar -->
+        <div class="form-group sensor-ultrasonic">
+            <label for="cfg-gpio-trigger">GPIO Trigger</label>
+            <input type="number" id="cfg-gpio-trigger" value="23" min="1" max="40">
+        </div>
+        <div class="form-group sensor-ultrasonic">
+            <label for="cfg-gpio-echo">GPIO Echo</label>
+            <input type="number" id="cfg-gpio-echo" value="24" min="1" max="40">
+        </div>
+        <!-- Nur bei Kamera sichtbar -->
+        <div class="form-group sensor-camera">
+            <label for="cfg-camera-index">Kamera-Index</label>
+            <input type="number" id="cfg-camera-index" value="0" min="0" max="16">
+        </div>
+        <div class="form-group sensor-camera">
+            <label for="cfg-camera-focal">Brennweite (px, kalibriert)</label>
+            <input type="number" id="cfg-camera-focal" value="700" min="1" max="100000" step="1">
+        </div>
+        <div class="form-group span-2" style="border-top:1px solid var(--border); padding-top:10px; margin-top:6px">
+            <label for="cfg-sync-rolle">Gleichtakt mit anderen Stationen</label>
+            <select id="cfg-sync-rolle">
+                <option value="aus">Aus &mdash; eigener Sensor</option>
+                <option value="follower">Folgt einer anderen Station</option>
+            </select>
+        </div>
+        <div class="form-group sync-follower">
+            <label for="cfg-sync-master">Taktgeber (IP/Hostname)</label>
+            <input type="text" id="cfg-sync-master" placeholder="192.168.1.50">
+        </div>
+        <div class="form-group sync-follower">
+            <label for="cfg-sync-port">Port des Taktgebers</label>
+            <input type="number" id="cfg-sync-port" value="5000" min="1" max="65535">
+        </div>
+        <!-- Nur bei Taster sichtbar -->
+        <div class="form-group sensor-button">
+            <label for="cfg-button-pin">Taster GPIO (BCM)</label>
+            <input type="number" id="cfg-button-pin" value="17" min="2" max="27">
+        </div>
+        <div class="form-group sensor-button">
+            <label for="cfg-button-haltezeit">Haltezeit nach Druck (s)</label>
+            <input type="number" id="cfg-button-haltezeit" value="30" min="1" max="600" step="1">
+        </div>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+        <button class="btn btn-save" onclick="saveConfig()">Anzeige &amp; Sensor speichern</button>
+        <button class="btn btn-save" onclick="saveNetwork()">Netzwerk übernehmen</button>
+        <button class="btn btn-stop" onclick="rebootPi()">Pi neu starten</button>
+    </div>
+    <div id="net-feedback" class="feedback"></div>
+    <p style="margin-top:8px; font-size:0.75rem; color:var(--text-dim)">
+        Hinweis: Eine geänderte IP unterbricht die Verbindung. Die neue Adresse danach im Browser eingeben.
+    </p>
+
+    <h3 style="margin-top:18px">WLAN</h3>
+    <div id="wifi-info" class="zone-empty">Lade WLAN-Status...</div>
+    <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+        <label class="checkbox-label">
+            <input type="checkbox" id="wifi-enabled" onchange="toggleWifi()">
+            <span>WLAN aktiviert</span>
+        </label>
+        <button class="btn" onclick="loadWifi()">&#x21bb; Netzwerke scannen</button>
+    </div>
+    <div id="wifi-list" class="settings-grid" style="margin-top:10px"></div>
+    <div class="settings-grid" style="margin-top:8px">
+        <div class="form-group">
+            <label for="wifi-ssid">SSID (manuell)</label>
+            <input type="text" id="wifi-ssid" placeholder="MeinNetzwerk">
+        </div>
+        <div class="form-group">
+            <label for="wifi-password">Passwort</label>
+            <input type="password" id="wifi-password" placeholder="(leer = offen)">
+        </div>
+    </div>
+    <button class="btn btn-save" style="margin-top:8px" onclick="connectWifi()">Mit WLAN verbinden</button>
+    <div id="wifi-feedback" class="feedback"></div>
+</section>

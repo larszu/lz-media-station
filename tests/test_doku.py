@@ -20,7 +20,10 @@ from pathlib import Path
 
 WURZEL = Path(__file__).resolve().parent.parent
 README = (WURZEL / "README.md").read_text(encoding="utf-8")
-WEB_UI = (WURZEL / "web_ui.py").read_text(encoding="utf-8")
+README_DE = (WURZEL / "README.de.md").read_text(encoding="utf-8")
+#: Routen stehen in `web_ui.py` UND in den Erweiterungen `api_*.py` (3.0).
+ROUTEN_QUELLEN = [WURZEL / "web_ui.py"] + sorted(WURZEL.glob("api_*.py"))
+WEB_UI = "\n".join(p.read_text(encoding="utf-8") for p in ROUTEN_QUELLEN)
 
 #: Seiten, keine Schnittstelle — sie stehen im README als Text, nicht als Pfad.
 KEINE_API = {"/", "/admin", "/display"}
@@ -36,11 +39,12 @@ def platzhalter_vereinheitlichen(pfad):
 
 
 def routen_aus_code():
-    roh = re.findall(r'@app\.route\("([^"]+)"', WEB_UI)
+    # `@app.route` in web_ui.py, `@bp.route` in den Blueprints.
+    roh = re.findall(r'@\w+\.route\("([^"]+)"', WEB_UI)
     return {platzhalter_vereinheitlichen(p) for p in roh if p not in KEINE_API}
 
 
-def pfade_aus_readme():
+def pfade_aus_readme(text=None):
     """Alle Pfade, die das README in Backticks als KONKRETEN Endpunkt nennt.
 
     Sammelbegriffe mit `*` (etwa „Flask-Routen `/api/*`") sind Prosa und kein
@@ -48,7 +52,7 @@ def pfade_aus_readme():
     der bei einer voellig richtigen Formulierung rot wird, wird beim naechsten
     Mal angepasst statt gelesen.
     """
-    treffer = re.findall(r"`(/(?:api|media)[^`]*)`", README)
+    treffer = re.findall(r"`(/(?:api|media)[^`]*)`", README if text is None else text)
     return {platzhalter_vereinheitlichen(p.strip())
             for p in treffer if "*" not in p}
 
@@ -87,6 +91,27 @@ class DieModulliste_stimmt(unittest.TestCase):
         self.assertEqual(
             fehlen, [],
             f"Module ohne Eintrag in der Architektur-Liste: {fehlen}")
+
+
+class DasDeutscheReadmeLaeuftMit(unittest.TestCase):
+    """`README.de.md` ist die Uebersetzung — kein Test hielt es bisher auf
+    dem Stand des englischen. Endpunkte und Module muessen in beiden
+    stehen, sonst verspricht eine Sprache etwas, das die andere nicht kennt."""
+
+    def test_dieselben_endpunkte(self):
+        en, de = pfade_aus_readme(), pfade_aus_readme(README_DE)
+        self.assertEqual(sorted(en - de), [], "nur im englischen README")
+        self.assertEqual(sorted(de - en), [], "nur im deutschen README")
+
+    def test_dieselben_module(self):
+        en = set(re.findall(r"`([a-z_]+\.py)`", README))
+        de = set(re.findall(r"`([a-z_]+\.py)`", README_DE))
+        self.assertEqual(sorted(en ^ de), [], "Modulliste weicht ab")
+
+    def test_dieselben_dokumente(self):
+        docs = {p.name for p in (WURZEL / "docs").glob("*.md")} - {"README.md"}
+        fehlen = sorted(d for d in docs if d not in README_DE)
+        self.assertEqual(fehlen, [], f"nicht im deutschen README verlinkt: {fehlen}")
 
 
 class DieDokuIstVerlinkt(unittest.TestCase):

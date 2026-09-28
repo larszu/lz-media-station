@@ -35,6 +35,33 @@ def _befund(stufe, thema, text):
     return {"stufe": stufe, "thema": thema, "text": text}
 
 
+def _inhalt_der_zone(config, zone, zonendaten):
+    """Welche Dateien die Zone braucht — und ob sie ueberhaupt etwas zeigt.
+
+    Seit 3.0 spielt eine Zone ein Layout (`layouts.py`): geprueft werden dann
+    ALLE Regionen, nicht nur der Spiegel in der Zone — eine Seitenleiste mit
+    einer fehlenden Datei ist genauso ein Loch im Bild wie das Hauptbild.
+    Ohne Layout (alte Konfiguration, Tests) zaehlen die Zonenlisten.
+    Ein Widget oder eine Webseite ist Inhalt, auch ohne Datei.
+    """
+    layouts = config.get("layouts") or {}
+    lid = zonendaten.get("layout") or ("zone-" + zone)
+    layout = layouts.get(lid) if isinstance(layouts, dict) else None
+    gebraucht = {art: set(zonendaten.get(art) or []) for art in MEDIENARTEN}
+    hat_inhalt = any(gebraucht.values())
+    if isinstance(layout, dict):
+        typ_zu_art = {"video": "videos", "image": "images", "audio": "audio"}
+        for region in layout.get("regionen", []):
+            if region.get("typ") == "widget":
+                hat_inhalt = True
+            for item in region.get("playlist", []):
+                hat_inhalt = True
+                art = typ_zu_art.get(item.get("typ"))
+                if art and item.get("name"):
+                    gebraucht[art].add(item["name"])
+    return gebraucht, hat_inhalt
+
+
 def gesamtstufe(befunde):
     """Die schlimmste vorkommende Stufe — oder "ok", wenn nichts anliegt."""
     schlimmste = "ok"
@@ -99,10 +126,8 @@ def pruefe(config, sensor_ok, sensor_status, freier_platz_b, vorhandene,
     # --- Medien je Zone ---------------------------------------------------
     for zone, name in (zonen or (("near", "Nah"), ("far", "Fern"))):
         zonendaten = config.get(zone) or {}
-        zugewiesen = []
-        for art in MEDIENARTEN:
-            zugewiesen += list(zonendaten.get(art) or [])
-        if not zugewiesen:
+        gebraucht, hat_inhalt = _inhalt_der_zone(config, zone, zonendaten)
+        if not hat_inhalt:
             befunde.append(_befund(
                 "warnung", f"zone_{zone}",
                 f"Zone {name} hat keine Medien — dort bleibt der Schirm leer."))
@@ -112,7 +137,7 @@ def pruefe(config, sensor_ok, sensor_status, freier_platz_b, vorhandene,
         # Anzeige laeuft ins Leere.
         fehlend = []
         for art in MEDIENARTEN:
-            for datei in (zonendaten.get(art) or []):
+            for datei in sorted(gebraucht.get(art) or ()):
                 if datei not in (vorhandene.get(art) or set()):
                     fehlend.append(datei)
         if fehlend:

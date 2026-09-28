@@ -1,0 +1,23 @@
+<!-- Status -->
+<section class="card">
+    <div class="status-row">
+        <div class="distance-compact">
+            <span id="dist-value">--</span>
+            <span class="unit">m</span>
+        </div>
+        <div class="distance-bar-mini">
+            <div class="fill" id="dist-fill"></div>
+            <div class="marker" id="dist-marker"></div>
+        </div>
+        <span class="badge" id="state-badge">Inaktiv</span>
+        <div class="controls">
+            <button class="btn btn-start" onclick="api('start')">&#9654; Start</button>
+            <button class="btn btn-stop" onclick="api('stop')">&#9724; Stop</button>
+            <a href="/" class="btn btn-display">&#10004; Fertig &mdash; Startseite</a>
+        </div>
+    </div>
+    <!-- Klartext-Zustand der Abstandsquelle. Zeigt „kein Sensor
+         angeschlossen" statt einer erfundenen Zahl, seit der
+         Demo-Modus entfernt ist. -->
+    <div id="sensor-status" class="sensor-status"></div>
+</section>

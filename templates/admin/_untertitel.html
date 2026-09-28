@@ -1,0 +1,26 @@
+<!-- Untertitel -->
+<section class="card">
+    <h2>Untertitel &amp; Sprachen</h2>
+    <p class="karten-hinweis" data-i18n="untertitel-hinweis">
+        Sprachcodes durch Komma getrennt (z.&nbsp;B. <code>de, en</code>). Ab zwei
+        Sprachen erscheinen Knöpfe auf der Anzeige. Leer = keine Umschaltung.
+        Untertitel m&uuml;ssen <strong>WebVTT (.vtt)</strong> sein &mdash; nur das spielt
+        ein Browser ab.
+    </p>
+    <div class="settings-grid">
+        <div class="form-group span-2">
+            <label for="cfg-sprachen">Sprachen</label>
+            <input type="text" id="cfg-sprachen" placeholder="de, en">
+        </div>
+    </div>
+    <div style="margin:8px 0">
+        <label class="btn btn-save" style="cursor:pointer">
+            .vtt hochladen
+            <input type="file" id="vtt-datei" accept=".vtt" multiple
+                   style="display:none" onchange="ladeUntertitelHoch(this)">
+        </label>
+    </div>
+    <div id="untertitel-zuordnung"></div>
+    <button class="btn btn-save" onclick="saveUntertitel()">Untertitel speichern</button>
+    <div id="untertitel-feedback" class="feedback"></div>
+</section>

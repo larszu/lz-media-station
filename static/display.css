@@ -9,24 +9,45 @@ html, body {
     user-select: none;
 }
 
-.layer {
+/* --- Buehne und Regionen (seit 3.0) ---------------------------------------
+   Das Layout teilt den Schirm in Regionen; jede ist ein absolut gesetztes
+   Rechteck in Prozent. Darin liegen die Ebenen (A/B-Paare fuer Video und
+   Bild, ein Rahmen fuer Webseiten), die per Deckkraft ueberblendet werden. */
+.buehne {
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
+    background: #000;
+}
+
+.region {
+    position: absolute;
+    overflow: hidden;
+    background: transparent;
+}
+
+.region .layer {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
     opacity: 0;
     transition: opacity 0.8s ease;
     pointer-events: none;
+    border: 0;
+    background: transparent;
 }
 
-.layer.active {
-    opacity: 1;
-}
+/* `uebergang: keiner` — harter Schnitt statt Blende. */
+.region.sofort .layer { transition: none; }
 
-video.layer { z-index: 1; }
-img.layer { z-index: 2; }
+.region .layer.active { opacity: 1; }
+
+/* Innerhalb einer Region liegt das Bild ueber dem Video, der Rahmen darueber:
+   so deckt ein neues Bild das auslaufende Video waehrend der Blende ab. */
+.region video.layer { z-index: 1; }
+.region img.layer { z-index: 2; }
+.region iframe.layer { z-index: 3; pointer-events: auto; }
 
 .hint {
     position: fixed;
@@ -47,6 +68,26 @@ img.layer { z-index: 2; }
 }
 .hint.show { display: block; }
 .hint strong { color: #00d4ff; }
+
+/* Der dezente Hinweis: klein, unten, halb durchsichtig. Er ersetzt die
+   Umleitung zum Admin — ein unbeaufsichtigter Schirm zeigt lieber eine Zeile
+   Klartext als die Verwaltungsoberflaeche. */
+.dezent {
+    position: fixed;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 40;
+    display: none;
+    padding: 6px 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 0.85rem;
+    color: rgba(225, 236, 239, 0.7);
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(225, 236, 239, 0.2);
+    white-space: nowrap;
+}
+.dezent.show { display: block; }
 
 /* --- Sprachwahl (Untertitel) ---------------------------------------------
    Sie liegt ueber dem Bild, weil die Anzeige Vollbild ist und es keine andere

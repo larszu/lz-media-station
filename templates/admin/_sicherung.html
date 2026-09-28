@@ -1,0 +1,18 @@
+<!-- Sicherung -->
+<section class="card">
+    <h2>Sicherung</h2>
+    <p class="karten-hinweis" data-i18n="sicherung-hinweis">
+        Sichert alle Einstellungen (Zonen, Zeitplan, Sensor, Lautst&auml;rken) als
+        Datei &mdash; zum Klonen einer Station oder zur Wiederherstellung nach
+        einem SD-Karten-Defekt. <strong>Medien-Dateien sind nicht enthalten.</strong>
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+        <a class="btn btn-save" href="/api/backup">Konfiguration sichern</a>
+        <label class="btn btn-save" style="cursor:pointer">
+            Sicherung einspielen
+            <input type="file" id="restore-datei" accept="application/json,.json"
+                   style="display:none" onchange="spieleEin(this)">
+        </label>
+    </div>
+    <div id="restore-feedback" class="feedback"></div>
+</section>

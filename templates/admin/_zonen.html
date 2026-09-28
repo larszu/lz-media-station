@@ -1,0 +1,39 @@
+<!-- Zonen-Übersicht -->
+<section class="card">
+    <h2>Zonen-&Uuml;bersicht</h2>
+    <div class="zones-grid">
+        <div class="zone zone-near">
+            <h3><span class="dot near"></span> Nah <small>&le; <span class="threshold-val">1.0</span>m</small></h3>
+            <div class="zone-optionen">
+                <label class="checkbox-label"><input type="checkbox" id="zone-near-shuffle"><span>Zuf&auml;llige Reihenfolge</span></label>
+                <label class="checkbox-label"><input type="checkbox" id="zone-near-einmal"><span>Einmal abspielen</span></label>
+                <label class="zone-layout-wahl"><span>Layout</span>
+                    <select id="zone-near-layout" onchange="setzeZonenLayout('near', this.value)"></select>
+                </label>
+            </div>
+            <div id="zone-near-media" class="zone-media"></div>
+        </div>
+        <div class="zone zone-mid" id="zone-mid-karte">
+            <h3><span class="dot mid"></span> Mitte <small>&le; <span class="threshold-mid-val">2.5</span>m</small></h3>
+            <div class="zone-optionen">
+                <label class="checkbox-label"><input type="checkbox" id="zone-mid-shuffle"><span>Zuf&auml;llige Reihenfolge</span></label>
+                <label class="checkbox-label"><input type="checkbox" id="zone-mid-einmal"><span>Einmal abspielen</span></label>
+                <label class="zone-layout-wahl"><span>Layout</span>
+                    <select id="zone-mid-layout" onchange="setzeZonenLayout('mid', this.value)"></select>
+                </label>
+            </div>
+            <div id="zone-mid-media" class="zone-media"></div>
+        </div>
+        <div class="zone zone-far">
+            <h3><span class="dot far"></span> Fern <small>&gt; <span class="threshold-val">1.0</span>m</small></h3>
+            <div class="zone-optionen">
+                <label class="checkbox-label"><input type="checkbox" id="zone-far-shuffle"><span>Zuf&auml;llige Reihenfolge</span></label>
+                <label class="checkbox-label"><input type="checkbox" id="zone-far-einmal"><span>Einmal abspielen</span></label>
+                <label class="zone-layout-wahl"><span>Layout</span>
+                    <select id="zone-far-layout" onchange="setzeZonenLayout('far', this.value)"></select>
+                </label>
+            </div>
+            <div id="zone-far-media" class="zone-media"></div>
+        </div>
+    </div>
+</section>

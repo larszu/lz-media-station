@@ -1,0 +1,25 @@
+<!-- Layouts (seit 3.0): Regionen mit eigenen Playlists. Die Karte listet und
+     legt an; der Editor fuer Regionen und Playlists kommt mit Welle 2 als
+     Erweiterung (templates/admin/zusatz + static/module). -->
+<section class="card" id="card-layouts">
+    <h2>Layouts</h2>
+    <p class="karten-hinweis" data-i18n="layouts-hinweis">
+        Ein Layout teilt den Schirm in <strong>Regionen</strong> &mdash; jede mit eigener
+        Playlist aus Videos, Bildern und Webseiten. Jede Zone spielt ein Layout;
+        zugeordnet wird es in der Zonen-&Uuml;bersicht. <strong>Vorschau</strong> &ouml;ffnet
+        das Layout so, wie es auf dem Schirm l&auml;uft.
+    </p>
+    <div id="layouts-liste" class="media-list"></div>
+    <div class="settings-grid" style="margin-top:10px">
+        <div class="form-group">
+            <label for="layout-neu-name">Neues Layout</label>
+            <input type="text" id="layout-neu-name" placeholder="Name, z. B. Foyer links">
+        </div>
+        <div class="form-group">
+            <label for="layout-neu-vorlage">Vorlage</label>
+            <select id="layout-neu-vorlage"></select>
+        </div>
+    </div>
+    <button class="btn btn-save" onclick="neuesLayout()">Layout anlegen</button>
+    <div id="layouts-feedback" class="feedback"></div>
+</section>

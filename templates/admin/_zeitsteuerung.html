@@ -1,0 +1,24 @@
+<!-- Zeitsteuerung -->
+<section class="card">
+    <h2>Zeitsteuerung</h2>
+    <p class="karten-hinweis">
+        Au&szlig;erhalb der &Ouml;ffnungszeiten bleibt der Schirm schwarz, der Ton aus,
+        und es wird nicht ausgel&ouml;st. Ist die Zeitsteuerung aus, spielt die
+        Station wie bisher rund um die Uhr.
+    </p>
+    <label class="checkbox-label">
+        <input type="checkbox" id="cfg-zeitplan-aktiv">
+        <span>Zeitsteuerung aktiv</span>
+    </label>
+    <div id="zeitplan-tage" class="zeitplan-tage"></div>
+    <p class="karten-hinweis" data-i18n="zeitplan-mitternacht">
+        Ende <strong>00:00</strong> bedeutet Mitternacht (Tagesende). Ein Ende
+        <em>vor</em> dem Beginn l&auml;uft &uuml;ber Mitternacht &mdash; z.&nbsp;B. 20:00 bis 02:00.
+    </p>
+    <label class="checkbox-label">
+        <input type="checkbox" id="cfg-cec">
+        <span data-i18n="cec-label">Fernseher au&szlig;erhalb der Zeiten per HDMI-CEC abschalten (braucht <code>cec-client</code>)</span>
+    </label>
+    <button class="btn btn-save" onclick="saveZeitplan()">Zeitsteuerung speichern</button>
+    <div id="zeitplan-feedback" class="feedback"></div>
+</section>

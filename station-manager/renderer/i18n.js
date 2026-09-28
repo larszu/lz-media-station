@@ -49,10 +49,24 @@
     }
 
     var sprache = startSprache();
-    var wb = window.LZ_I18N_EN || { texte: {}, muster: [], html: {} };
+    /* Das Kern-Woerterbuch plus alle, die Erweiterungen mitbringen
+       (`static/i18n/<modul>.en.js` legt seines in `window.LZ_I18N_EN_EXTRA`
+       ab). Spaetere Eintraege gewinnen; Muster werden angehaengt. */
+    var wb = zusammen(window.LZ_I18N_EN, window.LZ_I18N_EN_EXTRA);
     var muster = (wb.muster || []).map(function (m) { return [new RegExp(m[0]), m[1]]; });
 
     function norm(s) { return s.replace(/\s+/g, ' ').trim(); }
+
+    function zusammen(kern, extras) {
+        var w = { texte: {}, muster: [], html: {} };
+        [kern].concat(extras || []).forEach(function (t) {
+            if (!t) return;
+            Object.keys(t.texte || {}).forEach(function (k) { w.texte[k] = t.texte[k]; });
+            w.muster = w.muster.concat(t.muster || []);
+            Object.keys(t.html || {}).forEach(function (k) { w.html[k] = t.html[k]; });
+        });
+        return w;
+    }
 
     /* Uebersetzen: erst exakt, dann nach Muster. Gruppen eines Musters werden
        rekursiv uebersetzt — „Keine Messung ({Sensor-Zustand})" bekommt so

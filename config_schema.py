@@ -10,6 +10,7 @@ Kreis.
 """
 import re
 
+import layouts as layouts_modul
 from zeitplan import heile_zeitplan, standard_zeitplan
 
 #: ALLE moeglichen Zonen, von nah nach fern. "mid" ist optional und wird nur
@@ -37,9 +38,17 @@ def standard_zone():
     `einmal`   — einmal durchspielen statt endlos zu wiederholen
     `bildzeiten` — {Dateiname: Sekunden} fuer Bilder, die laenger oder kuerzer
                  stehen sollen als der allgemeine Bildwechsel
+    `layout`   — Kennung des Layouts, das diese Zone spielt; leer = das
+                 Zonen-Layout `zone-<zone>` (siehe layouts.py)
+
+    Seit 3.0 sind `videos`, `images`, `shuffle`, `einmal` und `bildzeiten`
+    ein SPIEGEL der Hauptregion dieses Layouts (`layouts.spiegle_zone`). Die
+    Wahrheit steht im Layout; die Felder bleiben fuer alte Displays, alte
+    Manager-Fassungen und alte Sicherungen — und werden nach jedem
+    Schreibzugriff neu gesetzt. `audio` gehoert weiterhin der Zone.
     """
     return {"videos": [], "images": [], "audio": [],
-            "shuffle": False, "einmal": False, "bildzeiten": {}}
+            "shuffle": False, "einmal": False, "bildzeiten": {}, "layout": ""}
 
 
 def heile_zone(roh):
@@ -73,6 +82,9 @@ def heile_zone(roh):
             if BILDZEIT_MIN_S <= wert <= BILDZEIT_MAX_S:
                 sauber[name] = wert
         zone["bildzeiten"] = sauber
+    lid = roh.get("layout")
+    if isinstance(lid, str) and (lid == "" or layouts_modul.KENNUNG.match(lid)):
+        zone["layout"] = lid
     return zone
 
 
@@ -106,6 +118,13 @@ def pruefe_zone(roh):
                     f"{BILDZEIT_MIN_S:.0f}..{BILDZEIT_MAX_S:.0f} s")
             zeiten[name] = wert
         heraus["bildzeiten"] = zeiten
+    if "layout" in roh:
+        lid = roh["layout"]
+        if lid is None:
+            lid = ""
+        if not isinstance(lid, str) or (lid != "" and not layouts_modul.KENNUNG.match(lid)):
+            raise ValueError("layout: Kennung aus a-z, 0-9 und '-' (leer = Zonen-Layout)")
+        heraus["layout"] = lid
     return heraus
 
 
@@ -167,6 +186,10 @@ DEFAULT_CONFIG = {
     "near": standard_zone(),
     "mid": standard_zone(),
     "far": standard_zone(),
+    # Layouts (seit 3.0): Regionen mit eigenen Playlists, siehe layouts.py
+    # und docs/architektur-v3.md. Eine frische Station hat je Zone ein leeres
+    # Vollbild-Layout — und verhaelt sich damit exakt wie vor 3.0.
+    "layouts": layouts_modul.standard_layouts(),
 }
 
 
@@ -372,6 +395,10 @@ def heile_config(cfg):
         print(f"[Config] {e} — nehme die Vorgaben fuer beide Schwellen")
         cfg["threshold_m"] = DEFAULT_CONFIG["threshold_m"]
         cfg["threshold_mid_m"] = DEFAULT_CONFIG["threshold_mid_m"]
+    # Layouts und die Zuordnung der Zonen — samt der einmaligen Migration
+    # alter Zonenlisten ins Zonen-Layout. Danach stimmen Layout und Spiegel
+    # ueberein.
+    layouts_modul.heile_layouts_und_zonen(cfg, heile_zone)
     return cfg
 
 
