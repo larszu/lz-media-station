@@ -25,6 +25,8 @@
     /* Das Aufnahmelicht: Fokusring und laufende Wiedergabe. Nie Flaeche,
        nie Text, nie zweimal in einem Sichtfeld. */
     --signal: #D6402E;
+    /* Kopflinie: Stahlblau unter jedem Kicker (Guide, Gestaltungssystem 1). */
+    --line-steel: #8C9CB3;
     /* Keine Rundungen (Guide S. 10). Der Name bleibt fuer die Aufrufer. */
     --radius: 0;
 }
@@ -44,18 +46,18 @@ nav {
     justify-content: space-between;
     padding: 10px 20px;
     background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--line-steel);
     position: sticky;
     top: 0;
     z-index: 100;
 }
 .nav-brand { display: flex; align-items: center; gap: 8px; }
-.nav-brand .logo { font-size: 22px; color: var(--accent); }
+.nav-brand .signet { display: block; height: 32px; width: auto; }
 .nav-brand h1 { font-size: 1rem; font-weight: 600; }
-.logo-link { text-decoration: none; }
+.logo-link { text-decoration: none; display: block; }
 .nav-right { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-dim); }
 
-.status-dot { width: 10px; height: 10px; border-radius: 0; background: #555; }
+.status-dot { width: 10px; height: 10px; border-radius: 0; background: var(--border); }
 .status-dot.connected { background: var(--accent); }
 .status-dot.active { background: var(--near); }
 @keyframes pulse { 50% { box-shadow: none; } }
@@ -70,7 +72,7 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
     padding: 16px;
     margin-bottom: 12px;
 }
-.card h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin-bottom: 12px; }
+.card h2 { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.16em; color: var(--text-dim); margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line-steel); }
 
 /* --- Status Row --- */
 .status-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -184,18 +186,19 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 
 /* --- Badge --- */
 .badge { display: inline-block; padding: 3px 12px; border-radius: 0; font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.06); color: var(--text-dim); }
-.badge.near { background: rgba(0,230,118,0.15); color: var(--near); }
-.badge.far { background: rgba(68,138,255,0.15); color: var(--far); }
-.badge.pending { background: rgba(255,171,0,0.15); color: var(--warning); }
+.badge.near { background: color-mix(in srgb, var(--near) 20%, transparent); color: var(--near); }
+.badge.far { background: color-mix(in srgb, var(--far) 20%, transparent); color: var(--far); }
+.badge.pending { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
 
 /* --- Buttons --- */
 .btn { padding: 7px 18px; border: none; border-radius: 0; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s; text-decoration: none; display: inline-block; }
 .btn:hover { transform: translateY(-1px); }
-.btn-start { background: var(--near); color: #F6F5F0; }
-.btn-stop { background: var(--danger); color: #fff; }
+.btn-start { background: var(--near); color: var(--accent); }
+.btn-stop { background: transparent; color: var(--accent); border: 1px solid var(--danger); }
+.btn-stop:hover { background: color-mix(in srgb, var(--danger) 20%, transparent); }
 .btn-display { background: var(--accent); color: var(--accent-text); font-size: 0.8rem; }
 .btn-save { background: var(--accent); color: var(--accent-text); width: 100%; margin-top: 10px; padding: 10px; }
-.btn-save:hover { background: #33ddff; }
+.btn-save:hover { background: var(--text); }
 
 /* --- Zones --- */
 .zones-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -227,11 +230,11 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 
 .zone-btn { padding: 3px 10px; border: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text-dim); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
 .zone-btn:hover { border-color: var(--text-dim); }
-.zone-btn.active.near { background: rgba(0,230,118,0.2); color: var(--near); border-color: var(--near); }
-.zone-btn.active.far { background: rgba(68,138,255,0.2); color: var(--far); border-color: var(--far); }
+.zone-btn.active.near { background: color-mix(in srgb, var(--near) 20%, transparent); color: var(--near); border-color: var(--near); }
+.zone-btn.active.far { background: color-mix(in srgb, var(--far) 20%, transparent); color: var(--far); border-color: var(--far); }
 
 .del-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 2px 6px; border-radius: 0; font-size: 0.9rem; }
-.del-btn:hover { background: rgba(255,82,82,0.15); color: var(--danger); }
+.del-btn:hover { background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--danger); }
 .empty { text-align: center; padding: 12px; color: var(--text-dim); font-size: 0.85rem; }
 
 /* --- Upload --- */
@@ -362,3 +365,13 @@ select:focus-visible, textarea:focus-visible {
 .ut-spuren { display: flex; gap: 10px; flex-wrap: wrap; }
 .ut-spur { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-dim); }
 .ut-spur select { min-height: 28px; border-radius: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border); font-size: 0.75rem; }
+
+/* --- Ueber --- */
+.about p { font-size: 0.85rem; color: var(--text-dim); }
+.about .about-logo { display: block; width: 160px; height: auto; margin: 8px 0 16px; }
+.about .about-name { font-size: 1rem; font-weight: 800; color: var(--accent); }
+
+/* Unter 640 px ist die Kopfzeile zu schmal fuer Signet und Namen. */
+@media (max-width: 639px) {
+    .nav-brand .logo-link { display: none; }
+}

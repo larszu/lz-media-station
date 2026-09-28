@@ -6,6 +6,8 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+# App-Icons des Station Managers (electron-builder buildResources)
+!station-manager/build/
 develop-eggs/
 dist/
 downloads/

@@ -1,4 +1,4 @@
-# Pi Media Station
+# LZ Media Station
 
 > Sensor-gesteuerte Medien-Station mit Web-Admin, Display-Modus und Multi-Station Manager.
 > Läuft auf **Raspberry Pi** (HC-SR04 Ultraschallsensor) sowie auf **Mac/Windows** (Kamera-Erkennung als Abstandsquelle).
@@ -41,6 +41,7 @@ publishes by itself — nothing in this repo needs changing.
 - [Dokumentation](#dokumentation)
 - [Troubleshooting](#troubleshooting)
 - [Tailscale (Remote-Verwaltung)](#tailscale-remote-verwaltung)
+- [Erscheinungsbild](#erscheinungsbild)
 
 ---
 
@@ -328,6 +329,7 @@ Station nichts; für eine Webcam im Admin unter **Abstandsquelle** auf
 | **Untertitel** | Sprachen festlegen, `.vtt` hochladen, je Video und Sprache zuordnen |
 | **Einstellungen** | Name, Zonen-Stufen, Schwellen, Verzögerung, Bildintervall, Lautstärken, Video-Resume |
 | **Zeitsteuerung** | Wochenplan, HDMI-CEC |
+| **Über** | Hauptlogo, Name, Version |
 | **Systemeinstellungen** | Abstandsquelle, Gleichtakt, Anzeige-IP, Netzwerk, WLAN, Reboot |
 
 Die Zuweisung eines Mediums zu einer Zone passiert in der **Bibliothek** über
@@ -584,6 +586,21 @@ sudo tailscale up
 Auf dem Manager-Rechner ebenfalls Tailscale installieren und im selben Tailnet anmelden. Pis erreichen sich dann unter `100.x.y.z` oder `<pi-name>.<tailnet>.ts.net` (MagicDNS).
 
 > mDNS funktioniert **nicht** über Tailscale → Stationen einmalig manuell im Manager mit ihrer Tailscale-Adresse hinzufügen.
+
+---
+
+## Erscheinungsbild
+
+Alle Oberflächen folgen dem Brand Guide 2.0 der Lars Zumpe Medienproduktion: Deep Navy als Grund, Off-White als Aktionsfläche, Tally-Rot nur für Fokusring und den Punkt im Signet, keine Rundungen, Schatten oder Verläufe. `tests/test_brand_tokens.py` prüft das.
+
+| Datei | Wofür |
+|---|---|
+| `static/brand/` | Favicon, App-Icon (192/512, Apple Touch), Signet „lz.", Hauptlogo und Wortmarke als Kontur — Web-Admin, Startseite, Anzeige, Projektseite |
+| `static/manifest.webmanifest` | Name und Icons, wenn der Admin auf einem Handy zum Startbildschirm hinzugefügt wird |
+| `station-manager/build/` | App-Icon des Station Managers (`icon.png`, `icon.ico`) für electron-builder |
+| `station-manager/renderer/brand/` | Signet, Hauptlogo und Fenster-Icon der Desktop-App |
+
+Die Desktop-Einträge des Pi (`install_pi.sh`, `LZ_Media_Station.desktop`) zeigen `static/brand/icon-512.png`. Unter 640 px Breite fällt das Signet aus der Kopfzeile.
 
 ---
 

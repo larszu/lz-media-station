@@ -10,7 +10,7 @@ function el(id) { return document.getElementById(id); }
 function render() {
     grid.innerHTML = '';
     if (!stations.length) {
-        grid.innerHTML = '<div style="color:#8080a0;padding:20px">Keine Stationen gefunden. mDNS scannt automatisch im LAN, oder Station manuell hinzufügen.</div>';
+        grid.innerHTML = '<div style="color:var(--muted);padding:20px">Keine Stationen gefunden. mDNS scannt automatisch im LAN, oder Station manuell hinzufügen.</div>';
         return;
     }
     stations.forEach(s => {
@@ -170,3 +170,5 @@ window.station.listStations().then(list => {
     stations = list;
     render();
 });
+
+window.station.version().then(v => { el('about-version').textContent = v; }).catch(() => {});

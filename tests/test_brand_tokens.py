@@ -88,5 +88,32 @@ class Form(unittest.TestCase):
         self.assertEqual(rest, [], f"Schwarz auf Off-White: {rest}")
 
 
+class Marke(unittest.TestCase):
+    """Name, Icon und Signet stehen auf jeder Oberflaeche, die Menschen sehen."""
+
+    def test_jede_seite_hat_das_favicon(self):
+        for seite in ("templates/admin.html", "templates/display.html", "templates/launch.html"):
+            html = (WURZEL / seite).read_text(encoding="utf-8")
+            self.assertIn('href="/static/brand/favicon.svg"', html, seite)
+        self.assertIn('href="brand/favicon.svg"',
+                      (WURZEL / "station-manager/renderer/index.html").read_text(encoding="utf-8"))
+
+    def test_markendateien_liegen_bereit(self):
+        for datei in ("static/brand/favicon.svg", "static/brand/icon-512.png",
+                      "static/brand/lzm_signet_offwhite_tally.svg",
+                      "static/brand/lzm_hauptlogo_offwhite.svg",
+                      "station-manager/build/icon.png", "station-manager/build/icon.ico",
+                      "station-manager/renderer/brand/icon-512.png"):
+            self.assertTrue((WURZEL / datei).is_file(), datei)
+
+    def test_signet_weicht_unter_640_px(self):
+        self.assertIn("@media (max-width: 639px)", WEB)
+        self.assertIn("@media (max-width: 639px)", MANAGER)
+
+    def test_anzeigename(self):
+        self.assertIn("<h1>LZ Media Station", (WURZEL / "templates/admin.html").read_text(encoding="utf-8"))
+        self.assertTrue((WURZEL / "README.md").read_text(encoding="utf-8").startswith("# LZ Media Station"))
+
+
 if __name__ == "__main__":
     unittest.main()

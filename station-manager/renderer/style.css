@@ -3,7 +3,7 @@
    und die uebrigen Werkzeuge der Suite. */
 :root {
     --bg: #132040;      /* Deep Navy */
-    --bg2: #182948;     /* abgeleitet */
+    --bg2: #1D324F;     /* Zumpe Navy — Kopf und Seitenleiste */
     --card: #1D324F;    /* Zumpe Navy */
     --text: #E1ECEF;    /* Eisblau */
     --muted: #8C9CB3;   /* Stahlblau */
@@ -13,6 +13,10 @@
     --red: #B04A3F;
     --yellow: #C8892B;
     --signal: #D6402E;  /* das Aufnahmelicht */
+    --line: rgba(246, 245, 240, 0.14);
+    --line-steel: #8C9CB3;  /* Kopflinie */
+    --field-bg: rgba(246, 245, 240, 0.06);
+    --overlay: rgba(19, 32, 64, 0.85);
 }
 body {
     font-family: 'Public Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
@@ -29,27 +33,29 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--card);
+    border-bottom: 1px solid var(--line-steel);
 }
-.brand { font-weight: bold; font-size: 1.1rem; }
-.brand .logo { color: var(--accent); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.1rem; color: var(--accent); }
+.brand .signet { display: block; height: 32px; width: auto; }
+/* Unter 640 px ist die Kopfzeile zu schmal fuer Signet und Namen. */
+@media (max-width: 639px) { .brand .signet { display: none; } }
 button {
     background: var(--card);
     color: var(--text);
-    border: 1px solid #3a3a5a;
+    border: 1px solid var(--line);
     padding: 6px 12px;
     border-radius: 0;
     cursor: pointer;
     font-size: 0.85rem;
 }
-button:hover { background: #3a3a5a; }
-button.danger { background: #5a2030; border-color: #7a3040; }
-button.danger:hover { background: #7a3040; }
-button.primary { background: var(--accent); border-color: var(--accent); }
+button:hover { border-color: var(--accent); }
+button.danger { background: var(--red); border-color: var(--red); color: var(--accent); }
+button.danger:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 input, select {
-    background: #1a1a2e;
+    background: var(--field-bg);
     color: var(--text);
-    border: 1px solid #3a3a5a;
+    border: 1px solid var(--line);
     padding: 5px 8px;
     border-radius: 0;
     width: 100%;
@@ -67,7 +73,7 @@ main {
     overflow-y: auto;
     border-right: 1px solid var(--card);
 }
-.sidebar h3 { font-size: 0.9rem; margin-bottom: 8px; color: var(--accent); }
+.sidebar h3 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.16em; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line-steel); color: var(--muted); }
 .sidebar h4 { font-size: 0.8rem; margin: 14px 0 6px; color: var(--muted); }
 .sidebar label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; }
 .sidebar label input { margin-top: 3px; }
@@ -121,27 +127,27 @@ main {
     font-size: 0.7rem;
     background: var(--bg);
 }
-.badge.near { background: var(--green); color: #F6F5F0; }
-.badge.far { background: var(--yellow); color: #132040; }
-.badge.idle { background: var(--muted); color: #132040; }
+.badge.near { background: var(--green); color: var(--accent); }
+.badge.far { background: var(--yellow); color: var(--accent-text); }
+.badge.idle { background: var(--muted); color: var(--accent-text); }
 .hidden { display: none !important; }
 #detail {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.85);
+    background: var(--overlay);
     z-index: 100;
     display: flex;
     flex-direction: column;
 }
 #detail header { background: var(--bg); }
-#detail-frame { flex: 1; background: #fff; border: 0; width: 100%; }
+#detail-frame { flex: 1; background: var(--bg); border: 0; width: 100%; }
 #detail-close {
-    background: var(--red); border: 0; color: #fff;
+    background: var(--card); border: 1px solid var(--line); color: var(--accent);
     width: 32px; height: 32px; border-radius: 0;
     font-size: 1.2rem; line-height: 1; cursor: pointer;
 }
 #add-dialog {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.7);
+    background: var(--overlay);
     display: flex; align-items: center; justify-content: center;
     z-index: 200;
 }
@@ -156,6 +162,10 @@ main {
 .modal label input { margin-top: 4px; }
 #add-feedback { font-size: 0.75rem; margin-top: 8px; min-height: 1em; }
 .success { color: var(--green); }
+.about { margin-top: 24px; }
+.about .about-logo { display: block; width: 160px; height: auto; margin: 8px 0 12px; }
+.about p { font-size: 0.75rem; color: var(--muted); }
+.about .about-name { font-size: 0.9rem; font-weight: 800; color: var(--accent); }
 .error { color: var(--red); }
 
 

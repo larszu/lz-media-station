@@ -1,4 +1,4 @@
-# Pi Media Station - Audio Test Files
+# LZ Media Station - Audio Test Files
 
 Diese Dateien sind nur als Platzhalter für echte Audio-Dateien gedacht.
 
