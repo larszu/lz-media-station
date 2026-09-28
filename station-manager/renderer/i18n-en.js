@@ -26,7 +26,12 @@ window.LZ_I18N_EN = /*JSON*/{
   "Keine Auswahl": "Nothing selected",
   "Keine Felder gesetzt": "No fields set",
   "Station neu starten": "Restart station",
-  "Aus der Liste entfernen": "Remove from list"
+  "Aus der Liste entfernen": "Remove from list",
+  "Nah": "Near",
+  "Mitte": "Mid",
+  "Fern": "Far",
+  "Inaktiv": "Inactive",
+  "manuell": "manual"
  },
  "muster": [
   [

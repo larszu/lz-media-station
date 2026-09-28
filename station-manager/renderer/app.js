@@ -7,6 +7,10 @@ let stations = [];
 
 function el(id) { return document.getElementById(id); }
 
+// Klartext statt der Codes aus /api/status; i18n.js uebersetzt ihn weiter.
+const ZUSTAND = { near: 'Nah', mid: 'Mitte', far: 'Fern', idle: 'Inaktiv' };
+const QUELLE = { mdns: 'mDNS', manual: 'manuell' };
+
 // confirm-Dialoge gehen nicht durchs DOM — i18n.js uebersetzt sie nur hier.
 const tr = (text) => (window.LZ && window.LZ.t) ? window.LZ.t(text) : text;
 
@@ -20,7 +24,7 @@ function render() {
         const card = document.createElement('div');
         card.className = 'station' + (selected.has(s.id) ? ' selected' : '') + (s.online ? '' : ' offline');
         const stateBadge = s.online
-            ? `<span class="badge ${s.state === 'near' ? 'near' : s.state === 'far' ? 'far' : 'idle'}">${s.state || '–'}</span>`
+            ? `<span class="badge ${s.state === 'near' ? 'near' : s.state === 'far' ? 'far' : 'idle'}">${ZUSTAND[s.state] || s.state || '–'}</span>`
             : '<span class="badge">offline</span>';
         const dist = (s.distance != null) ? s.distance.toFixed(2) + ' m' : '–';
         card.innerHTML = `
@@ -34,7 +38,7 @@ function render() {
                 <span>${esc(s.hostname || '')}</span>
                 <span>v${esc(s.version || '?')}</span>
                 <span>${dist}</span>
-                <span style="float:right; opacity:0.6">${s.source || ''}</span>
+                <span style="float:right; opacity:0.6">${QUELLE[s.source] || s.source || ''}</span>
             </div>
             <div class="station-actions">
                 <button data-act="start">▶ Start</button>

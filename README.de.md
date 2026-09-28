@@ -10,6 +10,10 @@
 
 ![Web-Admin der LZ Media Station](docs/screenshot-admin.png)
 
+| Startseite | Verwaltung am Handy | Station Manager |
+|---|---|---|
+| ![Startseite mit Adressen für andere Geräte](docs/screenshot-start.png) | ![Web-Admin auf dem Handy](docs/screenshot-handy.png) | ![Station Manager mit vier Stationen](docs/screenshot-manager.png) |
+
 **Projektseite:** https://larszu.github.io/lz-media-station/ — README und Doku, bei jedem Push auf `main` neu gebaut (`.github/workflows/pages.yml`).
 
 ---
