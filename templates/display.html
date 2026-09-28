@@ -7,18 +7,24 @@
     <link rel="stylesheet" href="/static/display.css">
 </head>
 <body>
-    <video id="video-a" class="layer" playsinline></video>
-    <video id="video-b" class="layer" playsinline></video>
-    <img id="img-a" class="layer" alt="">
-    <img id="img-b" class="layer" alt="">
+    <!-- Die Buehne: display.js legt hier je Region des Layouts ein
+         absolut positioniertes Rechteck an (Prozent), darin die A/B-Paare
+         fuer Video und Bild sowie einen Rahmen fuer Webseiten. -->
+    <div id="buehne" class="buehne"></div>
+    <!-- Ton der Zone laeuft parallel zu allen Regionen. -->
     <audio id="audio-player"></audio>
     <!-- Sprachwahl: erscheint nur, wenn Sprachen konfiguriert sind. Sie liegt
          ueber dem Bild, weil die Anzeige Vollbild ist und es keine andere
          Flaeche gibt, die ein Besucher beruehren koennte. -->
     <div id="sprachwahl" class="sprachwahl"></div>
     <div id="hint" class="hint"></div>
+    <!-- Dezenter Hinweis am unteren Rand — statt einer Umleitung zum Admin.
+         Ein Schirm im Foyer darf nie von selbst die Verwaltung zeigen. -->
+    <div id="dezent" class="dezent"></div>
     <script src="/static/i18n-en.js"></script>
-    <script src="/static/i18n.js"></script>
-    <script src="/static/display.js"></script>
+    {% for s in i18n_extra %}<script src="{{ s }}"></script>
+    {% endfor %}<script src="/static/i18n.js"></script>
+    {% for s in anzeige_skripte %}<script src="{{ s }}"></script>
+    {% endfor %}<script src="/static/display.js"></script>
 </body>
 </html>

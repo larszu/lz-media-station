@@ -11,6 +11,8 @@ import argparse
 from datetime import datetime
 
 import displays
+import ereignisse
+import layouts as layouts_modul
 import statistik as statistik_modul
 import sync as sync_modul
 import tv_cec
@@ -19,7 +21,7 @@ from sensor import SensorThread
 from button_sensor import ButtonSensorThread
 from camera_sensor import CameraSensorThread
 from auto_sensor import AutoAbstandsQuelle
-from web_ui import create_app, lan_adresse
+from web_ui import create_app, lan_adresse, lies_version
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
@@ -107,6 +109,18 @@ class Controller:
             self.follower = sync_modul.SyncFollower(
                 host=config.get("sync_master", ""),
                 port=config.get("sync_port", 5000))
+        # Ereignisse (SSE, seit 3.0): die Anzeige erfaehrt eine neue Szene in
+        # dem Moment, in dem sie feststeht — nicht beim naechsten Poll.
+        self.bus = ereignisse.Ereignisbus()
+        # EIN Schloss um die Konfiguration. Flask bedient jede Anfrage in
+        # einem eigenen Faden; zwei gleichzeitige Schreibzugriffe (Manager
+        # und Handy) liefen sonst ungeordnet in dasselbe dict und dieselbe
+        # Datei. Wiedereintrittsfaehig, weil `save_config` darin aufgerufen
+        # wird und selbst sperrt.
+        self.lock = threading.RLock()
+        # Regeln, die das Zonen-Layout uebersteuern (siehe layout_fuer_zone)
+        self.layout_regeln = []
+        self._gemeldete_szene = None
 
     @property
     def state(self):
@@ -158,9 +172,19 @@ class Controller:
         return zeitplan.ist_offen(self.config.get("zeitplan"),
                                   jetzt or datetime.now())
 
-    def get_scene(self):
-        """Aktueller Zustand für die Display-Seite"""
-        geschlossen = not self.ist_offen()
+    def get_scene(self, layout_id=None, zone=None, jetzt=None):
+        """Aktueller Zustand fuer die Display-Seite.
+
+        `layout_id` schaltet in die VORSCHAU (Welle 2, Layout-Editor): die
+        Szene zeigt dann dieses Layout, als waere es die Zone `zone` (oder
+        die erste), unabhaengig von Sensor und Wochenplan. `jetzt` bestimmt,
+        welche Eintraege heute gelten — die Vorschau kann so einen anderen Tag
+        zeigen. Ohne Angabe: die Uhr.
+        """
+        jetzt = jetzt or datetime.now()
+        heute = jetzt.date().isoformat()
+        vorschau = layout_id is not None
+        geschlossen = (not self.ist_offen(jetzt)) and not vorschau
         # Waehrend der Hysterese spielt die BESTAETIGTE Zone weiter — deshalb
         # `self.zone` und nicht der Kandidat.
         #
@@ -169,11 +193,15 @@ class Controller:
         # nicht laeuft (Controller gestoppt), bekommt die Anzeigeseite nichts
         # zu spielen — sie muss sich nicht darauf verlassen, das Flag zu
         # beachten.
+        aktive_zone = self.zone if (self.active and not geschlossen) else None
+        if vorschau:
+            aktive_zone = zone if zone in self.zonen() else self.zonen()[0]
         szene = {
-            "active": self.active,
+            "active": True if vorschau else self.active,
             "geschlossen": geschlossen,
-            "zone": self.zone if (self.active and not geschlossen) else None,
+            "zone": aktive_zone,
             "zonen": list(self.zonen()),
+            "stationsname": self.config.get("system_name", ""),
             "image_interval_s": self.config.get("image_interval_s", 5),
             "master_volume": self.config.get("master_volume", 100),
             "video_volume": self.config.get("video_volume", 100),
@@ -183,14 +211,72 @@ class Controller:
             # und die Sprachknoepfe. Leere Sprachliste = keine Umschaltung.
             "sprachen": list(self.config.get("sprachen") or []),
             "untertitel": dict(self.config.get("untertitel") or {}),
+            "vorschau": vorschau,
         }
         # Die Zonen-Objekte je AKTIVER Zone, damit die Wiedergabe-Optionen
         # (shuffle/einmal/bildzeiten) mitkommen, ohne hier einzeln aufgezaehlt
         # zu werden — eine neue Option waere sonst im Kern da und auf dem
-        # Schirm nicht. Eine neue Zone ebenso.
+        # Schirm nicht. Eine neue Zone ebenso. `layout` ist dabei die
+        # AUFGELOESTE Kennung (leer in der Konfiguration heisst Zonen-Layout).
         for name in self.zonen():
-            szene[name] = self.config.get(name) or standard_zone()
+            zonendaten = dict(self.config.get(name) or standard_zone())
+            zonendaten["layout"] = layouts_modul.layout_id_der_zone(self.config, name)
+            szene[name] = zonendaten
+        # Das Layout der aktiven Zone — vollstaendig, aber ohne die Eintraege,
+        # die heute nicht gelten (von/bis). Gefiltert wird HIER, an der
+        # Quelle: die Anzeige soll nichts kennen, was sie nicht zeigen darf.
+        lid = None
+        if vorschau:
+            lid = layout_id
+        elif aktive_zone:
+            lid = self.layout_fuer_zone(aktive_zone, jetzt)
+        layout = (self.config.get("layouts") or {}).get(lid) if lid else None
+        szene["layout_id"] = lid if layout is not None else None
+        szene["layout"] = layouts_modul.filtere_layout(layout, heute) if layout is not None else None
         return szene
+
+    def layout_fuer_zone(self, zone, jetzt):
+        """Welches Layout die Zone JETZT spielt.
+
+        Andockpunkt fuer Regeln (Welle 2: Wochenprogramm, Ausloeser): jede
+        Regel in `self.layout_regeln` ist ein Aufruf `(zone, jetzt, config)`
+        und liefert eine Layout-Kennung oder None. Die erste Antwort gewinnt;
+        eine Kennung, die es nicht gibt, zaehlt nicht. Ohne Treffer gilt das
+        Layout der Zone aus der Konfiguration.
+        """
+        layouts = self.config.get("layouts") or {}
+        for regel in list(self.layout_regeln):
+            try:
+                lid = regel(zone, jetzt, self.config)
+            except Exception as e:  # eine kaputte Regel darf den Schirm nicht schwarz machen
+                print(f"[Layout] Regel {getattr(regel, '__name__', regel)} gescheitert: {e}")
+                continue
+            if lid and lid in layouts:
+                return lid
+        return layouts_modul.layout_id_der_zone(self.config, zone)
+
+    def melde_szene(self):
+        """Die Szene an alle Anzeigen schicken — aber nur bei einem Wechsel.
+
+        Die Steuerschleife ruft das zehnmal je Sekunde; die Szene selbst zu
+        bauen und zu vergleichen waere dort zu teuer. Verglichen wird deshalb
+        nur, woran die Szene haengt: laeuft sie, welche Zone, offen oder zu.
+        Aendert sich die Konfiguration, setzt `melde_config` die Kennung
+        zurueck — dann geht die Szene auch ohne Zonenwechsel hinaus.
+        """
+        kennung = (self.active, self.zone, self.ist_offen())
+        if kennung == self._gemeldete_szene:
+            return
+        self._gemeldete_szene = kennung
+        if self.bus.anzahl:
+            self.bus.senden("scene", self.get_scene())
+
+    def melde_config(self):
+        """Nach jedem Schreibzugriff: Konfiguration UND Szene — die Anzeige
+        braucht die Szene, die Verwaltung die Konfiguration."""
+        self._gemeldete_szene = None
+        self.bus.senden("config", self.config)
+        self.melde_szene()
 
     def start(self):
         if self.active:
@@ -204,6 +290,7 @@ class Controller:
         self._thread = threading.Thread(target=self._control_loop, daemon=True)
         self._thread.start()
         print("[Controller] Gestartet")
+        self.melde_szene()
 
     def stop(self):
         self.active = False
@@ -215,6 +302,7 @@ class Controller:
         if self.statistik.abschliessen(datetime.now()) is not None:
             self.statistik_speichern()
         print("[Controller] Gestoppt")
+        self.melde_szene()
 
     def _melde_sensorlage(self, dist):
         """Einmal melden, wenn die Messung ausfaellt — und einmal, wenn sie
@@ -273,11 +361,27 @@ class Controller:
             print(f"[Zeitplan] {meldung}")
 
     def save_config(self):
-        try:
-            with open(CONFIG_FILE, "w") as f:
-                json.dump(self.config, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"[Config] Speicherfehler: {e}")
+        """Atomar: erst in eine Nachbardatei, dann umbenennen.
+
+        Ein Stromausfall mitten im Schreiben liess vorher eine halbe
+        `config.json` zurueck — und die Station kam mit den Vorgaben hoch,
+        als haette nie jemand etwas eingestellt. `os.replace` ist auf
+        derselben Platte unteilbar: entweder die alte oder die neue Datei.
+        """
+        with self.lock:
+            tmp = CONFIG_FILE + ".tmp"
+            try:
+                with open(tmp, "w") as f:
+                    json.dump(self.config, f, indent=2, ensure_ascii=False)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, CONFIG_FILE)
+            except Exception as e:
+                print(f"[Config] Speicherfehler: {e}")
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
 
     def _control_loop(self):
         """Zustandsmaschine mit Hysterese"""
@@ -297,6 +401,7 @@ class Controller:
                 # Genau diesen Pfad haette ein `beginnt`/`endet`-Paar an den
                 # Zustandsuebergaengen vergessen.
                 self._zaehle()
+                self.melde_szene()
                 time.sleep(0.5)
                 continue
 
@@ -314,6 +419,7 @@ class Controller:
                 self._kandidat = None
                 self._pending_since = None
                 self._zaehle()
+                self.melde_szene()
                 time.sleep(0.1)
                 continue
 
@@ -347,6 +453,7 @@ class Controller:
                 print(f"[Controller] → {ZONEN_NAMEN.get(ziel, ziel).upper()} ({wo})")
 
             self._zaehle()
+            self.melde_szene()
             time.sleep(0.1)
 
 
@@ -372,6 +479,11 @@ def load_config():
 
 def main():
     parser = argparse.ArgumentParser(description="LZ Media Station")
+    # EINE Quelle fuer die Version: die Datei VERSION. Sie stand als Text in
+    # `/api/identity` ("2.1.0", waehrend die App 2.0.4 hiess) — zwei Zahlen,
+    # die nie jemand abgeglichen hat.
+    parser.add_argument("--version", action="version",
+                        version=f"LZ Media Station {lies_version()}")
     parser.add_argument("--port", type=int, help="Web-UI Port (Standard: 5000)")
     # Die Bind-Adresse war fest auf 0.0.0.0 verdrahtet — also auf ALLEN
     # Schnittstellen, ohne dass es eine Moeglichkeit gab, das zu lassen. Auf

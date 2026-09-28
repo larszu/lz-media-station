@@ -1,7 +1,12 @@
 document.addEventListener('DOMContentLoaded', function () {
     loadAllMedia();
-    setInterval(fetchStatus, 500);
+    // Der Status kommt per Ereignis (`/api/events?status=1`, jede Sekunde);
+    // gefragt wird nur noch alle 2 s als Rueckfall — statt zweimal je
+    // Sekunde, und zwar auf einem Pi.
+    verbindeEreignisse();
+    setInterval(fetchStatus, 2000);
     fetchStatus();
+    ladeLayouts();
     setupSliders();
     setupUploads();
     loadNetwork();
@@ -46,10 +51,28 @@ document.addEventListener('keydown', function (e) {
     }
 });
 
-/* ---- Status Polling ---- */
+/* ---- Status: Ereignisse zuerst, Polling als Rueckfall ---- */
 
 var allMedia = { videos: [], images: [], audio: [] };
 var config = {};
+
+function verbindeEreignisse() {
+    if (!window.EventSource) return;
+    var quelle = new EventSource('/api/events?status=1');
+    quelle.addEventListener('status', function (e) {
+        try {
+            var d = JSON.parse(e.data);
+            config = d.config;
+            updateStatusUI(d);
+        } catch (err) { /* naechstes Ereignis */ }
+    });
+    quelle.addEventListener('config', function () {
+        // Jemand anderes (Manager, zweites Handy) hat geschrieben: Listen
+        // und Layouts neu holen, damit hier nichts Veraltetes steht.
+        loadAllMedia();
+        ladeLayouts();
+    });
+}
 
 async function fetchStatus() {
     try {
@@ -179,6 +202,8 @@ function renderZoneOverview(zone, data) {
         if (!a || a.id !== id) el(id).checked = !!data[opt];
     });
 
+    fuelleLayoutWahl(zone, data.layout || '');
+
     var zeiten = data.bildzeiten || {};
     var zeilen = [];
     ['videos', 'images', 'audio'].forEach(function (art) {
@@ -211,6 +236,48 @@ function renderZoneOverview(zone, data) {
     container.innerHTML = zeilen.length
         ? zeilen.join('')
         : '<div class="zone-empty">Keine Medien zugewiesen</div>';
+}
+
+/* ---- Layouts (seit 3.0) ---- */
+
+var layoutsStand = { layouts: {}, zonen: {} };
+var layoutVorlagen = [];
+var VORLAGEN_NAMEN = { vollbild: 'Vollbild', geteilt: 'Geteilt', 'l-form': 'L-Form', ticker: 'Ticker', frei: 'Frei' };
+var ZONEN_NAMEN = { near: 'Nah', mid: 'Mitte', far: 'Fern' };
+
+async function ladeLayouts() {
+    try {
+        var r = await fetch('/api/layouts');
+        layoutsStand = await r.json();
+        if (!layoutVorlagen.length) {
+            var v = await fetch('/api/layouts/vorlagen');
+            layoutVorlagen = await v.json();
+        }
+    } catch (e) { return; }
+    ['near', 'mid', 'far'].forEach(function (zone) {
+        fuelleLayoutWahl(zone, ((config[zone] || {}).layout) || '');
+    });
+    // Die Karte „Layouts" (static/module/layout-editor.js) zeichnet sich
+    // daraufhin neu — sie kennt diese Datei, nicht umgekehrt.
+    document.dispatchEvent(new CustomEvent('lz-layouts'));
+}
+
+// Die Auswahl je Zone: leer heisst „das Zonen-Layout" (zone-<zone>).
+function fuelleLayoutWahl(zone, gewaehlt) {
+    var sel = el('zone-' + zone + '-layout');
+    if (!sel || document.activeElement === sel) return;
+    var ids = Object.keys(layoutsStand.layouts || {});
+    var optionen = ['<option value="">Standard (Vollbild)</option>'].concat(ids.map(function (id) {
+        return '<option value="' + escAttr(id) + '"' + (id === gewaehlt ? ' selected' : '') + '>' +
+            esc(layoutsStand.layouts[id].name) + '</option>';
+    }));
+    var html = optionen.join('');
+    if (sel.innerHTML !== html) sel.innerHTML = html;
+    sel.value = gewaehlt;
+}
+
+function setzeZonenLayout(zone, id) {
+    sendeZone(zone, { layout: id || '' }).then(ladeLayouts);
 }
 
 /* ---- Reihenfolge und Standzeit ---- */

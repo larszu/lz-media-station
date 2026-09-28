@@ -26,6 +26,8 @@ GLEICH = {
     "Gateway", "Version", "Lars Zumpe Medienproduktion", "Config-Push",
     "IP / Hostname", "Port", "EN", "LZ Station 1", "de, en", "192.168.1.1",
     "1.1.1.1,8.8.8.8", "192.168.1.50", "Auto-Start in",
+    # Layouts (3.0): Fachwoerter, die im Englischen genauso heissen.
+    "Layout", "Layouts", "Ticker", "Region",
 }
 
 
@@ -36,6 +38,41 @@ def datei(pfad):
 
 def woerterbuch(pfad):
     return json.loads(datei(pfad).split("/*JSON*/")[1])
+
+
+def zusatz_woerterbuecher():
+    """`static/i18n/*.en.js` — die Woerterbuecher der Erweiterungen (3.0)."""
+    ordner = os.path.join(WURZEL, "static", "i18n")
+    return sorted(os.path.join("static", "i18n", n) for n in os.listdir(ordner)
+                  if n.endswith(".en.js")) if os.path.isdir(ordner) else []
+
+
+def web_woerterbuch():
+    """Kern plus Zusaetze — so, wie `zusammen()` in i18n.js es zusammenfuehrt:
+    spaetere Texte gewinnen, Muster werden angehaengt."""
+    w = {"texte": {}, "muster": [], "html": {}}
+    for pfad in ["static/i18n-en.js"] + zusatz_woerterbuecher():
+        t = woerterbuch(pfad)
+        w["texte"].update(t.get("texte", {}))
+        w["muster"] += t.get("muster", [])
+        w["html"].update(t.get("html", {}))
+    return w
+
+
+def alle_templates():
+    """Jede Datei unter templates/ — seit 3.0 sind die Karten des Admins
+    Includes (templates/admin/), und Erweiterungen legen dort weitere ab."""
+    heraus = []
+    for wurzel, _ordner, dateien in os.walk(os.path.join(WURZEL, "templates")):
+        for n in dateien:
+            if n.endswith(".html"):
+                heraus.append(os.path.relpath(os.path.join(wurzel, n), WURZEL))
+    return sorted(heraus)
+
+
+def ohne_jinja(html):
+    """`{% include %}`, `{{ … }}` und `{# … #}` sind kein sichtbarer Text."""
+    return re.sub(r"\{%.*?%\}|\{\{.*?\}\}|\{#.*?#\}", "", html, flags=re.S)
 
 
 def norm(s):
@@ -81,7 +118,7 @@ class Texte(HTMLParser):
 
 def lies(pfad):
     p = Texte()
-    p.feed(datei(pfad))
+    p.feed(ohne_jinja(datei(pfad)))
     return p
 
 
@@ -119,27 +156,42 @@ class KernGleich(unittest.TestCase):
 
 
 class Vollstaendig(unittest.TestCase):
-    def pruefe(self, template, wbpfad):
-        wb = woerterbuch(wbpfad)
+    def pruefe(self, template, wb, wbpfad):
         p = lies(template)
         fehlt = sorted({t for t in p.texte if t not in GLEICH and not uebersetzt(wb, t)})
         self.assertEqual(fehlt, [], f"{template}: ohne englischen Eintrag in {wbpfad}")
         ohne_html = [k for k in p.schluessel if k not in wb["html"]]
         self.assertEqual(ohne_html, [], f"{template}: data-i18n ohne Eintrag in `html`")
 
-    def test_admin(self):
-        self.pruefe("templates/admin.html", "static/i18n-en.js")
-
-    def test_startseite(self):
-        self.pruefe("templates/launch.html", "static/i18n-en.js")
+    def test_alle_templates_der_station(self):
+        # Jede Datei unter templates/ — auch die Includes und was
+        # Erweiterungen unter templates/admin/zusatz/ ablegen.
+        wb = web_woerterbuch()
+        templates = alle_templates()
+        self.assertIn("templates/admin.html", templates)
+        self.assertIn("templates/admin/_zonen.html", templates)
+        for t in templates:
+            with self.subTest(template=t):
+                self.pruefe(t, wb, "static/i18n-en.js oder static/i18n/*.en.js")
 
     def test_station_manager(self):
-        self.pruefe("station-manager/renderer/index.html", "station-manager/renderer/i18n-en.js")
+        self.pruefe("station-manager/renderer/index.html",
+                    woerterbuch("station-manager/renderer/i18n-en.js"),
+                    "station-manager/renderer/i18n-en.js")
 
     def test_muster_sind_gueltig(self):
-        for pfad in ("static/i18n-en.js", "station-manager/renderer/i18n-en.js"):
+        for pfad in ["static/i18n-en.js", "station-manager/renderer/i18n-en.js"] + zusatz_woerterbuecher():
             for m in woerterbuch(pfad)["muster"]:
                 re.compile(m[0])
+
+    def test_zusatz_woerterbuecher_haben_die_form_des_kerns(self):
+        # `(window.LZ_I18N_EN_EXTRA = …).push(/*JSON*/{…}/*JSON*/);` — der
+        # Block dazwischen ist reines JSON mit texte/muster/html.
+        for pfad in zusatz_woerterbuecher():
+            with self.subTest(datei=pfad):
+                self.assertIn("LZ_I18N_EN_EXTRA", datei(pfad))
+                wb = woerterbuch(pfad)
+                self.assertEqual(set(wb) <= {"texte", "muster", "html"}, True, pfad)
 
 
 class ServerMeldungen(unittest.TestCase):
@@ -147,7 +199,7 @@ class ServerMeldungen(unittest.TestCase):
     umformulierter Satz auffaellt, statt still deutsch zu bleiben."""
 
     def setUp(self):
-        self.wb = woerterbuch("static/i18n-en.js")
+        self.wb = web_woerterbuch()
 
     def test_befunde_der_zustandspruefung(self):
         config = {"near": {"videos": ["a.mp4"]}, "far": {}}

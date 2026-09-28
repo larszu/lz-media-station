@@ -35,6 +35,33 @@
 
 ## Features
 
+### Layouts und Sofort-Veröffentlichung (3.0)
+- **Layouts mit Regionen**: ein Layout teilt den Schirm in Prozent-Rechtecke;
+  jede Medien-Region spielt ihre eigene **gemischte Playlist** (Video, Bild,
+  Webseite, Audio) mit Blende, Standzeit je Eintrag und **Gültigkeit**
+  (`von`/`bis`, gefiltert im Kern). Vorlagen: Vollbild, geteilt, L-Form,
+  Ticker. Jede Zone spielt ein Layout — siehe
+  [`docs/architektur-v3.md`](docs/architektur-v3.md)
+- **Layout-Editor mit Live-Vorschau**: Regionen auf einer Leinwand zeichnen
+  (ziehen, an den Ecken skalieren, Raster 5 % — mit der Maus wie mit einem
+  Finger am Handy), gemischte Playlists aus der Bibliothek mit Standzeit und
+  Gültigkeit je Eintrag, Widget-Regionen aus dem Widget-Katalog; daneben
+  läuft das Layout in derselben Seite wie auf dem Schirm, mit **simuliertem
+  Zeitpunkt** („zeig mir Dienstag 18:00"), und „Was läuft gerade?" zeigt die
+  echte Szene stumm — siehe [`docs/layouts.md`](docs/layouts.md)
+- **Sofort-Veröffentlichung**: `GET /api/events` (Server-Sent Events) schickt
+  die neue Szene in dem Moment, in dem sie feststeht; gefragt wird nur noch
+  als Rückfall
+- **Befehle an alle Anzeigen** (`POST /api/befehl`): neu laden, ein Layout
+  zwischendurch zeigen (Durchsage), Screenshot (Auswertung folgt)
+- **Vorschau**: `/display?vorschau=1&layout=<id>` zeigt ein Layout mit
+  derselben Seite, die auf dem Schirm läuft — ohne Sensor, ohne Auto-Start
+- **Die Anzeige leitet nie mehr zum Admin um**: ein Schirm im Foyer bleibt
+  schwarz und sagt in einer dezenten Zeile, was fehlt
+- **Erweiterungspunkte**: `api_*.py`-Blueprints, `templates/admin/zusatz/`,
+  `static/module/`, `static/anzeige/`, `static/i18n/` — Welle 2 (Layout-Editor,
+  Widgets, Zeitplanung) legt nur Dateien hin
+
 ### Sensor-/Medien-Kern
 - **Drei wählbare Abstandsquellen** (`sensor_type`):
   - **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) / GPIO 24 (Echo) — frei konfigurierbar (Vorgabe)
@@ -401,9 +428,13 @@ keinen Player-Prozess.)
 
 | Modul | Aufgabe |
 |---|---|
-| `main.py` | Controller: Zonen-Zustandsmaschine, Wochenplan, Statistik-Fortschreibung |
-| `web_ui.py` | Flask-Routen (`/`, `/admin`, `/display`, `/api/*`) |
+| `main.py` | Controller: Zonen-Zustandsmaschine, Wochenplan, Statistik-Fortschreibung, Szenen-Ereignisse |
+| `web_ui.py` | Flask-Routen (`/`, `/admin`, `/display`, `/api/*`), SSE, Erweiterungs-Hooks |
 | `config_schema.py` | Vorgaben **und** Grenzen; Heilung beim Laden, Ablehnung beim Schreiben |
+| `layouts.py` | Layouts, Regionen, Playlists (3.0): Schema, Migration alter Zonenlisten, Spiegel in die Zone, Datumsfilter |
+| `api_layouts.py` | Blueprint für die Layout-Routen (`/api/layouts`) — das Muster für jede `api_*.py`-Erweiterung |
+| `ereignisse.py` | Ereignisbus für Server-Sent Events (rein, ohne Flask) |
+| `VERSION` | Die eine Quelle der Version (`/api/identity`, `/api/status`, `main.py --version`) |
 | `sensor.py` | Basis aller Abstandsquellen (Mittelwert, Veralten) + HC-SR04 |
 | `camera_sensor.py` | Kamera-Quelle (OpenCV + YuNet/Haar), plattformübergreifend |
 | `button_sensor.py` | Taster-Quelle am GPIO |
@@ -415,7 +446,8 @@ keinen Player-Prozess.)
 | `medien_check.py` | Beurteilt hochgeladene Videos (ffprobe optional) |
 | `tv_cec.py` | Fernseher per HDMI-CEC schalten (wirft nie) |
 | `displays.py` | Bildschirme dieses Rechners finden und bespielen |
-| `static/`, `templates/` | Frontend (Admin, Anzeige, Startseite) |
+| `static/`, `templates/` | Frontend (Admin, Anzeige, Startseite); die Admin-Karten sind Includes in `templates/admin/` |
+| `static/module/`, `static/anzeige/`, `static/i18n/`, `templates/admin/zusatz/` | Erweiterungspunkte — Dateien dort werden automatisch eingebunden |
 | `static/i18n.js`, `static/i18n-en.js` | Oberflächensprache: Deutsch als Quelle, englisches Wörterbuch; `tests/test_i18n.py` findet fehlende Einträge |
 | `lzstation.service` | Avahi mDNS für die Manager-Discovery |
 
@@ -435,7 +467,9 @@ Alle Endpoints unter `http://<pi-ip>:5000`.
 | Method | Path | Beschreibung |
 |---|---|---|
 | GET | `/api/status` | Distanz, Zone, Sensor-Zustand, Betriebsruhe, IP, komplette Config |
-| GET | `/api/scene` | Was gerade zu spielen ist: Zone, Zonen-Medien, Lautstärken, Untertitel |
+| GET | `/api/scene` | Was gerade zu spielen ist: Zone, **Layout** mit Regionen und Playlists, Lautstärken, Untertitel. `?layout=<id>[&zone=&zeit=]` = Vorschau eines Layouts |
+| GET | `/api/events` | **Server-Sent Events**: `scene`, `config`, `befehl`; mit `?status=1` zusätzlich jede Sekunde `status` |
+| POST | `/api/befehl` | Befehl an alle Anzeigen: `reload`, `zeige_layout` {layout_id, dauer_s}, `screenshot` |
 | GET | `/api/sync` | **Takt für andere Stationen**: nur Zone + Betriebsruhe (siehe [Gleichtakt](docs/gleichtakt.md)) |
 | GET | `/api/health` | Befunde der Zustandsprüfung + Gesamtstufe |
 | GET | `/api/identity` | Station-ID, Name, Version, Zustandsstufe (Manager-Discovery) |
@@ -447,7 +481,17 @@ Alle Endpoints unter `http://<pi-ip>:5000`.
 |---|---|---|
 | POST | `/api/config` | Konfiguration schreiben (**lehnt ab** und nennt das Feld). Gelesen wird sie über `/api/status` |
 | GET | `/api/backup` | Konfiguration als JSON-Datei herunterladen |
-| POST | `/api/restore` | Sicherung einspielen (**repariert** statt abzulehnen) |
+| POST | `/api/restore` | Sicherung einspielen (**repariert** statt abzulehnen; alte Sicherungen werden in Layouts migriert) |
+
+### Layouts (3.0)
+
+| Method | Path | Beschreibung |
+|---|---|---|
+| GET | `/api/layouts` | Alle Layouts und welche Zone welches spielt |
+| GET | `/api/layouts/vorlagen` | Vorlagen (`vollbild`, `geteilt`, `l-form`, `ticker`, `frei`) |
+| POST | `/api/layouts` | Anlegen `{name, vorlage?, id?}` — die Kennung entsteht aus dem Namen |
+| GET/PUT/DELETE | `/api/layouts/<id>` | Lesen, ersetzen (**lehnt ab** und nennt das Feld), löschen (409, solange eine Zone es spielt) |
+| POST | `/api/layouts/<id>/duplizieren` | Kopie `{name?, id?}` |
 
 ### Medien
 
@@ -493,6 +537,8 @@ stehen in [`docs/`](docs/README.md) — dort steht das Wie und, wichtiger, das
 | [Mehrsprachigkeit](docs/mehrsprachigkeit.md) | Untertitelspuren je Video, Sprachknöpfe |
 | [Gleichtakt](docs/gleichtakt.md) | Eine Station folgt der Zone einer anderen |
 | [Betrieb](docs/betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung |
+| [Layouts](docs/layouts.md) | Regionen mit gemischten Playlists, Vorlagen, der Editor (ziehen und skalieren mit Maus und Finger, Gültigkeit je Eintrag), Live-Vorschau mit Zeitpunkt, „Was läuft gerade?" |
+| [Architektur 3.0](docs/architektur-v3.md) | Layouts und Regionen, Gültigkeit je Eintrag, SSE statt Polling, Befehle, Vorschau, Erweiterungspunkte |
 
 **Zwei Regeln gelten überall:** Ohne Messung wird nichts erfunden — fehlt der
 Sensor, die Kamera oder der Kontakt zum Taktgeber, gibt es *keinen* Wert, die

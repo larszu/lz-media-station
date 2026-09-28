@@ -1,0 +1,31 @@
+<!-- Besucher-Statistik -->
+<section class="card">
+    <h2>Besucher-Statistik</h2>
+    <p class="karten-hinweis" data-i18n="statistik-hinweis">
+        Gez&auml;hlt wird, <strong>wann</strong> und <strong>wie lange</strong> jemand in der
+        Nah-Zone stand &mdash; nichts &uuml;ber einzelne Personen.
+    </p>
+    <div class="stat-kacheln">
+        <div class="stat-kachel">
+            <span class="stat-wert" id="stat-heute-besuche">&ndash;</span>
+            <span class="stat-name">Besuche heute</span>
+        </div>
+        <div class="stat-kachel">
+            <span class="stat-wert" id="stat-heute-schnitt">&ndash;</span>
+            <span class="stat-name">&Oslash; Verweildauer</span>
+        </div>
+        <div class="stat-kachel">
+            <span class="stat-wert" id="stat-gesamt-besuche">&ndash;</span>
+            <span class="stat-name">Besuche gesamt</span>
+        </div>
+    </div>
+    <h3 class="stat-titel">Heute nach Stunde</h3>
+    <div class="stat-stunden" id="stat-stunden"></div>
+    <h3 class="stat-titel">Letzte Tage</h3>
+    <div class="stat-tage" id="stat-tage"></div>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+        <a class="btn btn-save" href="/api/statistik.csv">CSV herunterladen</a>
+        <button class="btn btn-stop" onclick="resetStatistik()">Z&auml;hler zur&uuml;cksetzen</button>
+    </div>
+    <div id="stat-feedback" class="feedback"></div>
+</section>

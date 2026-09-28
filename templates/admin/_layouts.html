@@ -1,0 +1,186 @@
+<!-- Layouts (seit 3.0): Regionen mit eigenen Playlists. Diese Karte ist der
+     Editor: Leinwand zum Ziehen der Regionen, Panel fuer die gewaehlte
+     Region, Playlist- oder Widget-Bearbeitung, daneben die Live-Vorschau mit
+     derselben Anzeigeseite, die auch auf dem Schirm laeuft. Die Logik steht
+     in static/module/layout-editor.js, das Aussehen in
+     static/layout-editor.css. -->
+<link rel="stylesheet" href="/static/layout-editor.css">
+<section class="card" id="card-layouts">
+    <h2>Layouts</h2>
+    <p class="karten-hinweis" data-i18n="layouts-hinweis">
+        Ein Layout teilt den Schirm in <strong>Regionen</strong> &mdash; jede mit eigener
+        Playlist aus Videos, Bildern und Webseiten. Jede Zone spielt ein Layout;
+        zugeordnet wird es in der Zonen-&Uuml;bersicht. <strong>Vorschau</strong> &ouml;ffnet
+        das Layout so, wie es auf dem Schirm l&auml;uft.
+    </p>
+
+    <!-- Welches Layout wird bearbeitet -->
+    <div class="le-kopf">
+        <label class="le-wahl-label"><span>Layout</span>
+            <select id="le-wahl" onchange="LZ_EDITOR.waehleLayout(this.value)"></select>
+        </label>
+        <span id="le-zonen" class="badge"></span>
+        <div class="le-kopf-aktionen">
+            <button type="button" class="btn btn-small btn-secondary" onclick="LZ_EDITOR.neuAnzeigen()">Neues Layout</button>
+            <button type="button" class="btn btn-small btn-secondary" onclick="LZ_EDITOR.umbenennen()">Umbenennen</button>
+            <button type="button" class="btn btn-small btn-secondary" onclick="LZ_EDITOR.duplizieren()">Duplizieren</button>
+            <button type="button" class="btn btn-small btn-secondary le-loeschen" id="le-loeschen" onclick="LZ_EDITOR.loeschen()">L&ouml;schen</button>
+        </div>
+    </div>
+
+    <!-- Neues Layout anlegen (eingeklappt) -->
+    <div id="le-neu" class="le-neu" hidden>
+        <div class="settings-grid">
+            <div class="form-group">
+                <label for="layout-neu-name">Neues Layout</label>
+                <input type="text" id="layout-neu-name" placeholder="Name, z. B. Foyer links">
+            </div>
+            <div class="form-group">
+                <label for="layout-neu-vorlage">Vorlage</label>
+                <select id="layout-neu-vorlage"></select>
+            </div>
+        </div>
+        <div class="le-neu-aktionen">
+            <button type="button" class="btn btn-small" onclick="LZ_EDITOR.anlegen()">Layout anlegen</button>
+            <button type="button" class="btn btn-small btn-secondary" onclick="LZ_EDITOR.neuAnzeigen(false)">Abbrechen</button>
+        </div>
+    </div>
+
+    <!-- Umbenennen (eingeklappt): der Name geht mit „Layout speichern" mit -->
+    <div id="le-umbenennen" class="le-neu" hidden>
+        <div class="form-group">
+            <label for="le-name-neu">Neuer Name</label>
+            <input type="text" id="le-name-neu" maxlength="64">
+        </div>
+        <div class="le-neu-aktionen">
+            <button type="button" class="btn btn-small" onclick="LZ_EDITOR.nameUebernehmen()">Namen &uuml;bernehmen</button>
+            <button type="button" class="btn btn-small btn-secondary" onclick="LZ_EDITOR.umbenennen()">Abbrechen</button>
+        </div>
+    </div>
+
+    <div id="le-editor" class="le-editor">
+        <!-- Links: die Leinwand -->
+        <div class="le-links">
+            <div class="le-leiste">
+                <button type="button" class="btn btn-small btn-secondary" onclick="LZ_EDITOR.regionHinzu()">Region hinzuf&uuml;gen</button>
+                <div class="le-format">
+                    <button type="button" class="le-format-knopf active" id="le-format-quer" onclick="LZ_EDITOR.setzeFormat('quer')" title="Querformat 16:9">16:9</button>
+                    <button type="button" class="le-format-knopf" id="le-format-hoch" onclick="LZ_EDITOR.setzeFormat('hoch')" title="Hochformat 9:16">9:16</button>
+                </div>
+                <label class="le-farbe"><span>Hintergrund</span>
+                    <input type="color" id="le-hintergrund" value="#000000" onchange="LZ_EDITOR.setzeHintergrund(this.value)">
+                </label>
+            </div>
+            <div id="le-leinwand" class="le-leinwand quer" tabindex="0" aria-label="Leinwand: Regionen ziehen und skalieren"></div>
+            <p class="le-tipp">Ziehen verschiebt, die Ecken skalieren; Raster 5&nbsp;%. Auf dem Handy mit einem Finger.</p>
+        </div>
+
+        <!-- Rechts: die gewaehlte Region -->
+        <div class="le-rechts">
+            <div id="le-region-leer" class="zone-empty">Keine Region gew&auml;hlt &mdash; auf der Leinwand antippen oder eine anlegen.</div>
+            <div id="le-region-panel" hidden>
+                <div class="le-region-kopf">
+                    <strong id="le-region-titel">Region</strong>
+                    <div class="le-region-ebene">
+                        <button type="button" class="ord-btn" onclick="LZ_EDITOR.ebene(1)" title="Ebene nach oben">&#9650;</button>
+                        <button type="button" class="ord-btn" onclick="LZ_EDITOR.ebene(-1)" title="Ebene nach unten">&#9660;</button>
+                        <button type="button" class="del-btn" onclick="LZ_EDITOR.regionEntfernen()" title="Region entfernen">&#10005;</button>
+                    </div>
+                </div>
+                <div class="settings-grid le-region-felder">
+                    <div class="form-group">
+                        <label for="le-r-name">Bezeichnung</label>
+                        <input type="text" id="le-r-name" onchange="LZ_EDITOR.feld('name', this.value)">
+                    </div>
+                    <div class="form-group">
+                        <label for="le-r-typ">Inhalt</label>
+                        <select id="le-r-typ" onchange="LZ_EDITOR.feld('typ', this.value)">
+                            <option value="medien">Medien (Playlist)</option>
+                            <option value="widget">Widget (Uhr, Text, Wetter &hellip;)</option>
+                        </select>
+                    </div>
+                    <div class="form-group le-geo">
+                        <label>Position und Gr&ouml;&szlig;e in %</label>
+                        <div class="le-geo-felder">
+                            <label><span>Links</span><input type="number" id="le-r-x" min="0" max="99" step="1" onchange="LZ_EDITOR.geo('x', this.value)"></label>
+                            <label><span>Oben</span><input type="number" id="le-r-y" min="0" max="99" step="1" onchange="LZ_EDITOR.geo('y', this.value)"></label>
+                            <label><span>Breite</span><input type="number" id="le-r-w" min="1" max="100" step="1" onchange="LZ_EDITOR.geo('w', this.value)"></label>
+                            <label><span>H&ouml;he</span><input type="number" id="le-r-h" min="1" max="100" step="1" onchange="LZ_EDITOR.geo('h', this.value)"></label>
+                        </div>
+                    </div>
+                    <div class="form-group le-nur-medien">
+                        <label for="le-r-uebergang">&Uuml;bergang</label>
+                        <select id="le-r-uebergang" onchange="LZ_EDITOR.feld('uebergang', this.value)">
+                            <option value="blende">Blende</option>
+                            <option value="keiner">Harter Schnitt</option>
+                        </select>
+                    </div>
+                    <div class="form-group span-2 le-schalter">
+                        <label class="checkbox-label le-nur-medien"><input type="checkbox" id="le-r-ton" onchange="LZ_EDITOR.feld('ton', this.checked)"><span>Ton</span></label>
+                        <label class="checkbox-label le-nur-medien"><input type="checkbox" id="le-r-shuffle" onchange="LZ_EDITOR.feld('shuffle', this.checked)"><span>Zuf&auml;llige Reihenfolge</span></label>
+                        <label class="checkbox-label le-nur-medien"><input type="checkbox" id="le-r-einmal" onchange="LZ_EDITOR.feld('einmal', this.checked)"><span>Einmal abspielen</span></label>
+                    </div>
+                </div>
+
+                <!-- Playlist der Medien-Region -->
+                <div id="le-playlist-block" class="le-nur-medien">
+                    <div class="stat-titel">Playlist dieser Region</div>
+                    <div id="le-playlist" class="le-playlist"></div>
+                    <div class="stat-titel">Hinzuf&uuml;gen</div>
+                    <div class="tabs le-tabs">
+                        <button type="button" class="tab active" data-le-tab="videos" onclick="LZ_EDITOR.tab('videos')">&#127916; Videos</button>
+                        <button type="button" class="tab" data-le-tab="images" onclick="LZ_EDITOR.tab('images')">Bilder</button>
+                        <button type="button" class="tab" data-le-tab="audio" onclick="LZ_EDITOR.tab('audio')">&#127925; Audio</button>
+                        <button type="button" class="tab" data-le-tab="web" onclick="LZ_EDITOR.tab('web')">Webseite</button>
+                    </div>
+                    <div id="le-medien" class="le-medien"></div>
+                    <div id="le-web" class="le-web" hidden>
+                        <input type="url" id="le-web-url" placeholder="Adresse, z. B. https://…">
+                        <button type="button" class="btn btn-small" onclick="LZ_EDITOR.webHinzu()">Webseite hinzuf&uuml;gen</button>
+                    </div>
+                </div>
+
+                <!-- Einstellungen der Widget-Region -->
+                <div id="le-widget-block" class="le-nur-widget" hidden>
+                    <div class="stat-titel">Widget-Einstellungen</div>
+                    <div class="form-group">
+                        <label for="le-widget-typ">Widget-Typ</label>
+                        <select id="le-widget-typ" onchange="LZ_EDITOR.widgetTyp(this.value)"></select>
+                        <input type="text" id="le-widget-typ-frei" placeholder="Typ, z. B. uhr" onchange="LZ_EDITOR.widgetTyp(this.value)" hidden>
+                    </div>
+                    <div id="le-widget-felder" class="settings-grid"></div>
+                    <div class="form-group" id="le-widget-json-block" hidden>
+                        <label for="le-widget-json">Einstellungen (JSON)</label>
+                        <textarea id="le-widget-json" rows="5" onchange="LZ_EDITOR.widgetJson(this.value)"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="le-speichern">
+        <button type="button" class="btn btn-save" id="le-speichern" onclick="LZ_EDITOR.speichern()">Layout speichern</button>
+        <span id="le-schmutzig" class="le-schmutzig" hidden>Nicht gespeicherte &Auml;nderungen</span>
+    </div>
+    <div id="layouts-feedback" class="feedback"></div>
+
+    <!-- Live-Vorschau: dieselbe Anzeigeseite wie auf dem Schirm -->
+    <div class="stat-titel">Live-Vorschau</div>
+    <div class="le-vorschau-leiste">
+        <label class="le-vorschau-feld"><span>Als Zone</span>
+            <select id="le-vorschau-zone" onchange="LZ_EDITOR.vorschauNeu()">
+                <option value="near">Nah</option>
+                <option value="mid">Mitte</option>
+                <option value="far">Fern</option>
+            </select>
+        </label>
+        <label class="le-vorschau-feld"><span>Zeitpunkt simulieren</span>
+            <input type="datetime-local" id="le-zeit" onchange="LZ_EDITOR.vorschauNeu()">
+        </label>
+        <button type="button" class="btn btn-small btn-secondary" onclick="LZ_EDITOR.zeitJetzt()">Jetzt</button>
+        <a class="btn btn-small btn-secondary" id="le-vollbild" href="/display?vorschau=1" target="_blank" rel="noopener">Vollbild &ouml;ffnen</a>
+    </div>
+    <div id="le-vorschau-rahmen" class="le-vorschau quer">
+        <iframe id="le-vorschau" title="Vorschau des Layouts" src="about:blank"></iframe>
+    </div>
+</section>

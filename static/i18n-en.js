@@ -198,7 +198,12 @@ window.LZ_I18N_EN = /*JSON*/{
   "Zur Admin-Seite...": "To the admin page...",
   "Video nicht abspielbar": "Video cannot be played",
   "Bild nicht ladbar": "Image cannot be loaded",
-  "Audio nicht abspielbar": "Audio cannot be played"
+  "Audio nicht abspielbar": "Audio cannot be played",
+  "Verbindung zur Station unterbrochen – läuft weiter": "Connection to the station lost – still playing",
+  "Kein Inhalt zugewiesen": "No content assigned",
+  "Inhalt konnte nicht geladen werden – Medien im Admin prüfen": "Content could not be loaded – check the media in the admin",
+  "Region": "Region",
+  "Regionen": "Regions"
  },
  "muster": [
   [

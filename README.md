@@ -38,6 +38,32 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
 
 ## Features
 
+### Layouts and instant publish (3.0)
+- **Layouts with regions**: a layout divides the screen into percent
+  rectangles; each media region plays its own **mixed playlist** (video,
+  image, web page, audio) with cross-fades, a per-item duration and a
+  **validity period** (`from`/`to`, filtered in the core). Templates: full
+  screen, split, L-shape, ticker. Every zone plays one layout — see
+  [`docs/architektur-v3.md`](docs/architektur-v3.md)
+- **Layout editor with live preview**: draw regions on a canvas (drag,
+  resize at the corners, 5 % grid — mouse and one finger on a phone), build
+  mixed playlists from the library with a duration and a validity per entry,
+  configure widget regions from the widget catalogue; next to it the layout
+  runs in the very page the screen uses, with a **simulated point in time**
+  ("show me Tuesday 18:00"), and "What is playing now?" shows the real scene
+  muted — see [`docs/layouts.md`](docs/layouts.md)
+- **Instant publish**: `GET /api/events` (Server-Sent Events) pushes the new
+  scene the moment it changes; polling is only the fallback
+- **Commands to all displays** (`POST /api/befehl`): reload, show a layout
+  for a while (announcement), screenshot (evaluation follows)
+- **Preview**: `/display?vorschau=1&layout=<id>` renders a layout with the
+  very page that runs on the screen — no sensor, no auto-start
+- **The display never redirects to the admin any more**: a screen in a foyer
+  stays black and says in one discreet line what is missing
+- **Extension points**: `api_*.py` blueprints, `templates/admin/zusatz/`,
+  `static/module/`, `static/anzeige/`, `static/i18n/` — wave 2 (layout editor,
+  widgets, scheduling) only adds files
+
 ### Sensor and media core
 - **Three selectable distance sources** (`sensor_type`):
   - **HC-SR04 ultrasonic sensor** on GPIO 23 (trigger) / GPIO 24 (echo) — freely configurable (default)
@@ -396,9 +422,13 @@ player process.)
 
 | Module | Purpose |
 |---|---|
-| `main.py` | Controller: zone state machine, weekly plan, statistics |
-| `web_ui.py` | Flask routes (`/`, `/admin`, `/display`, `/api/*`) |
+| `main.py` | Controller: zone state machine, weekly plan, statistics, scene events |
+| `web_ui.py` | Flask routes (`/`, `/admin`, `/display`, `/api/*`), SSE, extension hooks |
 | `config_schema.py` | Defaults **and** limits; repair on load, rejection on write |
+| `layouts.py` | Layouts, regions, playlists (3.0): schema, migration of old zone lists, mirror into the zone, date filter |
+| `api_layouts.py` | Blueprint for the layout routes (`/api/layouts`) — the pattern every `api_*.py` extension follows |
+| `ereignisse.py` | Event bus for Server-Sent Events (pure, no Flask) |
+| `VERSION` | The one source of the version (`/api/identity`, `/api/status`, `main.py --version`) |
 | `sensor.py` | Base of all distance sources (averaging, staleness) + HC-SR04 |
 | `camera_sensor.py` | Camera source (OpenCV + YuNet/Haar), cross-platform |
 | `button_sensor.py` | Push-button source on GPIO |
@@ -410,7 +440,8 @@ player process.)
 | `medien_check.py` | Assesses uploaded videos (ffprobe optional) |
 | `tv_cec.py` | Switch the TV via HDMI-CEC (never throws) |
 | `displays.py` | Find and drive this computer's screens |
-| `static/`, `templates/` | Frontend (admin, display, start page) |
+| `static/`, `templates/` | Frontend (admin, display, start page); admin cards are includes in `templates/admin/` |
+| `static/module/`, `static/anzeige/`, `static/i18n/`, `templates/admin/zusatz/` | Extension points — files there are picked up automatically |
 | `static/i18n.js`, `static/i18n-en.js` | Interface language: German source, English dictionary; `tests/test_i18n.py` finds missing entries |
 | `lzstation.service` | Avahi mDNS for manager discovery |
 
@@ -430,7 +461,9 @@ All endpoints under `http://<pi-ip>:5000`.
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/status` | Distance, zone, sensor state, quiet hours, IP, full config |
-| GET | `/api/scene` | What to play right now: zone, zone media, volumes, subtitles |
+| GET | `/api/scene` | What to play right now: zone, **layout** with regions and playlists, volumes, subtitles. `?layout=<id>[&zone=&zeit=]` = preview of a layout |
+| GET | `/api/events` | **Server-Sent Events**: `scene`, `config`, `befehl`; with `?status=1` also `status` every second |
+| POST | `/api/befehl` | Command to all displays: `reload`, `zeige_layout` {layout_id, dauer_s}, `screenshot` |
 | GET | `/api/sync` | **Clock for other stations**: zone + quiet hours only (see [lockstep](docs/gleichtakt.md)) |
 | GET | `/api/health` | Health-check findings + overall level |
 | GET | `/api/identity` | Station ID, name, version, health level (manager discovery) |
@@ -442,7 +475,17 @@ All endpoints under `http://<pi-ip>:5000`.
 |---|---|---|
 | POST | `/api/config` | Write the configuration (**rejects** and names the field). Read it via `/api/status` |
 | GET | `/api/backup` | Download the configuration as a JSON file |
-| POST | `/api/restore` | Restore a backup (**repairs** instead of rejecting) |
+| POST | `/api/restore` | Restore a backup (**repairs** instead of rejecting; old backups are migrated into layouts) |
+
+### Layouts (3.0)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/layouts` | All layouts plus which zone plays which |
+| GET | `/api/layouts/vorlagen` | Templates (`vollbild`, `geteilt`, `l-form`, `ticker`, `frei`) |
+| POST | `/api/layouts` | Create `{name, vorlage?, id?}` — the id is derived from the name |
+| GET/PUT/DELETE | `/api/layouts/<id>` | Read, replace (**rejects** and names the field), delete (409 while a zone plays it) |
+| POST | `/api/layouts/<id>/duplizieren` | Copy `{name?, id?}` |
 
 ### Media
 
@@ -488,6 +531,8 @@ This README is the overview. Topics that need more than a paragraph live in
 | [Multiple languages](docs/mehrsprachigkeit.md) | Subtitle tracks per video, language buttons |
 | [Lockstep](docs/gleichtakt.md) | One station follows another station's zone |
 | [Operation](docs/betrieb.md) | Media check on upload, backup and restore |
+| [Layouts](docs/layouts.md) | Regions with mixed playlists, templates, the editor (drag and resize with mouse and finger, validity per entry), live preview with a point in time, "What is playing now?" |
+| [Architecture 3.0](docs/architektur-v3.md) | Layouts and regions, validity per item, SSE instead of polling, commands, preview, extension points |
 
 **Two rules apply everywhere:** without a measurement nothing is invented — if
 the sensor, the camera or the contact to the clock station is missing, there is

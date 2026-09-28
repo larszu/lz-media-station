@@ -1,10 +1,15 @@
 """Flask Web-UI + Media-Server für LZ Media Station"""
+import glob
+import importlib
 import json
 import os
 import socket
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from datetime import datetime
+from flask import Flask, Response, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
+import ereignisse
 import gesundheit
+import layouts as layouts_modul
 import medien_check
 from config_schema import (
     DEFAULT_CONFIG, MEDIENARTEN, ZONEN, ZONEN_NAMEN, aktive_zonen,
@@ -23,6 +28,8 @@ MEDIA_DIRS = {
     # einem Video, nicht an einer Entfernung.
     "subtitles": os.path.join(BASE_DIR, "subtitles"),
 }
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 ALLOWED_EXT = {
     "videos": {".mp4", ".mkv", ".avi", ".mov", ".webm"},
     "images": {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"},
@@ -32,6 +39,40 @@ ALLOWED_EXT = {
     # schlimmer als sie abzulehnen.
     "subtitles": {".vtt"},
 }
+
+
+def lies_version():
+    """Die Version aus der EINEN Datei `VERSION`.
+
+    Sie stand als Text in `/api/identity` ("2.1.0") und als Zahl in
+    `station-manager/package.json` (2.0.4) — zwei Stellen, die nie jemand
+    abgeglichen hat. Jetzt gibt es eine; der Release setzt sie.
+    """
+    try:
+        with open(os.path.join(BASE_DIR, "VERSION"), encoding="utf-8") as f:
+            return f.read().strip() or "0.0.0"
+    except OSError:
+        return "0.0.0"
+
+
+def erweiterungen():
+    """Was Welle 2 (und alles danach) nur als DATEI hinzulegen braucht.
+
+    - `templates/admin/zusatz/*.html`  — weitere Karten im Admin
+    - `static/module/*.js`             — Skripte nach app.js im Admin
+    - `static/anzeige/*.js`            — Skripte auf der Anzeige (Widgets)
+    - `static/i18n/*.en.js`            — weitere englische Woerterbuecher
+    Alphabetisch, damit die Reihenfolge nachvollziehbar ist. Nichts davon
+    muss in `create_app` eingetragen werden — das ist der Zweck.
+    """
+    def namen(muster):
+        return sorted(os.path.basename(p) for p in glob.glob(os.path.join(BASE_DIR, muster)))
+    return {
+        "zusatz_templates": ["admin/zusatz/" + n for n in namen("templates/admin/zusatz/*.html")],
+        "module_skripte": ["/static/module/" + n for n in namen("static/module/*.js")],
+        "anzeige_skripte": ["/static/anzeige/" + n for n in namen("static/anzeige/*.js")],
+        "i18n_extra": ["/static/i18n/" + n for n in namen("static/i18n/*.en.js")],
+    }
 
 
 def lan_adresse():
@@ -94,26 +135,49 @@ def create_app(controller, anzeigen=None):
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024
 
+    # Fehlt der Bus (ein Controller-Ersatz in einem Test), bekommt die App
+    # einen eigenen: `/api/events` soll nie an einem Attribut scheitern.
+    if not hasattr(controller, "bus"):
+        controller.bus = ereignisse.Ereignisbus()
+    if not hasattr(controller, "lock"):
+        import threading
+        controller.lock = threading.RLock()
+
+    def melde_config():
+        if hasattr(controller, "melde_config"):
+            controller.melde_config()
+
+    # --- Erweiterungen: alle `api_*.py` im Wurzelverzeichnis ------------------
+    # Ein neues Modul mit `erzeuge_blueprint(controller)` ist damit registriert,
+    # ohne dass hier eine Zeile dazukommt. Fehlt die Funktion, wird das Modul
+    # genannt und uebersprungen — nicht der Start verhindert.
+    for pfad in sorted(glob.glob(os.path.join(BASE_DIR, "api_*.py"))):
+        name = os.path.splitext(os.path.basename(pfad))[0]
+        try:
+            modul = importlib.import_module(name)
+            app.register_blueprint(modul.erzeuge_blueprint(controller))
+        except Exception as e:  # noqa: BLE001 — der Start geht vor
+            print(f"[Erweiterung] {name}: nicht registriert ({e})")
+
     # --- Pages ---
     @app.route("/")
     def launch():
-        return render_template("launch.html")
+        return render_template("launch.html", **erweiterungen())
 
     @app.route("/admin")
     def admin():
-        return render_template("admin.html")
+        return render_template("admin.html", **erweiterungen())
 
     @app.route("/display")
     def display():
-        return render_template("display.html")
+        return render_template("display.html", **erweiterungen())
 
     # --- API ---
-    @app.route("/api/status")
-    def api_status():
+    def _status():
         cfg_ip = (controller.config.get("display_ip") or "").strip()
         port = controller.config.get("web_port", 5000)
         host_ip = cfg_ip or lan_adresse()
-        return jsonify({
+        return {
             # `None`, wenn keine gueltige Messung vorliegt. Frueher stand
             # hier 0.0 — eine Zahl, die aussieht wie „Besucher steht direkt
             # davor", und die Oberflaeche konnte nicht zwischen „ganz nah"
@@ -142,12 +206,84 @@ def create_app(controller, anzeigen=None):
             # Notebook an einem zweiten Aufbau. Eine Adresse, die nirgends
             # steht, kann niemand erraten.
             "display_url": "http://" + host_ip + ":" + str(port) + "/display",
+            "version": lies_version(),
             "config": controller.config,
-        })
+        }
+
+    @app.route("/api/status")
+    def api_status():
+        return jsonify(_status())
 
     @app.route("/api/scene")
     def api_scene():
-        return jsonify(controller.get_scene())
+        """Was gerade zu spielen ist.
+
+        `?layout=<id>` ist die VORSCHAU: dieses Layout, als Zone `?zone=`
+        (oder die erste), unabhaengig von Sensor und Wochenplan; `?zeit=`
+        (JJJJ-MM-TTTHH:MM) entscheidet, welche Eintraege an dem Tag gelten.
+        Der Layout-Editor (Welle 2) zeigt damit, was er baut — mit derselben
+        Anzeigeseite, die auch auf dem Schirm laeuft.
+        """
+        layout_id = request.args.get("layout")
+        if layout_id is None:
+            return jsonify(controller.get_scene())
+        if layout_id not in (controller.config.get("layouts") or {}):
+            return jsonify({"error": f"Layout {layout_id!r} gibt es nicht"}), 404
+        jetzt = None
+        roh = request.args.get("zeit")
+        if roh:
+            try:
+                jetzt = datetime.fromisoformat(roh)
+            except ValueError:
+                return jsonify({"error": "zeit: JJJJ-MM-TTTHH:MM erwartet"}), 400
+        return jsonify(controller.get_scene(layout_id=layout_id,
+                                            zone=request.args.get("zone"),
+                                            jetzt=jetzt))
+
+    # ── Ereignisse (SSE) ──────────────────────────────────────────────────
+    #
+    # Die Anzeige und die Verwaltung hoeren hier zu, statt zweimal je Sekunde
+    # zu fragen. `scene` kommt bei jedem Zonenwechsel, `config` nach jedem
+    # Schreibzugriff, `befehl` von `/api/befehl`. `?status=1` schickt
+    # zusaetzlich jede Sekunde den Status (Abstand, Zustand) — das braucht
+    # nur die Verwaltung.
+
+    @app.route("/api/events")
+    def api_events():
+        mit_status = request.args.get("status") == "1"
+        return Response(
+            ereignisse.strom(controller.bus, status=_status if mit_status else None),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    @app.route("/api/befehl", methods=["POST"])
+    def api_befehl():
+        """Ein Befehl an alle Anzeigen, die gerade zuhoeren.
+
+        `reload`        — die Anzeigeseite neu laden (nach einem Update)
+        `zeige_layout`  — {layout_id, dauer_s|null}: ein Layout zwischendurch
+                          zeigen (Durchsage, Vorschau am echten Schirm);
+                          `dauer_s` null = bis zum naechsten Befehl,
+                          `layout_id` null = zurueck zur Zone
+        `screenshot`    — wird durchgereicht (Auswertung kommt mit Welle 2)
+        """
+        daten = request.get_json(silent=True) or {}
+        typ = daten.get("typ")
+        if typ not in ("reload", "zeige_layout", "screenshot"):
+            return jsonify({"error": "typ: reload|zeige_layout|screenshot"}), 400
+        befehl = {"typ": typ}
+        if typ == "zeige_layout":
+            lid = daten.get("layout_id")
+            if lid is not None and lid not in (controller.config.get("layouts") or {}):
+                return jsonify({"error": f"layout_id: {lid!r} gibt es nicht"}), 404
+            dauer = daten.get("dauer_s")
+            if dauer is not None:
+                if isinstance(dauer, bool) or not isinstance(dauer, (int, float)) or dauer <= 0:
+                    return jsonify({"error": "dauer_s: Sekunden > 0 oder null"}), 400
+            befehl["layout_id"] = lid
+            befehl["dauer_s"] = dauer
+        controller.bus.senden("befehl", befehl)
+        return jsonify({"ok": True, "empfaenger": controller.bus.anzahl})
 
     @app.route("/api/sync")
     def api_sync():
@@ -323,7 +459,7 @@ def create_app(controller, anzeigen=None):
         return jsonify({
             "id": sid,
             "name": controller.config.get("system_name", "LZ Station"),
-            "version": "2.1.0",
+            "version": lies_version(),
             "hostname": platform.node(),
             "active": controller.active,
             "state": controller.state,
@@ -364,7 +500,9 @@ def create_app(controller, anzeigen=None):
                 }
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
-        controller.config.update(geprueft)
+        # ERST alles pruefen, DANN schreiben — sonst waere die Haelfte eines
+        # abgelehnten Patches schon angekommen.
+        zonen_teile = {}
         for zone in ZONEN:
             if zone not in data:
                 continue
@@ -372,21 +510,30 @@ def create_app(controller, anzeigen=None):
                 teil = pruefe_zone(data[zone])
             except ValueError as e:
                 return jsonify({"error": f"{zone}.{e}"}), 400
-            if not isinstance(controller.config.get(zone), dict):
-                controller.config[zone] = standard_zone()
+            lid = teil.get("layout")
+            if lid and lid not in (controller.config.get("layouts") or {}):
+                return jsonify({"error": f"{zone}.layout: Layout {lid!r} gibt es nicht"}), 400
             # Dateinamen bleiben entschaerft — der Name kommt aus dem Browser
             # und landet spaeter in einem Pfad.
             for mt in MEDIENARTEN:
                 if mt in teil:
-                    controller.config[zone][mt] = [secure_filename(f) for f in teil[mt]]
-            for schalter in ("shuffle", "einmal"):
-                if schalter in teil:
-                    controller.config[zone][schalter] = teil[schalter]
+                    teil[mt] = [secure_filename(f) for f in teil[mt]]
             if "bildzeiten" in teil:
-                controller.config[zone]["bildzeiten"] = {
+                teil["bildzeiten"] = {
                     secure_filename(name): wert for name, wert in teil["bildzeiten"].items()
                 }
-        controller.save_config()
+            zonen_teile[zone] = teil
+        with controller.lock:
+            controller.config.update(geprueft)
+            for zone, teil in zonen_teile.items():
+                if not isinstance(controller.config.get(zone), dict):
+                    controller.config[zone] = standard_zone()
+                # Die alten Listen landen in der Hauptregion des Zonen-Layouts
+                # (layouts.py) — so schicken der Manager und alte Skripte
+                # weiterhin `{"near": {"videos": [...]}}`, und es kommt an.
+                layouts_modul.schreibe_zonen_teil(controller.config, zone, teil)
+            controller.save_config()
+        melde_config()
         return jsonify({"ok": True, "config": controller.config})
 
     @app.route("/api/media/<media_type>")
@@ -464,9 +611,11 @@ def create_app(controller, anzeigen=None):
         for zone in ZONEN:
             neu[zone] = heile_zone(neu.get(zone))
         neu = heile_config(neu)
-        controller.config.clear()
-        controller.config.update(neu)
-        controller.save_config()
+        with controller.lock:
+            controller.config.clear()
+            controller.config.update(neu)
+            controller.save_config()
+        melde_config()
         # Die Quelle wird beim Programmstart gebaut; ein geaenderter Sensortyp
         # oder Pin wirkt erst danach. Das gehoert gesagt, sonst sucht jemand
         # den Fehler in der Verdrahtung.
@@ -480,14 +629,14 @@ def create_app(controller, anzeigen=None):
         if media_type not in MEDIA_DIRS:
             return jsonify({"error": "Ungültiger Typ"}), 400
         safe = secure_filename(name)
-        removed = False
-        for zone in ("near", "far"):
-            zc = controller.config.get(zone, {})
-            if media_type in zc and safe in zc[media_type]:
-                zc[media_type].remove(safe)
-                removed = True
+        # Aus ALLEN Layouts und Zonen — auch der Mitte. Hier stand
+        # `for zone in ("near", "far")`, und die Mitte behielt die Datei.
+        with controller.lock:
+            removed = layouts_modul.entferne_datei(controller.config, media_type, safe)
+            if removed:
+                controller.save_config()
         if removed:
-            controller.save_config()
+            melde_config()
         return jsonify({"ok": True, "removed_from_zones": removed})
 
     @app.route("/api/start", methods=["POST"])
