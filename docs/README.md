@@ -13,6 +13,7 @@ den Überblick; hier steht das Wie und — wichtiger — das **Warum**.
 | [Gleichtakt](gleichtakt.md) | Mehrere Stationen im Takt: eine folgt der Zone einer anderen |
 | [Betrieb](betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung der Konfiguration |
 | [Architektur 3.0](architektur-v3.md) | Layouts und Regionen mit gemischten Playlists, Gültigkeit je Eintrag, Ereignisse (SSE) statt Polling, Befehle an die Anzeige, Vorschau, Erweiterungspunkte für Welle 2 |
+| [Widgets](widgets.md) | Uhr, Text-Folie mit Vorlagen, Laufschrift, Wetter, Nachrichten (RSS), Kalender (ICS), QR-Code, Webseite, Zähler und eigene HTML-Widgets; Proxys mit Zwischenspeicher, Verhalten ohne Netz |
 
 ## Zwei Dinge, die überall gelten
 

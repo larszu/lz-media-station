@@ -56,6 +56,13 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
 - **Extension points**: `api_*.py` blueprints, `templates/admin/zusatz/`,
   `static/module/`, `static/anzeige/`, `static/i18n/` — wave 2 (layout editor,
   widgets, scheduling) only adds files
+- **Widgets** in any region: clock (digital/analogue), text slide with
+  templates (welcome, signpost, menu, notice, opening hours from the
+  schedule), ticker, weather (Open-Meteo, no key), news (RSS/Atom), calendar
+  (ICS, also as room occupancy), QR code (built in, offline), web page with
+  embed check, countdown, and **your own HTML widgets** from `widgets/<name>/`.
+  Feeds and weather go through the core (`/api/widgets/*`, cached); without
+  network the last state stays on screen — see [`docs/widgets.md`](docs/widgets.md)
 
 ### Sensor and media core
 - **Three selectable distance sources** (`sensor_type`):
@@ -420,6 +427,8 @@ player process.)
 | `config_schema.py` | Defaults **and** limits; repair on load, rejection on write |
 | `layouts.py` | Layouts, regions, playlists (3.0): schema, migration of old zone lists, mirror into the zone, date filter |
 | `api_layouts.py` | Blueprint for the layout routes (`/api/layouts`) — the pattern every `api_*.py` extension follows |
+| `widgets.py` | Widget back end (3.0): fetch with cache, RSS/Atom and ICS parsers (standard library only), Open-Meteo, embed check, custom widget folders |
+| `api_widgets.py` | Blueprint for the widget proxies (`/api/widgets/*`) and custom widget files (`/widgets/<name>/<path>`) |
 | `ereignisse.py` | Event bus for Server-Sent Events (pure, no Flask) |
 | `VERSION` | The one source of the version (`/api/identity`, `/api/status`, `main.py --version`) |
 | `sensor.py` | Base of all distance sources (averaging, staleness) + HC-SR04 |
@@ -435,6 +444,7 @@ player process.)
 | `displays.py` | Find and drive this computer's screens |
 | `static/`, `templates/` | Frontend (admin, display, start page); admin cards are includes in `templates/admin/` |
 | `static/module/`, `static/anzeige/`, `static/i18n/`, `templates/admin/zusatz/` | Extension points — files there are picked up automatically |
+| `static/anzeige/widgets.js`, `widgets/` | The widgets of the display (`window.LZ_WIDGETS`, incl. QR encoder) and the folder for custom HTML widgets |
 | `static/i18n.js`, `static/i18n-en.js` | Interface language: German source, English dictionary; `tests/test_i18n.py` finds missing entries |
 | `lzstation.service` | Avahi mDNS for manager discovery |
 
@@ -479,6 +489,21 @@ All endpoints under `http://<pi-ip>:5000`.
 | POST | `/api/layouts` | Create `{name, vorlage?, id?}` — the id is derived from the name |
 | GET/PUT/DELETE | `/api/layouts/<id>` | Read, replace (**rejects** and names the field), delete (409 while a zone plays it) |
 | POST | `/api/layouts/<id>/duplizieren` | Copy `{name?, id?}` |
+
+### Widgets (3.0)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/widgets/rss` | `?url=&anzahl=` — RSS 2.0/Atom parsed: `{titel, eintraege[], veraltet}` |
+| GET | `/api/widgets/ics` | `?url=&tage=` — iCalendar events, recurrences (DAILY/WEEKLY) expanded |
+| GET | `/api/widgets/wetter` | `?lat=&lon=&einheit=c\|f` — current weather and 4 days (Open-Meteo) |
+| GET | `/api/widgets/einbettbar` | `?url=` — may the page be shown in a frame? (`X-Frame-Options`, `frame-ancestors`) |
+| GET | `/api/widgets/eigene` | Custom HTML widgets found under `widgets/` |
+| GET | `/widgets/<name>/` · `/widgets/<name>/<path>` | Files of a custom widget — only from its folder |
+
+All proxies: GET only, `http(s)` only, 1 MB and 5 s at most, no cookies, cached
+per address (default 300 s, `LZ_WIDGET_CACHE_S`); on failure the last state is
+returned as `veraltet: true`, errors come as `{fehler}` with 400/502.
 
 ### Media
 
@@ -525,6 +550,7 @@ This README is the overview. Topics that need more than a paragraph live in
 | [Lockstep](docs/gleichtakt.md) | One station follows another station's zone |
 | [Operation](docs/betrieb.md) | Media check on upload, backup and restore |
 | [Architecture 3.0](docs/architektur-v3.md) | Layouts and regions, validity per item, SSE instead of polling, commands, preview, extension points |
+| [Widgets](docs/widgets.md) | Clock, text slide, ticker, weather, RSS, calendar, QR, web page, counter, custom HTML widgets; proxies, cache, behaviour without network |
 
 **Two rules apply everywhere:** without a measurement nothing is invented — if
 the sensor, the camera or the contact to the clock station is missing, there is
