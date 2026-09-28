@@ -125,6 +125,9 @@ jobs:
           # Laut scheitern, wenn ein Job keine Artefakte liefert, statt ein
           # halbes Release entstehen zu lassen.
           if-no-files-found: error
+          # Nur Uebergabe an den release-Job; die Installer liegen danach am Release.
+          # Laengere Aufbewahrung fuellt das kontoweite Artifact-Kontingent.
+          retention-days: 1
 
   release:
     needs: build
