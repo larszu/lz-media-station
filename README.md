@@ -57,6 +57,19 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
   `static/module/`, `static/anzeige/`, `static/i18n/` — wave 2 (layout editor,
   widgets, scheduling) only adds files
 
+### Weekly programme, instant message, triggers (3.0, wave 2)
+- **Weekly programme**: which layout a zone plays **when** — a calendar
+  (Mon–Sun × 24 h), drag to create an entry, priorities, entries across
+  midnight, exception days (public holidays), "what is playing now" — see
+  [`docs/programm.md`](docs/programm.md)
+- **Instant message**: one line over everything, on every screen, at once —
+  evacuation, notice, break; with duration and alert tone; survives a display
+  reload
+- **Triggers** (when … then …): webhook (Home Assistant, Node-RED, ioBroker),
+  GPIO button, time of day, video ended, zone change → show a layout, instant
+  message, screen black/on (+ HDMI-CEC), start/stop — with a test button and a
+  log, see [`docs/ausloeser.md`](docs/ausloeser.md)
+
 ### Sensor and media core
 - **Three selectable distance sources** (`sensor_type`):
   - **HC-SR04 ultrasonic sensor** on GPIO 23 (trigger) / GPIO 24 (echo) — freely configurable (default)
@@ -421,6 +434,10 @@ player process.)
 | `layouts.py` | Layouts, regions, playlists (3.0): schema, migration of old zone lists, mirror into the zone, date filter |
 | `api_layouts.py` | Blueprint for the layout routes (`/api/layouts`) — the pattern every `api_*.py` extension follows |
 | `ereignisse.py` | Event bus for Server-Sent Events (pure, no Flask) |
+| `programm.py` | Weekly programme (which layout when, priorities, exception days) and instant message — pure, the time is passed in |
+| `api_programm.py` | Blueprint: `/api/programm`, `/api/meldung`; hooks the programme rule into the controller |
+| `ausloeser.py` | Triggers: sources (webhook, button, time, video ended, zone) and actions; own thread, GPIO buttons, log |
+| `api_ausloeser.py` | Blueprint: `/api/ausloeser`, `/api/trigger/<id>` (webhook) |
 | `VERSION` | The one source of the version (`/api/identity`, `/api/status`, `main.py --version`) |
 | `sensor.py` | Base of all distance sources (averaging, staleness) + HC-SR04 |
 | `camera_sensor.py` | Camera source (OpenCV + YuNet/Haar), cross-platform |
@@ -480,6 +497,19 @@ All endpoints under `http://<pi-ip>:5000`.
 | GET/PUT/DELETE | `/api/layouts/<id>` | Read, replace (**rejects** and names the field), delete (409 while a zone plays it) |
 | POST | `/api/layouts/<id>/duplizieren` | Copy `{name?, id?}` |
 
+### Weekly programme, instant message, triggers (3.0)
+
+| Method | Path | Description |
+|---|---|---|
+| GET/PUT | `/api/programm` | The whole programme `{eintraege, ausnahmen}` (PUT **rejects** and names the field) |
+| GET | `/api/programm/jetzt` | Per zone: layout, source (`programm` · `ausnahme` · `zone`), entry |
+| GET | `/api/programm/vorschau` | `?von=&bis=&zone=&raster=` — resolution as segments for the calendar |
+| GET/POST/DELETE | `/api/meldung` | Instant message: read, set `{text, untertext?, farbe?, textfarbe?, dauer_s?, ton?}`, end |
+| GET/PUT | `/api/ausloeser` | All triggers (PUT **rejects**, also pin collisions) |
+| GET | `/api/ausloeser/protokoll` | The last triggerings |
+| POST | `/api/ausloeser/<id>/test` | Fire by hand |
+| POST | `/api/trigger/<id>` | **Webhook** (`X-LZ-Token` header or `?token=`); `_video_ende` is reported by the display |
+
 ### Media
 
 | Method | Path | Description |
@@ -524,6 +554,8 @@ This README is the overview. Topics that need more than a paragraph live in
 | [Multiple languages](docs/mehrsprachigkeit.md) | Subtitle tracks per video, language buttons |
 | [Lockstep](docs/gleichtakt.md) | One station follows another station's zone |
 | [Operation](docs/betrieb.md) | Media check on upload, backup and restore |
+| [Weekly programme and instant message](docs/programm.md) | Which layout a zone plays when: calendar with priorities, exception days; one message over everything |
+| [Triggers](docs/ausloeser.md) | When … then …: webhook, button, time, video ended, zone change → layout, message, screen off |
 | [Architecture 3.0](docs/architektur-v3.md) | Layouts and regions, validity per item, SSE instead of polling, commands, preview, extension points |
 
 **Two rules apply everywhere:** without a measurement nothing is invented — if

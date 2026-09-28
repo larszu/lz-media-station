@@ -55,6 +55,19 @@
   `static/module/`, `static/anzeige/`, `static/i18n/` — Welle 2 (Layout-Editor,
   Widgets, Zeitplanung) legt nur Dateien hin
 
+### Wochenprogramm, Sofortmeldung, Auslöser (3.0, Welle 2)
+- **Wochenprogramm**: welches Layout eine Zone **wann** spielt — ein Kalender
+  (Mo–So × 24 h), Ziehen legt einen Eintrag an, Prioritäten, Einträge über
+  Mitternacht, Ausnahmetage (Feiertage), „Was läuft jetzt" — siehe
+  [`docs/programm.md`](docs/programm.md)
+- **Sofortmeldung**: eine Zeile über allem, auf jedem Schirm, sofort —
+  Räumung, Hinweis, Pause; mit Dauer und Signalton; überlebt ein Neuladen der
+  Anzeige
+- **Auslöser** (wenn … dann …): Webhook (Home Assistant, Node-RED, ioBroker),
+  GPIO-Taster, Uhrzeit, Video zu Ende, Zonenwechsel → Layout einblenden,
+  Sofortmeldung, Schirm schwarz/an (+ HDMI-CEC), Start/Stopp — mit Test-Knopf
+  und Protokoll, siehe [`docs/ausloeser.md`](docs/ausloeser.md)
+
 ### Sensor-/Medien-Kern
 - **Drei wählbare Abstandsquellen** (`sensor_type`):
   - **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) / GPIO 24 (Echo) — frei konfigurierbar (Vorgabe)
@@ -427,6 +440,10 @@ keinen Player-Prozess.)
 | `layouts.py` | Layouts, Regionen, Playlists (3.0): Schema, Migration alter Zonenlisten, Spiegel in die Zone, Datumsfilter |
 | `api_layouts.py` | Blueprint für die Layout-Routen (`/api/layouts`) — das Muster für jede `api_*.py`-Erweiterung |
 | `ereignisse.py` | Ereignisbus für Server-Sent Events (rein, ohne Flask) |
+| `programm.py` | Wochenprogramm (welches Layout wann, Prioritäten, Ausnahmetage) und Sofortmeldung — rein, die Zeit wird hereingereicht |
+| `api_programm.py` | Blueprint: `/api/programm`, `/api/meldung`; hängt die Programm-Regel in den Controller |
+| `ausloeser.py` | Auslöser: Quellen (Webhook, Taster, Uhrzeit, Video zu Ende, Zone) und Aktionen; eigener Faden, GPIO-Taster, Protokoll |
+| `api_ausloeser.py` | Blueprint: `/api/ausloeser`, `/api/trigger/<id>` (Webhook) |
 | `VERSION` | Die eine Quelle der Version (`/api/identity`, `/api/status`, `main.py --version`) |
 | `sensor.py` | Basis aller Abstandsquellen (Mittelwert, Veralten) + HC-SR04 |
 | `camera_sensor.py` | Kamera-Quelle (OpenCV + YuNet/Haar), plattformübergreifend |
@@ -486,6 +503,19 @@ Alle Endpoints unter `http://<pi-ip>:5000`.
 | GET/PUT/DELETE | `/api/layouts/<id>` | Lesen, ersetzen (**lehnt ab** und nennt das Feld), löschen (409, solange eine Zone es spielt) |
 | POST | `/api/layouts/<id>/duplizieren` | Kopie `{name?, id?}` |
 
+### Wochenprogramm, Sofortmeldung, Auslöser (3.0)
+
+| Method | Path | Beschreibung |
+|---|---|---|
+| GET/PUT | `/api/programm` | Das ganze Programm `{eintraege, ausnahmen}` (PUT **lehnt ab** und nennt das Feld) |
+| GET | `/api/programm/jetzt` | Je Zone: Layout, Quelle (`programm` · `ausnahme` · `zone`), Eintrag |
+| GET | `/api/programm/vorschau` | `?von=&bis=&zone=&raster=` — Auflösung als Abschnitte für den Kalender |
+| GET/POST/DELETE | `/api/meldung` | Sofortmeldung: lesen, setzen `{text, untertext?, farbe?, textfarbe?, dauer_s?, ton?}`, beenden |
+| GET/PUT | `/api/ausloeser` | Alle Auslöser (PUT **lehnt ab**, auch Pin-Kollisionen) |
+| GET | `/api/ausloeser/protokoll` | Die letzten Auslösungen |
+| POST | `/api/ausloeser/<id>/test` | Von Hand auslösen |
+| POST | `/api/trigger/<id>` | **Webhook** (Kopfzeile `X-LZ-Token` oder `?token=`); `_video_ende` meldet die Anzeige |
+
 ### Medien
 
 | Method | Path | Beschreibung |
@@ -530,6 +560,8 @@ stehen in [`docs/`](docs/README.md) — dort steht das Wie und, wichtiger, das
 | [Mehrsprachigkeit](docs/mehrsprachigkeit.md) | Untertitelspuren je Video, Sprachknöpfe |
 | [Gleichtakt](docs/gleichtakt.md) | Eine Station folgt der Zone einer anderen |
 | [Betrieb](docs/betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung |
+| [Wochenprogramm und Sofortmeldung](docs/programm.md) | Welches Layout eine Zone wann spielt: Kalender mit Prioritäten, Ausnahmetage; eine Meldung über allem |
+| [Auslöser](docs/ausloeser.md) | Wenn … dann …: Webhook, Taster, Uhrzeit, Video zu Ende, Zonenwechsel → Layout, Meldung, Schirm aus |
 | [Architektur 3.0](docs/architektur-v3.md) | Layouts und Regionen, Gültigkeit je Eintrag, SSE statt Polling, Befehle, Vorschau, Erweiterungspunkte |
 
 **Zwei Regeln gelten überall:** Ohne Messung wird nichts erfunden — fehlt der

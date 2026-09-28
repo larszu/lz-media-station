@@ -168,7 +168,11 @@ class JedesFeldDerVorgabeHatEineGrenze(unittest.TestCase):
     #   untertitel -> `pruefe_untertitel` / `heile_untertitel`
     #   layouts   -> `layouts.pruefe_layout` (Schreibweg, api_layouts.py) und
     #                `layouts.heile_layouts_und_zonen` (Ladeweg, aus `heile_config`)
-    OHNE_GRENZE = {"near", "mid", "far", "zeitplan", "sprachen", "untertitel", "layouts"}
+    #   programm  -> `programm.pruefe_programm` (api_programm.py) / `heile_programm`
+    #   meldung   -> `programm.pruefe_meldung` / `heile_meldung`
+    #   ausloeser -> `ausloeser.pruefe_ausloeser` (api_ausloeser.py) / `heile_ausloeser`
+    OHNE_GRENZE = {"near", "mid", "far", "zeitplan", "sprachen", "untertitel", "layouts",
+                   "programm", "meldung", "ausloeser"}
 
     def test_kein_feld_ohne_grenze(self):
         fehlen = sorted(set(cs.DEFAULT_CONFIG) - set(cs.GRENZEN) - self.OHNE_GRENZE)

@@ -12,6 +12,8 @@ den Überblick; hier steht das Wie und — wichtiger — das **Warum**.
 | [Mehrsprachigkeit](mehrsprachigkeit.md) | Untertitelspuren (WebVTT) je Video, Sprachknöpfe auf der Anzeige |
 | [Gleichtakt](gleichtakt.md) | Mehrere Stationen im Takt: eine folgt der Zone einer anderen |
 | [Betrieb](betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung der Konfiguration |
+| [Wochenprogramm und Sofortmeldung](programm.md) | Welches Layout eine Zone wann spielt: Wochenkalender mit Prioritäten, Ausnahmetage; eine Meldung über allem, sofort auf jedem Schirm |
+| [Auslöser](ausloeser.md) | Wenn … dann …: Webhook (Home Assistant, Node-RED), Taster, Uhrzeit, Video zu Ende, Zonenwechsel → Layout einblenden, Meldung, Schirm schwarz |
 | [Architektur 3.0](architektur-v3.md) | Layouts und Regionen mit gemischten Playlists, Gültigkeit je Eintrag, Ereignisse (SSE) statt Polling, Befehle an die Anzeige, Vorschau, Erweiterungspunkte für Welle 2 |
 
 ## Zwei Dinge, die überall gelten

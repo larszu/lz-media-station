@@ -1,0 +1,207 @@
+<!-- Wochenprogramm und Sofortmeldung (Welle 2). Eine Erweiterungskarte:
+     liegt in templates/admin/zusatz/, das Skript in static/module/programm.js,
+     die englischen Texte in static/i18n/programm.en.js. -->
+<style>
+/* Kalender: sieben Spalten, 24 Stunden. Keine Rundungen, keine Schatten,
+   keine Verlaeufe (Brand Guide). */
+.prog-kopf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.prog-kopf .spacer { flex: 1; }
+.prog-zone-wahl select { padding: 4px 8px; }
+.prog-kalender { display: grid; grid-template-columns: 44px repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); user-select: none; touch-action: none; }
+.prog-kalender .prog-tagkopf { background: var(--surface); text-align: center; font-size: 0.75rem; color: var(--text-dim); padding: 4px 0; }
+.prog-kalender .prog-tagkopf.heute { color: var(--accent); font-weight: 700; }
+.prog-kalender .prog-stunden { background: var(--surface); position: relative; height: 480px; }
+.prog-kalender .prog-stunden span { position: absolute; right: 4px; font-size: 0.65rem; color: var(--text-dim); transform: translateY(-50%); }
+.prog-kalender .prog-tag { background: var(--bg); position: relative; height: 480px; cursor: crosshair; }
+.prog-kalender .prog-tag .stunde { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); pointer-events: none; }
+.prog-kalender .prog-tag .stunde.voll { border-top-color: rgba(246, 245, 240, 0.28); }
+.prog-block { position: absolute; left: 3px; right: 3px; overflow: hidden; font-size: 0.65rem; line-height: 1.2; padding: 2px 4px; color: var(--accent-text); cursor: pointer; border: 1px solid transparent; }
+.prog-block.inaktiv { opacity: 0.45; border-style: dashed; }
+.prog-block.markiert { outline: 2px solid var(--signal); outline-offset: 1px; }
+.prog-block .prio { position: absolute; right: 2px; top: 1px; font-weight: 700; opacity: 0.7; }
+.prog-block.ausnahme { left: 0; right: 0; background: var(--warning); color: var(--accent-text); }
+.prog-auswahl { position: absolute; left: 0; right: 0; background: var(--accent-dim); border: 1px solid var(--accent); pointer-events: none; }
+.prog-jetzt { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--signal); pointer-events: none; z-index: 20; }
+.prog-form { margin-top: 12px; padding: 12px; border: 1px solid var(--line-steel); background: var(--bg); }
+.prog-form h3 { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
+.prog-form .tage, .prog-form .zonen { display: flex; gap: 6px; flex-wrap: wrap; }
+.prog-form .tage label, .prog-form .zonen label { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--line-steel); font-size: 0.8rem; cursor: pointer; }
+.prog-form .tage input, .prog-form .zonen input { width: 14px; height: 14px; }
+.prog-form .zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.prog-form .zeile .form-group { flex: 1; min-width: 120px; }
+.prog-form .knoepfe { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.prog-legende { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 0.75rem; color: var(--text-dim); }
+.prog-legende span i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: middle; }
+.prog-liste { margin-top: 10px; }
+.prog-zeile { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; flex-wrap: wrap; }
+.prog-zeile .meta { color: var(--text-dim); font-size: 0.75rem; flex: 1; }
+.prog-jetzt-liste { margin-top: 8px; font-size: 0.85rem; }
+.prog-jetzt-liste div { padding: 3px 0; }
+.meldung-vorschau { padding: 16px; text-align: center; font-weight: 700; font-size: 1.1rem; margin: 8px 0; }
+.meldung-vorschau small { display: block; font-weight: 400; font-size: 0.85rem; margin-top: 4px; }
+.meldung-status { font-size: 0.85rem; margin: 6px 0; }
+.meldung-status.aktiv { color: var(--signal); font-weight: 600; }
+.meldung-vorlagen { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+@media (max-width: 639px) {
+    .prog-kalender { grid-template-columns: 32px repeat(7, 1fr); }
+    .prog-block { font-size: 0.55rem; padding: 1px 2px; }
+}
+</style>
+
+<section class="card" id="card-programm">
+    <h2>Wochenprogramm</h2>
+    <p class="karten-hinweis" data-i18n="programm-hinweis">
+        Welches Layout eine Zone <strong>wann</strong> spielt: morgens das Tagesprogramm,
+        mittags die Speisekarte, abends der Film. Im Kalender <strong>ziehen</strong>, um einen
+        Eintrag anzulegen; auf einen Block tippen, um ihn zu bearbeiten. Ohne Eintrag spielt
+        die Zone ihr Layout aus der Zonen-&Uuml;bersicht. Ein <strong>Ausnahmetag</strong> (Feiertag)
+        gewinnt vor allem anderen.
+    </p>
+    <div class="prog-kopf">
+        <label class="prog-zone-wahl">Zone w&auml;hlen <select id="prog-zone"></select></label>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-small btn-secondary" onclick="progJetztUmschalten()">Was l&auml;uft jetzt?</button>
+        <button type="button" class="btn btn-small btn-secondary" onclick="progNeuerEintrag()">+ Eintrag</button>
+    </div>
+    <div id="prog-jetzt" class="prog-jetzt-liste" hidden></div>
+    <div id="prog-kalender" class="prog-kalender"></div>
+    <div id="prog-legende" class="prog-legende"></div>
+
+    <div id="prog-form" class="prog-form" hidden>
+        <h3 id="prog-form-titel">Eintrag</h3>
+        <div class="zeile">
+            <div class="form-group">
+                <label for="prog-name">Name des Eintrags</label>
+                <input type="text" id="prog-name" placeholder="z. B. Speisekarte mittags">
+            </div>
+            <div class="form-group">
+                <label for="prog-layout">Layout</label>
+                <select id="prog-layout"></select>
+            </div>
+        </div>
+        <div class="zeile">
+            <div class="form-group">
+                <label>Tage</label>
+                <div class="tage" id="prog-tage"></div>
+            </div>
+        </div>
+        <div class="zeile">
+            <div class="form-group">
+                <label for="prog-von">Von</label>
+                <input type="time" id="prog-von" value="09:00">
+            </div>
+            <div class="form-group">
+                <label for="prog-bis">Bis</label>
+                <input type="time" id="prog-bis" value="12:00">
+            </div>
+            <div class="form-group">
+                <label for="prog-prio">Priorit&auml;t (1 niedrig &ndash; 9 hoch)</label>
+                <input type="number" id="prog-prio" min="1" max="9" value="5">
+            </div>
+        </div>
+        <div class="zeile">
+            <div class="form-group">
+                <label>Zonen (keine Auswahl = alle)</label>
+                <div class="zonen" id="prog-zonen"></div>
+            </div>
+        </div>
+        <div class="zeile">
+            <div class="form-group">
+                <label for="prog-gueltig-von">G&uuml;ltig ab (leer = immer)</label>
+                <input type="date" id="prog-gueltig-von">
+            </div>
+            <div class="form-group">
+                <label for="prog-gueltig-bis">G&uuml;ltig bis (leer = immer)</label>
+                <input type="date" id="prog-gueltig-bis">
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label"><input type="checkbox" id="prog-aktiv" checked> <span>Aktiv</span></label>
+            </div>
+        </div>
+        <p class="karten-hinweis" data-i18n="programm-mitternacht">
+            Ein Ende <em>vor</em> dem Beginn l&auml;uft &uuml;ber Mitternacht (20:00 bis 02:00).
+            Ende <strong>00:00</strong> bedeutet Tagesende.
+        </p>
+        <div class="knoepfe">
+            <button type="button" class="btn" onclick="progEintragSpeichern()">Eintrag speichern</button>
+            <button type="button" class="btn btn-secondary" onclick="progFormSchliessen()">Abbrechen</button>
+            <button type="button" class="btn btn-stop" id="prog-loeschen" onclick="progEintragLoeschen()">Eintrag l&ouml;schen</button>
+        </div>
+    </div>
+
+    <h3 class="prog-untertitel" style="font-size:0.8rem;color:var(--text-dim);margin-top:14px;text-transform:uppercase;letter-spacing:0.1em">Ausnahmetage</h3>
+    <div id="prog-ausnahmen" class="prog-liste"></div>
+    <div class="zeile prog-form" style="margin-top:6px">
+        <div class="zeile">
+            <div class="form-group">
+                <label for="prog-ausnahme-datum">Datum</label>
+                <input type="date" id="prog-ausnahme-datum">
+            </div>
+            <div class="form-group">
+                <label for="prog-ausnahme-layout">Layout an diesem Tag</label>
+                <select id="prog-ausnahme-layout"></select>
+            </div>
+            <div class="form-group">
+                <label for="prog-ausnahme-name">Bezeichnung</label>
+                <input type="text" id="prog-ausnahme-name" placeholder="z. B. Feiertag">
+            </div>
+            <div class="form-group" style="flex:0">
+                <button type="button" class="btn btn-small" onclick="progAusnahmeHinzu()">Hinzuf&uuml;gen</button>
+            </div>
+        </div>
+    </div>
+    <div id="prog-feedback" class="feedback"></div>
+</section>
+
+<section class="card" id="card-meldung">
+    <h2>Sofortmeldung</h2>
+    <p class="karten-hinweis" data-i18n="meldung-hinweis">
+        Eine Meldung <strong>&uuml;ber allem</strong>, auf jedem Schirm dieser Station, sofort:
+        R&auml;umung, Hinweis, Pause. Sie bleibt, bis sie beendet wird oder die Dauer abl&auml;uft
+        &mdash; auch wenn eine Anzeige neu l&auml;dt. Per Webhook geht das auch von au&szlig;en
+        (siehe Ausl&ouml;ser).
+    </p>
+    <div class="meldung-vorlagen">
+        <button type="button" class="btn btn-small btn-secondary" onclick="meldungVorlage('raeumung')">R&auml;umung</button>
+        <button type="button" class="btn btn-small btn-secondary" onclick="meldungVorlage('hinweis')">Hinweis</button>
+        <button type="button" class="btn btn-small btn-secondary" onclick="meldungVorlage('pause')">Pause</button>
+    </div>
+    <div class="settings-grid">
+        <div class="form-group span-2">
+            <label for="meldung-text">Meldungstext</label>
+            <input type="text" id="meldung-text" maxlength="200" placeholder="z. B. Bitte verlassen Sie das Geb&auml;ude">
+        </div>
+        <div class="form-group span-2">
+            <label for="meldung-untertext">Zweite Zeile (optional)</label>
+            <input type="text" id="meldung-untertext" maxlength="400" placeholder="z. B. Sammelplatz: Parkplatz Nord">
+        </div>
+        <div class="form-group">
+            <label for="meldung-farbe">Hintergrund</label>
+            <input type="color" id="meldung-farbe" value="#B04A3F">
+        </div>
+        <div class="form-group">
+            <label for="meldung-textfarbe">Schrift</label>
+            <input type="color" id="meldung-textfarbe" value="#FFFFFF">
+        </div>
+        <div class="form-group">
+            <label for="meldung-dauer">Dauer</label>
+            <select id="meldung-dauer">
+                <option value="">bis zum Beenden</option>
+                <option value="60">1 Minute</option>
+                <option value="300">5 Minuten</option>
+                <option value="900">15 Minuten</option>
+                <option value="3600">1 Stunde</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="checkbox-label"><input type="checkbox" id="meldung-ton"> <span>Mit Signalton</span></label>
+        </div>
+    </div>
+    <div id="meldung-vorschau" class="meldung-vorschau" hidden></div>
+    <div id="meldung-status" class="meldung-status">Keine Meldung aktiv.</div>
+    <div class="knoepfe" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" onclick="meldungEinblenden()">Jetzt einblenden</button>
+        <button type="button" class="btn btn-stop" onclick="meldungBeenden()">Beenden</button>
+    </div>
+    <div id="meldung-feedback" class="feedback"></div>
+</section>
