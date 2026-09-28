@@ -14,7 +14,7 @@ Verwaltet mehrere LZ Media Stations (Raspberry Pi) im LAN über eine Electron-Ob
 
 ## Voraussetzung auf jedem Pi
 
-- `pi-media-station` ≥ v2.1.0 (`/api/identity` Endpoint)
+- `lz-media-station` ≥ v2.1.0 (`/api/identity` Endpoint)
 - `avahi-daemon` läuft (wird vom `install_pi.sh` mitinstalliert)
 - Datei `/etc/avahi/services/lzstation.service` vorhanden
 

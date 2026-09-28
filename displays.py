@@ -145,14 +145,11 @@ def _macos_schirme(ausgabe=None):
             # `spdisplays_resolution` sieht aus wie „3840 x 2160 (2160p …)".
             text = (schirm.get("_spdisplays_resolution")
                     or schirm.get("spdisplays_resolution") or "")
-            breite = hoehe = 0
-            teile = text.replace("×", "x").split("x")
-            if len(teile) >= 2:
-                try:
-                    breite = int("".join(c for c in teile[0] if c.isdigit()))
-                    hoehe = int("".join(c for c in teile[1].split("(")[0] if c.isdigit()))
-                except ValueError:
-                    breite = hoehe = 0
+            # Apple-Silicon-Macs haengen die Bildrate an („1512 x 982 @ 120.00Hz");
+            # nur die ersten beiden Zahlen zaehlen, sonst wird aus 982 und
+            # 120.00 eine Hoehe von 98212000.
+            treffer = re.search(r"(\d+)\s*[x×]\s*(\d+)", text)
+            breite, hoehe = (int(treffer.group(1)), int(treffer.group(2))) if treffer else (0, 0)
             haupt = str(schirm.get("spdisplays_main", "")).lower() in (
                 "spdisplays_yes", "yes", "true", "1")
             roh.append({"name": name, "breite": breite, "hoehe": hoehe, "haupt": haupt})

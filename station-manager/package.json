@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/larszu/pi-media-station.git",
+    "url": "https://github.com/larszu/lz-media-station.git",
     "directory": "station-manager"
   },
   "scripts": {

@@ -89,6 +89,15 @@ class MacOS(unittest.TestCase):
         s = displays._macos_schirme(MACOS_JSON)
         self.assertEqual(s[1]["x"], s[0]["breite"])
 
+    def test_bildrate_wird_nicht_an_die_hoehe_gehaengt(self):
+        """Apple Silicon meldet „1512 x 982 @ 120.00Hz" — daraus wurde 98212000."""
+        roh = json.dumps({"SPDisplaysDataType": [{
+            "spdisplays_ndrvs": [{"_name": "Color LCD",
+                                  "_spdisplays_resolution": "1512 x 982 @ 120.00Hz"}]
+        }]})
+        s = displays._macos_schirme(roh)
+        self.assertEqual((s[0]["breite"], s[0]["hoehe"]), (1512, 982))
+
     def test_leere_ausgabe_ist_leere_liste_und_kein_absturz(self):
         self.assertEqual(displays._macos_schirme('{"SPDisplaysDataType": []}'), [])
 

@@ -1,203 +1,178 @@
-# Pi Media Station
+# LZ Media Station
 
-> Sensor-gesteuerte Medien-Station mit Web-Admin, Display-Modus und Multi-Station Manager.
-> Läuft auf **Raspberry Pi** (HC-SR04 Ultraschallsensor) sowie auf **Mac/Windows** (Kamera-Erkennung als Abstandsquelle).
-> Ist kein Sensor da, übernimmt die Kamera von selbst — `sensor_type: "auto"` ist die Vorgabe ([Details](docs/sensoren.md)).
+[Deutsch](README.de.md) · **English**
 
-[![Release](https://img.shields.io/badge/release-v2.1.0-blue)](https://github.com/larszu/pi-media-station/releases)
+> Sensor-driven media station with web admin, display mode and a multi-station manager.
+> Runs on a **Raspberry Pi** (HC-SR04 ultrasonic sensor) and on **Mac/Windows** (camera detection as the distance source).
+> Without a sensor the camera takes over on its own — `sensor_type: "auto"` is the default ([details](docs/sensoren.md), German).
 
-![Web-Admin der LZ Media Station](docs/screenshot-admin.png)
+[![Release](https://img.shields.io/github/v/release/larszu/lz-media-station)](https://github.com/larszu/lz-media-station/releases/latest)
 
----
+![Web admin of the LZ Media Station](docs/screenshot-admin.png)
 
-## The web page
+**Project page:** https://larszu.github.io/lz-media-station/ — README and docs, rebuilt on every push to `main` (`.github/workflows/pages.yml`).
 
-Every push to the default branch builds this repo's page from
-`.github/workflows/pages.yml` and publishes it:
-
-**https://larszu.github.io/pi-media-station/**
-
-The workflow **asks the Pages API before it configures anything.** With no
-Pages site it still builds — that is a real check — and skips only the
-publishing step, with a warning and the one missing step in the run summary.
-A run that must stay red for a click nobody made teaches people to ignore red.
-
-Measured 2026-09-09: **built, not published.** The build runs and passes; the
-`deploy` job is skipped because this repo has no Pages site yet. That switch is
-the one thing no workflow can flip (`GITHUB_TOKEN` may not create a site):
-Settings → Pages → Source → **GitHub Actions**. After that the next push
-publishes by itself — nothing in this repo needs changing.
+The detailed documentation in [`docs/`](docs/README.md) is written in German.
 
 ---
-## Inhalt
+## Contents
 
 - [Features](#features)
-- [Schnellstart Raspberry Pi](#schnellstart-raspberry-pi)
-- [Manuelles Deploy / Update](#manuelles-deploy--update)
-- [Bedienung](#bedienung)
-- [Multi-Station Manager (Desktop-App)](#multi-station-manager-desktop-app)
-- [Architektur](#architektur)
-- [API-Übersicht](#api-übersicht)
-- [Dokumentation](#dokumentation)
+- [Running on your own computer](#running-on-your-own-computer--no-pi-needed)
+- [Raspberry Pi quick start](#raspberry-pi-quick-start)
+- [Manual deploy / update](#manual-deploy--update)
+- [Usage](#usage)
+- [Multi-Station Manager (desktop app)](#multi-station-manager-desktop-app)
+- [Architecture](#architecture)
+- [API overview](#api-overview)
+- [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
-- [Tailscale (Remote-Verwaltung)](#tailscale-remote-verwaltung)
+- [Tailscale (remote management)](#tailscale-remote-management)
 
 ---
 
 ## Features
 
-### Sensor-/Medien-Kern
-- **Drei wählbare Abstandsquellen** (`sensor_type`):
-  - **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) / GPIO 24 (Echo) — frei konfigurierbar (Vorgabe)
-  - **Kamera-Erkennung** über eine Webcam (OpenCV + YuNet/Haar) — läuft auch auf **Mac und Windows**, siehe [`docs/sensoren.md`](docs/sensoren.md)
-  - **Taster**: der Besucher drückt einen Knopf, statt gemessen zu werden
-- **Kein Demo-Modus mehr**: ist kein Sensor angeschlossen, misst die Station nichts und löst nicht aus — die Oberfläche sagt es im Klartext, statt eine erfundene Distanz zu zeigen
-- **Zustandsprüfung**: Sensor ohne Messung, volle Platte, Zone ohne Medien, fehlende Dateien — sichtbar im Admin und über `/api/identity` für den Station Manager
-- **Besucher-Statistik**: Besuche und Verweildauer pro Tag/Stunde, CSV-Export — ohne irgendetwas über einzelne Personen zu speichern, siehe [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)
-- **Zeitsteuerung**: Wochenplan mit Öffnungszeiten (auch über Mitternacht) — außerhalb bleibt der Schirm schwarz, der Ton aus und es wird nicht ausgelöst; optional Fernseher per HDMI-CEC mit abschalten, siehe [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
-- **Zwei oder drei Zonen**: NAH / FERN, optional mit MITTE dazwischen — mit konfigurierbarer Verzögerung gegen Flackern, siehe [`docs/zonen.md`](docs/zonen.md)
-- **Pro Zone** beliebige Auswahl an Videos, Bildern und Audio
-- **Gleichtakt mehrerer Stationen**: eine Station folgt der Zone einer anderen über das LAN — ein Sensor treibt eine ganze Wand, siehe [`docs/gleichtakt.md`](docs/gleichtakt.md)
-- **Mehrsprachigkeit**: Untertitelspuren (WebVTT) je Video mit Sprachknöpfen auf der Anzeige, siehe [`docs/mehrsprachigkeit.md`](docs/mehrsprachigkeit.md)
-- **Playlist-Optionen je Zone**: zufällige Reihenfolge, „einmal abspielen", Reihenfolge umsortieren und eigene Standzeit je Bild, siehe [`docs/zonen.md`](docs/zonen.md)
-- **Bildslideshow** mit einstellbarem Intervall
-- **Lautstärke** getrennt für Master / Video / Audio (0–100 %)
-- **Video-Resume**: Optional Wiedergabe an gleicher Stelle fortsetzen, statt von vorne
+### Sensor and media core
+- **Three selectable distance sources** (`sensor_type`):
+  - **HC-SR04 ultrasonic sensor** on GPIO 23 (trigger) / GPIO 24 (echo) — freely configurable (default)
+  - **Camera detection** via a webcam (OpenCV + YuNet/Haar) — also runs on **Mac and Windows**, see [`docs/sensoren.md`](docs/sensoren.md)
+  - **Push button**: the visitor presses a button instead of being measured
+- **No invented values**: with no sensor connected the station measures nothing and does not trigger — the interface says so in plain words instead of showing a made-up distance
+- **Health check**: sensor without readings, full disk, zone without media, missing files — visible in the admin and via `/api/identity` for the Station Manager
+- **Visitor statistics**: visits and dwell time per day/hour, CSV export — without storing anything about individual people, see [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)
+- **Scheduling**: weekly plan with opening hours (also across midnight) — outside them the screen stays black, audio off and nothing triggers; optionally switch the TV off via HDMI-CEC, see [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
+- **Two or three zones**: NEAR / FAR, optionally with MID in between — with a configurable delay against flicker, see [`docs/zonen.md`](docs/zonen.md)
+- **Per zone** any selection of videos, images and audio
+- **Lockstep across stations**: one station follows another station's zone over the LAN — one sensor drives a whole wall, see [`docs/gleichtakt.md`](docs/gleichtakt.md)
+- **Multiple languages**: subtitle tracks (WebVTT) per video with language buttons on the display, see [`docs/mehrsprachigkeit.md`](docs/mehrsprachigkeit.md)
+- **Playlist options per zone**: shuffle, "play once", reordering and a custom duration per image, see [`docs/zonen.md`](docs/zonen.md)
+- **Image slideshow** with adjustable interval
+- **Volume** separately for master / video / audio (0–100 %)
+- **Video resume**: optionally continue playback where it left off instead of from the start
 
-### Web-Admin (`/admin`)
-- Zonen-Übersicht mit Drag-Zuordnung
-- Medien-Bibliothek mit Tabs (Videos / Bilder / Audio)
-- **Drag-and-Drop-Upload** mit Fortschrittsanzeige und **Medien-Check** (warnt vor 4K/60fps/fremdem Codec, der auf dem Pi ruckelt)
-- **Sicherung**: Konfiguration exportieren und einspielen — zum Klonen einer Station oder nach SD-Karten-Defekt, siehe [`docs/betrieb.md`](docs/betrieb.md)
-- Datei-Löschung **nicht-destruktiv**: entfernt nur aus Zonen, die Datei bleibt auf dem Pi
-- Live-Status: Distanz, aktive Zone, Klartext-Zustand der Abstandsquelle
-- Einstellungen: Stationsname, Schwelle, Verzögerung, Bildwechsel, Lautstärken, Video-Resume
+### Web admin (`/admin`)
+- Zone overview
+- Media library with tabs (videos / images / audio)
+- **Drag-and-drop upload** with progress and **media check** (warns about 4K/60 fps/foreign codecs that stutter on the Pi)
+- **Backup**: export and restore the configuration — to clone a station or after an SD card failure, see [`docs/betrieb.md`](docs/betrieb.md)
+- **Non-destructive** deletion: removes a file from the zones only, the file stays on the Pi
+- Live status: distance, active zone, plain-language state of the distance source
+- Settings: station name, threshold, delay, image interval, volumes, video resume
 
-### Systemeinstellungen (eigener Bereich in `/admin`)
-- **Abstandsquelle wählbar**: Ultraschall (GPIO Trigger/Echo), Kamera (Index, Brennweite) oder Taster (Pin, Haltezeit)
-- **Gleichtakt**: dieser Station eine andere als Taktgeber zuweisen
-- **Anzeige-IP** für Fernsteuerung (leer = Auto-Erkennung)
-- **Netzwerk** via `nmcli`:
-  - DHCP / statische IP wählbar
-  - IP/CIDR, Gateway, DNS direkt konfigurierbar
-- **WLAN-Steuerung**:
-  - WLAN ein/aus per Toggle
-  - Netzwerk-Scan mit Signal-Stärke und Verschlüsselung
-  - SSID per Klick übernehmen, Passwort eingeben → verbinden
-- **Pi-Reboot** direkt aus der UI
+### System settings (own section in `/admin`)
+- **Distance source**: ultrasonic (GPIO trigger/echo), camera (index, focal length) or push button (pin, hold time)
+- **Lockstep**: assign another station as the clock source
+- **Display IP** for remote control (empty = auto-detect)
+- **Network** via `nmcli`:
+  - DHCP / static IP
+  - IP/CIDR, gateway, DNS directly configurable
+- **Wi-Fi control**:
+  - Wi-Fi on/off toggle
+  - network scan with signal strength and encryption
+  - pick an SSID, enter the password → connect
+- **Pi reboot** straight from the UI
 
-### Startseite (`/`) und Anzeige (`/display`)
-- `/` ist ein kleines Menü mit den Links zu Anzeige und Verwaltung — **diese Seite öffnet der Kiosk beim Boot**
-- `/display` ist der Vollbild-Player (Chromium `--kiosk`), mit Überblendungen, Untertitel-Spuren und Sprachknöpfen
-- ESC öffnet von beiden aus `/admin`
-- Auto-Verstecken des Cursors auf der Anzeige
+### Start page (`/`) and display (`/display`)
+- `/` is a small menu linking to display and admin — **the kiosk opens this page at boot**
+- `/display` is the full-screen player (Chromium `--kiosk`), with cross-fades, subtitle tracks and language buttons
+- ESC opens `/admin` from either page
+- The cursor hides itself on the display
 
-### Manager Desktop-App (`station-manager/`)
-- Verwaltet **mehrere Pi-Stationen** zentral
-- **Auto-Discovery** via mDNS (`_lzstation._tcp` über Avahi)
-- **Manuelles Hinzufügen** per IP/Hostname
-- Live-Polling: Online-Status, Distanz, Zone
-- **Bulk-Aktionen**: Start / Stop / Reboot
-- **Bulk-Upload**: dieselbe Datei an N Stationen gleichzeitig
-- **Config-Push**: Stationsname, Schwelle, Verzögerung
-- Direktsprung in die Web-Admin-UI jeder Station
-- Builds für **Windows (NSIS + Portable)**, **macOS (Intel + Apple Silicon)**, **Linux (AppImage)**
+### Manager desktop app (`station-manager/`)
+- Manages **several Pi stations** centrally
+- **Auto-discovery** via mDNS (`_lzstation._tcp` over Avahi)
+- **Add manually** by IP/hostname
+- Live polling: online state, distance, zone
+- **Bulk actions**: start / stop / reboot
+- **Bulk upload**: the same file to N stations at once
+- **Config push**: station name, threshold, delay
+- Jump straight into each station's web admin
+- Builds for **Windows (NSIS + portable)**, **macOS (Intel + Apple Silicon)**, **Linux (AppImage)**
 
 ---
 
-## Auf dem eigenen Rechner starten — ohne Pi
+## Running on your own computer — no Pi needed
 
 ```bash
 ./run-local.sh          # Linux / macOS
-run_windows.bat         # Windows (Doppelklick)
-run_windows.bat --server  # Windows, für einen Aufrufer: Vordergrund, kein Browser
+run_windows.bat         # Windows (double-click)
+run_windows.bat --server  # Windows, for a caller: foreground, no browser
 ```
 
-Mehr braucht es nicht: Python 3.10+. Das Skript legt beim ersten Lauf eine
-`.venv` an, installiert `requirements.txt` und startet den Server.
+All it needs is Python 3.10+. On the first run the script creates a `.venv`,
+installs `requirements.txt` and starts the server.
 
-**Ohne Sensor wird nichts erfunden.** Fehlt `gpiozero` oder ein GPIO-Chip
-(also auf jedem Entwicklungsrechner), misst der Ultraschallsensor nichts:
-`distance` bleibt „unbekannt", es wird nicht ausgelöst, und der Admin zeigt im
-Klartext, dass kein Sensor angeschlossen ist. Den früheren Zufalls-Demo-Modus
-gibt es nicht mehr — er ließ die Station so aussehen, als messe sie. Wer auf
-Mac/Windows ohne Ultraschall-Hardware entwickeln oder ausstellen will, stellt
-im Admin unter **Abstandsquelle** auf **Kamera** (Webcam) um; die Einrichtung
-steht in [`docs/sensoren.md`](docs/sensoren.md).
+**Without a sensor nothing is invented.** If `gpiozero` or a GPIO chip is
+missing (i.e. on every development machine), the ultrasonic sensor measures
+nothing: `distance` stays "unknown", nothing triggers, and the admin says in
+plain words that no sensor is connected. To develop or exhibit on Mac/Windows
+without ultrasonic hardware, switch **Distance source** in the admin to
+**Camera** (webcam); setup is described in [`docs/sensoren.md`](docs/sensoren.md).
 
-`start.sh` ist etwas anderes und bleibt es: der **Kiosk**-Start auf dem
-Pi. Er wartet auf einen Wayland-Socket, erschießt `piwiz` und `zenity` und
-startet Chromium im Vollbild. Auf einem Notebook läuft davon nichts, und
-der Abbruch kommt beim Wayland-Socket — also mit einer Meldung über ein
-fehlendes Fenster statt über die Sache.
+`start.sh` is something else: the **kiosk** start on the Pi. It waits for a
+Wayland socket, kills `piwiz` and `zenity` and launches Chromium full-screen.
+None of that works on a laptop.
 
-### Dieser Rechner ist auch ein Mediaplayer — mit allen Bildschirmen
+### This computer is a media player too — on every screen
 
 ```bash
-python3 main.py --list-displays     # was hängt hier?
-python3 main.py --play-on all       # Anzeige auf jedem Schirm
-python3 main.py --play-on 0,2       # nur auf diesen beiden
+python3 main.py --list-displays     # what is connected?
+python3 main.py --play-on all       # display on every screen
+python3 main.py --play-on 0,2       # only on these two
 ```
 
-Bis 2026-09-15 gab es genau **einen** Schirm, und der war der HDMI-Ausgang
-eines Raspberry Pi. Die Anzeige ist seit jeher eine Browser-Seite
-(`/display`); auf dem Pi öffnet sie ein Chromium im Kiosk-Betrieb, und mehr
-Bildschirme hat ein Pi in diesem Aufbau nicht. Auf einem Notebook oder
-einem Rechner am Aufbau hängt oft mehr als einer — **der eingebaute zählt
-mit** —, und davon konnte die Station nichts nutzen. Wer zwei Schirme
-bespielen wollte, brauchte zwei Rechner.
+The display is a browser page (`/display`). On the Pi a Chromium opens it in
+kiosk mode; on a laptop or a computer at the stand the station opens its own
+full-screen window on every connected screen — **the built-in one counts
+too**.
 
-Die Schirme stehen auch im Web-Admin, mit einem Knopf je Schirm. Die Karte
-erscheint nur, wenn es etwas zu zeigen gibt: auf einem Pi ohne X wäre eine
-leere Liste mit zwei wirkungslosen Knöpfen schlimmer als keine Karte.
+The screens also appear in the web admin, with one button per screen. The card
+only shows up when there is something to show: on a Pi without X an empty list
+with two useless buttons would be worse than no card.
 
-**Gefunden werden sie auf dem Weg, den das System selbst anbietet:**
+**They are found the way the system itself offers:**
 
-| Windows | `ctypes` → `user32.EnumDisplayMonitors` (Standardbibliothek) |
+| Windows | `ctypes` → `user32.EnumDisplayMonitors` (standard library) |
 |---|---|
 | macOS | `system_profiler SPDisplaysDataType -json` |
 | Linux | `xrandr --listmonitors` |
 
-Keine neue Abhängigkeit.
+No new dependency.
 
-**Der ehrliche Teil: warum Position und nicht „Schirm Nummer 2".** Es gibt
-keinen Weg, einem Browser zu sagen „geh auf Schirm 2 in den
-Vollbildmodus". Was es gibt, ist ein Fenster an einer **Position**: jeder
-Schirm hat im gemeinsamen Koordinatensystem eine Ecke, und ein Fenster, das
-dort aufgeht, liegt auf diesem Schirm. Genau das tun `--window-position`
-und `--window-size`.
+**Why a position and not "screen number 2".** There is no way to tell a
+browser "go full-screen on screen 2". What there is, is a window at a
+**position**: every screen has a corner in the shared coordinate system, and a
+window opened there lands on that screen. That is exactly what
+`--window-position` and `--window-size` do.
 
-Daraus folgen zwei Grenzen, die hier stehen statt sich zu verstecken:
+Two limits follow from this:
 
-* Wer die Schirme in den Systemeinstellungen **verschiebt, während ein
-  Fenster offen ist**, bekommt es nicht nachgeführt. Aufgezählt wird beim
-  Öffnen.
-* macOS nennt in seiner Ausgabe **keine Koordinaten**. Die Ecken werden
-  deshalb aus den Breiten aufgereiht: Hauptschirm bei 0/0, die übrigen
-  rechts daneben. Wer seine Schirme übereinander legt, bekommt das Fenster
-  an der falschen Stelle — es geht dann trotzdem auf und lässt sich
-  verschieben.
+* If you **rearrange the screens in the system settings while a window is
+  open**, it does not follow. Screens are enumerated when the window opens.
+* macOS reports **no coordinates** in its output. The corners are therefore
+  lined up from the widths: main screen at 0/0, the others to its right. If
+  your screens are stacked vertically, the window opens in the wrong place —
+  it still opens and can be moved.
 
-**Chrome, Chromium oder Edge.** Firefox und Safari können kein Fenster auf
-einem bestimmten Schirm öffnen, deshalb stehen sie nicht in der Liste.
-Findet die Station keinen Browser, sagt sie, **wo sie gesucht hat** — ein
-„geht nicht" ohne Ort ist für den Nutzer dasselbe wie Schweigen.
+**Chrome, Chromium or Edge.** Firefox and Safari cannot open a window on a
+specific screen, so they are not on the list. If the station finds no browser,
+it says **where it looked**.
 
-Und jeder Schirm bekommt ein eigenes Browser-Profil. Ohne das bleibt der
-zweite schwarz: ein zweiter Chrome-Aufruf mit demselben Profil faltet sich
-in das bestehende Fenster, statt ein neues zu öffnen.
+Every screen gets its own browser profile. Without that the second one stays
+black: a second Chrome call with the same profile folds into the existing
+window instead of opening a new one.
 
-`tests/test_displays.py` misst die Auswertung gegen echte Ausgaben von
-`system_profiler` und `xrandr` — in CI gibt es keinen Bildschirm, und die
-Frage ist ohnehin eine andere: ob aus dem Text die richtige Ecke wird. Ein
-echter Defekt kam dabei heraus: der erste Anlauf trennte die
-xrandr-Geometrie an `+` und verlor damit jeden Schirm **links** vom
-Hauptschirm (`-1920+0`) — also ausgerechnet den zweiten.
+`tests/test_displays.py` checks the parsing against real output from
+`system_profiler` and `xrandr` — CI has no screen, and the question is a
+different one anyway: whether the text yields the right corner — including
+screens **left** of the main screen (`-1920+0`) and the refresh-rate suffix
+of Apple Silicon Macs (`1512 x 982 @ 120.00Hz`).
 
-### Andere Geräte im selben Netz
+### Other devices on the same network
 
-Der Server bindet auf alle Schnittstellen, und **beim Start steht jetzt die
-Adresse da, die man eintippen kann**:
+The server binds to all interfaces, and **at startup it prints the address you
+can actually type in**:
 
 ```
   LZ Media Station
@@ -208,71 +183,62 @@ Adresse da, die man eintippen kann**:
     Verwaltung (Handy/Notebook):  http://192.168.1.42:5000/admin
 ```
 
-Vorher stand dort `http://0.0.0.0:5000`. Der Server war die ganze Zeit im
-Netz erreichbar — nur ist `0.0.0.0` keine Adresse, sondern die Bind-Angabe
-„alle Schnittstellen"; in einen Browser getippt landet sie je nach System
-nirgends. Wer die Station aufbaute, bekam nie zu sehen, was er der Crew
-sagen soll. Dieselben zwei Adressen stehen auch auf der Startseite der
-Station.
+The same addresses are shown on the station's start page.
 
-Beliebig viele Geräte können gleichzeitig `/display` öffnen — ein zweiter
-Schirm am Aufbau, ein Tablet im Foyer. `/admin` ist die Verwaltung.
+Any number of devices can open `/display` at the same time — a second screen at
+the stand, a tablet in the lobby. `/admin` is the management interface.
 
-**`--host 127.0.0.1` sperrt das ab.** Die Bind-Adresse war fest auf
-`0.0.0.0` verdrahtet, ohne Möglichkeit, es zu lassen: auf einem Rechner in
-einem fremden Netz (Hotel-WLAN, Messe, Kundennetz) stand die Verwaltung
-damit offen, und niemand hatte es entschieden. Die Vorgabe bleibt
-`0.0.0.0`, weil genau das der Zweck der Station ist — aber jetzt ist es
-eine Entscheidung.
+**`--host 127.0.0.1` locks this down** — useful on foreign networks (hotel
+Wi-Fi, trade fair, customer network) where the admin would otherwise be open.
+The default is `0.0.0.0`, because that is exactly what the station is for.
 
-`tests/test_web_clients.py` fragt über die **LAN-Adresse** dieses Rechners
-an, nicht über `localhost` — das ist derselbe Weg, den ein Handy nimmt —
-und prüft die Gegenprobe mit: bindet `--host 127.0.0.1` wirklich nur lokal?
-Ohne sie wäre der Schalter eine Beschriftung ohne Wirkung.
+`tests/test_web_clients.py` connects via this machine's **LAN address**, not
+`localhost` — the same path a phone takes — and also checks the opposite: does
+`--host 127.0.0.1` really bind locally only?
 
-## Schnellstart Raspberry Pi
+## Raspberry Pi quick start
 
-Frischer Pi (Raspberry Pi OS Bookworm, Wayland/labwc-Session, User `pi`):
+Fresh Pi (Raspberry Pi OS Bookworm, Wayland/labwc session, user `pi`):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/larszu/pi-media-station/main/install_pi.sh | bash
+curl -sSL https://raw.githubusercontent.com/larszu/lz-media-station/main/install_pi.sh | bash
 ```
 
-Der Installer erledigt automatisch:
+The installer does the following:
 
-1. Systempakete (`python3-flask`, `python3-gpiozero`, `chromium-browser`, `avahi-daemon`, `git`)
-2. Klont das Repo nach `~/pi_media_station`
-3. Erstellt Medien-Ordner (`videos/`, `images/`, `audio/`, `subtitles/`)
-4. Schreibt `~/.config/autostart/LZ_Media_Station.desktop`
-5. Chromium-Policy: deaktiviert Translate-Banner
-6. Unterdrückt störende Login-Dialoge (`gnome-keyring*`)
-7. **Sudoers-Regel** für `nmcli` und `reboot` (passwortlos für `pi`)
-8. **Avahi-Service** `_lzstation._tcp` für mDNS-Discovery durch den Manager
+1. System packages (`python3-flask`, `python3-gpiozero`, `chromium-browser`, `avahi-daemon`, `git`)
+2. Clones the repo to `~/pi_media_station`
+3. Creates media folders (`videos/`, `images/`, `audio/`, `subtitles/`)
+4. Writes `~/.config/autostart/LZ_Media_Station.desktop`
+5. Chromium policy: disables the translate banner
+6. Suppresses disruptive login dialogs (`gnome-keyring*`)
+7. **Sudoers rule** for `nmcli` and `reboot` (passwordless for `pi`)
+8. **Avahi service** `_lzstation._tcp` for mDNS discovery by the manager
 
-Nach Installation:
+After installation:
 
 ```bash
-~/pi_media_station/start.sh    # sofort starten
-# ODER
-sudo reboot                    # nutzt Autostart
+~/pi_media_station/start.sh    # start now
+# OR
+sudo reboot                    # uses autostart
 ```
 
-Web-UI dann unter `http://<pi-ip>:5000/admin`.
+The web UI is then at `http://<pi-ip>:5000/admin`.
 
 ---
 
-## Manuelles Deploy / Update
+## Manual deploy / update
 
-### Erstmaliges Klonen
+### First clone
 
 ```bash
-git clone https://github.com/larszu/pi-media-station.git ~/pi_media_station
+git clone https://github.com/larszu/lz-media-station.git ~/pi_media_station
 cd ~/pi_media_station
 chmod +x start.sh install_pi.sh
-bash install_pi.sh   # idempotent, erkennt vorhandenes Repo
+bash install_pi.sh   # idempotent, detects an existing repo
 ```
 
-### Update auf neueste Version
+### Update to the latest version
 
 ```bash
 cd ~/pi_media_station
@@ -281,13 +247,13 @@ pkill -f 'python3 main.py' || true
 nohup python3 main.py >/tmp/main.log 2>&1 &
 ```
 
-oder einfacher:
+or simply:
 
 ```bash
 sudo reboot
 ```
 
-### Einzeldateien per SCP (vom Entwickler-PC)
+### Single files via SCP (from a development PC)
 
 ```powershell
 # Windows PowerShell
@@ -301,76 +267,78 @@ ssh pi@<pi-ip> "cp /tmp/web_ui.py ~/pi_media_station/web_ui.py && \
                 setsid nohup python3 main.py >/tmp/main.log 2>&1 < /dev/null &"
 ```
 
-### Auf Windows lokal entwickeln
+### Developing locally on Windows
 
 ```cmd
 run_windows.bat
 ```
 
-Startet Flask auf `http://localhost:5000`. Ohne Ultraschall-Hardware misst die
-Station nichts; für eine Webcam im Admin unter **Abstandsquelle** auf
-**Kamera** umstellen (siehe [`docs/sensoren.md`](docs/sensoren.md)).
+Starts Flask on `http://localhost:5000`. Without ultrasonic hardware the
+station measures nothing; for a webcam switch **Distance source** in the admin
+to **Camera** (see [`docs/sensoren.md`](docs/sensoren.md)).
 
 ---
 
-## Bedienung
+## Usage
 
-### Web-Admin (`/admin`)
+The interface itself is in German.
 
-| Bereich | Funktion |
+### Web admin (`/admin`)
+
+| Section | Function |
 |---|---|
-| **Status** | Distanz (bzw. Gedrückt/Frei beim Taster), Zone, Start/Stop, Klartext-Zustand der Quelle |
-| **Zustand** | Befunde der Zustandsprüfung — toter Sensor, volle Platte, fehlende Dateien |
-| **Statistik** | Besuche heute/gesamt, Tagesverlauf, letzte Tage, CSV-Download |
-| **Sicherung** | Konfiguration exportieren und einspielen |
-| **Zonen** | Je Zone: Shuffle, „einmal abspielen", Reihenfolge (▲▼), Standzeit je Bild |
-| **Bibliothek** | Upload (mit Medien-Check), Zuweisung per Knopf je Zone, Löschen nur aus Zonen |
-| **Untertitel** | Sprachen festlegen, `.vtt` hochladen, je Video und Sprache zuordnen |
-| **Einstellungen** | Name, Zonen-Stufen, Schwellen, Verzögerung, Bildintervall, Lautstärken, Video-Resume |
-| **Zeitsteuerung** | Wochenplan, HDMI-CEC |
-| **Systemeinstellungen** | Abstandsquelle, Gleichtakt, Anzeige-IP, Netzwerk, WLAN, Reboot |
+| **Status** | Distance (or pressed/released for the button), zone, start/stop, plain-language state of the source |
+| **Health** | Findings of the health check — dead sensor, full disk, missing files |
+| **Statistics** | Visits today/total, daily curve, recent days, CSV download |
+| **Backup** | Export and restore the configuration |
+| **Zones** | Per zone: shuffle, "play once", order (▲▼), duration per image |
+| **Library** | Upload (with media check), assign with one button per zone, delete from zones only |
+| **Subtitles** | Define languages, upload `.vtt`, assign per video and language |
+| **Settings** | Name, number of zones, thresholds, delay, image interval, volumes, video resume |
+| **Scheduling** | Weekly plan, HDMI-CEC |
+| **System settings** | Distance source, lockstep, display IP, network, Wi-Fi, reboot |
 
-Die Zuweisung eines Mediums zu einer Zone passiert in der **Bibliothek** über
-einen Knopf je Zone, die Reihenfolge in der **Zonen-Übersicht** über Pfeile —
-bewusst kein Drag-and-Drop: diese Seite wird vom Handy bedient, und Ziehen mit
-dem Daumen ist dort der unzuverlässigste Weg.
+A medium is assigned to a zone in the **library** with one button per zone;
+the order is set in the **zone overview** with arrows — deliberately no
+drag-and-drop: this page is used from a phone, and dragging with a thumb is
+the least reliable way there.
 
-### Anzeige (`/display`)
+### Display (`/display`)
 
 - ESC → `/admin`
-- Beim Pi-Boot lädt der Chromium-Kiosk die **Startseite `/`** (siehe `start.sh`);
-  von dort geht es mit einem Klick auf die Anzeige. Ein zweites Gerät kann
-  `/display` auch direkt öffnen.
+- At Pi boot the Chromium kiosk loads the **start page `/`** (see `start.sh`);
+  from there it is one click to the display. A second device can also open
+  `/display` directly.
 
-### Netzwerk konfigurieren
+### Configuring the network
 
 In `/admin` → **Systemeinstellungen** → **Netzwerk**:
 
-1. Aktive Verbindung wählen
-2. **DHCP** oder **Statisch**
-3. Bei statisch: IP/CIDR (z. B. `192.168.1.50/24`), Gateway, DNS
-4. **Netzwerk übernehmen**
+1. Choose the active connection
+2. **DHCP** or **static**
+3. For static: IP/CIDR (e.g. `192.168.1.50/24`), gateway, DNS
+4. **Apply network**
 
-> Verbindung wird kurz getrennt — danach neue IP im Browser eingeben.
+> The connection drops briefly — then enter the new IP in the browser.
 
-### WLAN konfigurieren
+### Configuring Wi-Fi
 
 In `/admin` → **Systemeinstellungen** → **WLAN**:
 
-1. WLAN-Toggle aktivieren
-2. **Netzwerke scannen**
-3. SSID anklicken → Passwort eingeben
-4. **Mit WLAN verbinden**
+1. Enable the Wi-Fi toggle
+2. **Scan networks**
+3. Click an SSID → enter the password
+4. **Connect**
 
-> Bei aktiver Ethernet-Verbindung bleibt diese bestehen — du kannst Pi parallel per WLAN ins Netz bringen.
+> An active Ethernet connection stays up — you can put the Pi on Wi-Fi in parallel.
 
 ---
 
-## Multi-Station Manager (Desktop-App)
+## Multi-Station Manager (desktop app)
 
-Im Ordner `station-manager/` liegt eine Electron-App für Win/Mac/Linux.
+`station-manager/` contains an Electron app for Windows/Mac/Linux.
 
-### Entwicklung
+### Development
 
 ```bash
 cd station-manager
@@ -378,36 +346,36 @@ npm install
 npm start
 ```
 
-### Build (Distributables)
+### Build (distributables)
 
 ```bash
-npm run dist:win    # Windows: NSIS Installer + Portable .exe
-npm run dist:mac    # macOS: DMG für Intel + Apple Silicon
+npm run dist:win    # Windows: NSIS installer + portable .exe
+npm run dist:mac    # macOS: DMG for Intel + Apple Silicon
 npm run dist        # plus Linux AppImage
 ```
 
-Artefakte in `station-manager/dist/`.
+Artifacts end up in `station-manager/dist/`.
 
 ### Workflow
 
-1. **Discovery**: alle Pis im LAN mit Avahi-Service erscheinen automatisch
-2. **Manuell adden**: per IP wenn mDNS nicht durchkommt (z. B. via Tailscale)
-3. **Auswahl**: Karten anklicken → Bulk-Aktionen aktiv
-4. **Bulk**: Start / Stop / Reboot, Media-Upload, Config-Push
-5. **Admin öffnen**: pro Karte öffnet `/admin` im System-Browser
+1. **Discovery**: every Pi on the LAN with the Avahi service appears automatically
+2. **Add manually**: by IP when mDNS does not get through (e.g. via Tailscale)
+3. **Select**: click cards → bulk actions become active
+4. **Bulk**: start / stop / reboot, media upload, config push
+5. **Open admin**: each card opens `/admin` in the system browser
 
-Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. `~/Library/Application Support/station-manager/` (Mac).
+The app's persistent data: `%APPDATA%\station-manager\stations.json` (Windows) or `~/Library/Application Support/station-manager/` (Mac).
 
 ---
 
-## Architektur
+## Architecture
 
 ```
                 ┌─────────────────────────────┐
-                │   LZ Station Manager (Electron)  │
+                │ LZ Station Manager (Electron)│
                 │   Win / macOS / Linux       │
                 └──────────────┬──────────────┘
-                               │ HTTP/JSON (LAN oder Tailscale)
+                               │ HTTP/JSON (LAN or Tailscale)
         ┌──────────────────────┼──────────────────────┐
         │                      │                      │
    ┌────▼────┐            ┌────▼────┐            ┌────▼────┐
@@ -418,175 +386,175 @@ Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. 
    └─────────┘            └─────────┘            └─────────┘
 ```
 
-**Pi-Stack:** (Wiedergabe passiert im Browser, nicht in Python — es gibt
-keinen Player-Prozess.)
+**Pi stack:** (playback happens in the browser, not in Python — there is no
+player process.)
 
-| Modul | Aufgabe |
+| Module | Purpose |
 |---|---|
-| `main.py` | Controller: Zonen-Zustandsmaschine, Wochenplan, Statistik-Fortschreibung |
-| `web_ui.py` | Flask-Routen (`/`, `/admin`, `/display`, `/api/*`) |
-| `config_schema.py` | Vorgaben **und** Grenzen; Heilung beim Laden, Ablehnung beim Schreiben |
-| `sensor.py` | Basis aller Abstandsquellen (Mittelwert, Veralten) + HC-SR04 |
-| `camera_sensor.py` | Kamera-Quelle (OpenCV + YuNet/Haar), plattformübergreifend |
-| `button_sensor.py` | Taster-Quelle am GPIO |
-| `auto_sensor.py` | Wahl mit Rückfall: HC-SR04, und wenn es den nicht gibt, die Kamera |
-| `sync.py` | Gleichtakt: folgt der Zone einer anderen Station |
-| `zeitplan.py` | Öffnungszeiten (rein, ohne Uhr — deshalb testbar) |
-| `statistik.py` | Besuche zählen, auswerten, atomar speichern |
-| `gesundheit.py` | Zustandsprüfung (rein, Lage wird hereingereicht) |
-| `medien_check.py` | Beurteilt hochgeladene Videos (ffprobe optional) |
-| `tv_cec.py` | Fernseher per HDMI-CEC schalten (wirft nie) |
-| `displays.py` | Bildschirme dieses Rechners finden und bespielen |
-| `static/`, `templates/` | Frontend (Admin, Anzeige, Startseite) |
-| `lzstation.service` | Avahi mDNS für die Manager-Discovery |
+| `main.py` | Controller: zone state machine, weekly plan, statistics |
+| `web_ui.py` | Flask routes (`/`, `/admin`, `/display`, `/api/*`) |
+| `config_schema.py` | Defaults **and** limits; repair on load, rejection on write |
+| `sensor.py` | Base of all distance sources (averaging, staleness) + HC-SR04 |
+| `camera_sensor.py` | Camera source (OpenCV + YuNet/Haar), cross-platform |
+| `button_sensor.py` | Push-button source on GPIO |
+| `auto_sensor.py` | Selection with fallback: HC-SR04, and if there is none, the camera |
+| `sync.py` | Lockstep: follows another station's zone |
+| `zeitplan.py` | Opening hours (pure, no clock — hence testable) |
+| `statistik.py` | Count visits, evaluate, save atomically |
+| `gesundheit.py` | Health check (pure, the situation is passed in) |
+| `medien_check.py` | Assesses uploaded videos (ffprobe optional) |
+| `tv_cec.py` | Switch the TV via HDMI-CEC (never throws) |
+| `displays.py` | Find and drive this computer's screens |
+| `static/`, `templates/` | Frontend (admin, display, start page) |
+| `lzstation.service` | Avahi mDNS for manager discovery |
 
-**Manager-Stack:**
-- `main.js` – Electron-Hauptprozess, mDNS (`bonjour-service`), HTTP-Multipart-Upload
-- `preload.js` – contextIsolation IPC-Bridge
+**Manager stack:**
+- `main.js` – Electron main process, mDNS (`bonjour-service`), HTTP multipart upload
+- `preload.js` – contextIsolation IPC bridge
 - `renderer/` – UI
 
 ---
 
-## API-Übersicht
+## API overview
 
-Alle Endpoints unter `http://<pi-ip>:5000`.
+All endpoints under `http://<pi-ip>:5000`.
 
-### Zustand und Wiedergabe
+### State and playback
 
-| Method | Path | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/api/status` | Distanz, Zone, Sensor-Zustand, Betriebsruhe, IP, komplette Config |
-| GET | `/api/scene` | Was gerade zu spielen ist: Zone, Zonen-Medien, Lautstärken, Untertitel |
-| GET | `/api/sync` | **Takt für andere Stationen**: nur Zone + Betriebsruhe (siehe [Gleichtakt](docs/gleichtakt.md)) |
-| GET | `/api/health` | Befunde der Zustandsprüfung + Gesamtstufe |
-| GET | `/api/identity` | Station-ID, Name, Version, Zustandsstufe (Manager-Discovery) |
-| POST | `/api/start` · `/api/stop` | Sensor-Steuerung starten / anhalten |
+| GET | `/api/status` | Distance, zone, sensor state, quiet hours, IP, full config |
+| GET | `/api/scene` | What to play right now: zone, zone media, volumes, subtitles |
+| GET | `/api/sync` | **Clock for other stations**: zone + quiet hours only (see [lockstep](docs/gleichtakt.md)) |
+| GET | `/api/health` | Health-check findings + overall level |
+| GET | `/api/identity` | Station ID, name, version, health level (manager discovery) |
+| POST | `/api/start` · `/api/stop` | Start / stop sensor control |
 
-### Konfiguration
+### Configuration
 
-| Method | Path | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| POST | `/api/config` | Konfiguration schreiben (**lehnt ab** und nennt das Feld). Gelesen wird sie über `/api/status` |
-| GET | `/api/backup` | Konfiguration als JSON-Datei herunterladen |
-| POST | `/api/restore` | Sicherung einspielen (**repariert** statt abzulehnen) |
+| POST | `/api/config` | Write the configuration (**rejects** and names the field). Read it via `/api/status` |
+| GET | `/api/backup` | Download the configuration as a JSON file |
+| POST | `/api/restore` | Restore a backup (**repairs** instead of rejecting) |
 
-### Medien
+### Media
 
-| Method | Path | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/api/media/<type>` | Dateiliste (`videos`, `images`, `audio`, `subtitles`) |
-| POST | `/api/upload/<type>` | Multipart-Upload; bei Videos mit **Medien-Check** in der Antwort |
-| DELETE | `/api/media/<type>/<name>` | Aus allen Zonen entfernen (Datei bleibt liegen) |
-| GET | `/media/<type>/<name>` | Datei ausliefern |
+| GET | `/api/media/<type>` | File list (`videos`, `images`, `audio`, `subtitles`) |
+| POST | `/api/upload/<type>` | Multipart upload; for videos with a **media check** in the response |
+| DELETE | `/api/media/<type>/<name>` | Remove from all zones (the file stays) |
+| GET | `/media/<type>/<name>` | Serve the file |
 
-### Statistik
+### Statistics
 
-| Method | Path | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/api/statistik` | Besuche heute/gesamt, Tagesverlauf, letzte Tage |
-| GET | `/api/statistik.csv` | Tageswerte als CSV (Semikolon, Komma als Dezimalzeichen) |
-| POST | `/api/statistik/reset` | Zähler auf null |
+| GET | `/api/statistik` | Visits today/total, daily curve, recent days |
+| GET | `/api/statistik.csv` | Daily values as CSV (semicolon, comma as decimal separator) |
+| POST | `/api/statistik/reset` | Reset counters to zero |
 
-### Dieser Rechner und sein System
+### This computer and its system
 
-| Method | Path | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/api/displays` | Angeschlossene Bildschirme dieses Rechners |
-| POST | `/api/displays/play` · `/api/displays/stop` | Anzeige-Fenster öffnen / schließen |
-| GET/POST | `/api/system/network` | nmcli IP-Konfiguration |
-| GET/POST | `/api/system/wifi` | WLAN ein/aus, Scan, Verbinden |
+| GET | `/api/displays` | Screens connected to this computer |
+| POST | `/api/displays/play` · `/api/displays/stop` | Open / close display windows |
+| GET/POST | `/api/system/network` | nmcli IP configuration |
+| GET/POST | `/api/system/wifi` | Wi-Fi on/off, scan, connect |
 | POST | `/api/system/reboot` | `sudo reboot` |
 
 ---
 
-## Dokumentation
+## Documentation
 
-Das README gibt den Überblick. Die Themen, die mehr als einen Absatz brauchen,
-stehen in [`docs/`](docs/README.md) — dort steht das Wie und, wichtiger, das
-**Warum**.
+This README is the overview. Topics that need more than a paragraph live in
+[`docs/`](docs/README.md) (German) — the how and, more importantly, the
+**why**.
 
-| Dokument | Worum es geht |
+| Document | Topic |
 |---|---|
-| [Abstandsquellen](docs/sensoren.md) | Ultraschall, Kamera, Taster; Kalibrierung; **Vergleichsmatrix** aller gängigen Sensortypen mit Empfehlung je Anwendungsfall |
-| [Zonen und Wiedergabe](docs/zonen.md) | Zwei oder drei Stufen; Shuffle, „einmal abspielen", Reihenfolge, Standzeit je Bild |
-| [Zeitsteuerung](docs/zeitsteuerung.md) | Wochenplan (auch über Mitternacht), HDMI-CEC |
-| [Statistik und Zustand](docs/statistik-und-zustand.md) | Besucherzahlen, CSV-Export, Zustandsprüfung |
-| [Mehrsprachigkeit](docs/mehrsprachigkeit.md) | Untertitelspuren je Video, Sprachknöpfe |
-| [Gleichtakt](docs/gleichtakt.md) | Eine Station folgt der Zone einer anderen |
-| [Betrieb](docs/betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung |
+| [Distance sources](docs/sensoren.md) | Ultrasonic, camera, button; calibration; **comparison matrix** of common sensor types with a recommendation per use case |
+| [Zones and playback](docs/zonen.md) | Two or three levels; shuffle, "play once", order, duration per image |
+| [Scheduling](docs/zeitsteuerung.md) | Weekly plan (also across midnight), HDMI-CEC |
+| [Statistics and health](docs/statistik-und-zustand.md) | Visitor numbers, CSV export, health check |
+| [Multiple languages](docs/mehrsprachigkeit.md) | Subtitle tracks per video, language buttons |
+| [Lockstep](docs/gleichtakt.md) | One station follows another station's zone |
+| [Operation](docs/betrieb.md) | Media check on upload, backup and restore |
 
-**Zwei Regeln gelten überall:** Ohne Messung wird nichts erfunden — fehlt der
-Sensor, die Kamera oder der Kontakt zum Taktgeber, gibt es *keinen* Wert, die
-Station löst nicht aus und sagt im Klartext, warum. Und alle Vorgaben sind
-rückwärtskompatibel: nach einem Update verhält sich eine bestehende
-Installation exakt wie vorher, bis jemand etwas einschaltet.
+**Two rules apply everywhere:** without a measurement nothing is invented — if
+the sensor, the camera or the contact to the clock station is missing, there is
+*no* value, the station does not trigger and says why in plain words. And all
+defaults are backward compatible: after an update an existing installation
+behaves exactly as before until someone switches something on.
 
 ---
 
 ## Troubleshooting
 
-### Server läuft nicht nach Reboot
+### Server not running after reboot
 
 ```bash
 ssh pi@<pi-ip>
-cat /tmp/main.log              # letzte Fehler
-ps -ef | grep main.py          # läuft Prozess?
-~/pi_media_station/start.sh    # manuell starten
+cat /tmp/main.log              # latest errors
+ps -ef | grep main.py          # is the process running?
+~/pi_media_station/start.sh    # start manually
 ```
 
-### Manager findet Pi nicht
+### Manager does not find the Pi
 
-- Avahi prüfen: `systemctl status avahi-daemon`
-- Service registriert? `ls /etc/avahi/services/lzstation.service`
-- Fallback: manuell mit IP adden
-- Firewall: Port 5000 freigegeben?
+- Check Avahi: `systemctl status avahi-daemon`
+- Service registered? `ls /etc/avahi/services/lzstation.service`
+- Fallback: add it manually by IP
+- Firewall: is port 5000 open?
 
-### nmcli verlangt Passwort
+### nmcli asks for a password
 
-Sudoers-Regel fehlt:
+The sudoers rule is missing:
 ```bash
 cat /etc/sudoers.d/lz-media-station
-# Sollte enthalten:
+# Should contain:
 # pi ALL=(ALL) NOPASSWD: /usr/bin/nmcli, /sbin/reboot, /usr/sbin/reboot
 ```
-Mit `bash install_pi.sh` neu erstellen.
+Recreate it with `bash install_pi.sh`.
 
-### Display zeigt schwarzen Bildschirm
+### Display shows a black screen
 
-- Wayland-Env? `echo $WAYLAND_DISPLAY`
-- `start.sh` setzt `XDG_RUNTIME_DIR=/run/user/1000` und `WAYLAND_DISPLAY=wayland-0`
-- Chromium-Log: `tail /tmp/chromium.log`
+- Wayland env? `echo $WAYLAND_DISPLAY`
+- `start.sh` sets `XDG_RUNTIME_DIR=/run/user/1000` and `WAYLAND_DISPLAY=wayland-0`
+- Chromium log: `tail /tmp/chromium.log`
 
-### Status zeigt 127.0.0.1 statt LAN-IP
+### Status shows 127.0.0.1 instead of the LAN IP
 
-- Anzeige-IP in Systemeinstellungen manuell setzen, ODER
-- Default-Route fehlt → mit `ip route` prüfen, ggf. Gateway setzen
+- Set the display IP manually in the system settings, OR
+- Default route missing → check with `ip route`, set a gateway if needed
 
-### SSH-Hintergrundstart killt Server beim Logout
+### Background start over SSH kills the server on logout
 
-Statt `nohup ... &` immer `setsid` verwenden:
+Always use `setsid` instead of `nohup ... &`:
 ```bash
 setsid nohup python3 main.py >/tmp/main.log 2>&1 < /dev/null &
 ```
 
 ---
 
-## Tailscale (Remote-Verwaltung)
+## Tailscale (remote management)
 
-Für Multi-Standort oder Verwaltung von zuhause:
+For multiple sites or managing from home:
 
 ```bash
-# Auf jedem Pi
+# On every Pi
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 ```
 
-Auf dem Manager-Rechner ebenfalls Tailscale installieren und im selben Tailnet anmelden. Pis erreichen sich dann unter `100.x.y.z` oder `<pi-name>.<tailnet>.ts.net` (MagicDNS).
+Install Tailscale on the manager computer as well and sign in to the same tailnet. The Pis are then reachable at `100.x.y.z` or `<pi-name>.<tailnet>.ts.net` (MagicDNS).
 
-> mDNS funktioniert **nicht** über Tailscale → Stationen einmalig manuell im Manager mit ihrer Tailscale-Adresse hinzufügen.
+> mDNS does **not** work over Tailscale → add stations once manually in the manager with their Tailscale address.
 
 ---
 
-## Lizenz
+## License
 
-Proprietär — © 2026 Lars Zumpe, alle Rechte vorbehalten. Nutzung der veröffentlichten Builds ist kostenlos; Weiterverbreitung und abgeleitete Werke sind es nicht. Siehe [LICENSE](LICENSE).
+Proprietary — © 2026 Lars Zumpe, all rights reserved. Using the published builds is free of charge; redistribution and derivative works are not. See [LICENSE](LICENSE).
