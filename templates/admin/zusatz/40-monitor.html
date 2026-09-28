@@ -1,0 +1,94 @@
+<!-- Monitor (3.0): was die Anzeigeseiten gerade tun, Screenshot, Systemwerte,
+     Proof-of-Play und Benachrichtigung. Skript: static/module/monitor.js -->
+<section class="card" id="card-monitor">
+    <h2>Monitor <span class="health-punkt" id="monitor-punkt"></span></h2>
+    <p class="karten-hinweis" data-i18n="monitor-hinweis">
+        Jede Anzeigeseite meldet sich alle zehn Sekunden und sagt, was sie in jeder Region
+        spielt. Bleibt der Puls aus, steht es hier &mdash; und in der Zustandspr&uuml;fung.
+    </p>
+
+    <h3 class="stat-titel">Verbundene Anzeigen</h3>
+    <div id="monitor-anzeigen" class="media-list"></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+        <button class="btn btn-save" style="width:auto; margin-top:0" onclick="screenshotAnfordern()">Screenshot jetzt</button>
+        <span id="monitor-screenshot-zeit" class="stat-name"></span>
+    </div>
+    <div id="monitor-screenshot" class="monitor-screenshot"></div>
+
+    <h3 class="stat-titel">System</h3>
+    <div class="stat-kacheln" id="monitor-system"></div>
+
+    <h3 class="stat-titel">Proof-of-Play</h3>
+    <p class="karten-hinweis" data-i18n="wiedergabe-hinweis">
+        Jeder Start eines Eintrags, gemeldet von der Anzeigeseite, die ihn gespielt hat.
+        Nichts &uuml;ber Personen. Aufbewahrung in den Einstellungen (Tage).
+    </p>
+    <div class="settings-grid">
+        <div class="form-group">
+            <label for="pop-von">Von</label>
+            <input type="date" id="pop-von">
+        </div>
+        <div class="form-group">
+            <label for="pop-bis">Bis</label>
+            <input type="date" id="pop-bis">
+        </div>
+        <div class="form-group">
+            <label for="pop-gruppe">Gruppieren nach</label>
+            <select id="pop-gruppe">
+                <option value="datei">Datei</option>
+                <option value="tag">Tag</option>
+                <option value="stunde">Stunde</option>
+                <option value="layout">Layout</option>
+                <option value="zone">Zone</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="cfg-wiedergabe-tage">Aufbewahrung (Tage)</label>
+            <input type="number" id="cfg-wiedergabe-tage" min="1" max="3650" step="1">
+        </div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px">
+        <button class="btn btn-save" style="width:auto; margin-top:0" onclick="ladeWiedergabe()">Auswerten</button>
+        <a class="btn btn-save" style="width:auto; margin-top:0" id="pop-csv" href="/api/wiedergabe.csv">CSV herunterladen</a>
+        <button class="btn btn-save" style="width:auto; margin-top:0" onclick="speichereAufbewahrung()">Aufbewahrung speichern</button>
+    </div>
+    <div id="pop-summe" class="stat-name" style="margin-top:8px"></div>
+    <div id="pop-tabelle" class="media-list"></div>
+
+    <h3 class="stat-titel">Benachrichtigung</h3>
+    <p class="karten-hinweis" data-i18n="benachrichtigung-hinweis">
+        Die Station meldet sich, wenn sich etwas <strong>&auml;ndert</strong>: St&ouml;rung, Anzeige
+        verloren oder wieder da, Beginn der &Ouml;ffnungszeit. Per <strong>ntfy</strong> (Push aufs Handy,
+        ohne Konto: App installieren, Topic w&auml;hlen) oder als JSON an einen Webhook.
+    </p>
+    <div class="settings-grid">
+        <div class="form-group">
+            <label for="bn-aktiv">Versand</label>
+            <select id="bn-aktiv">
+                <option value="0">Aus</option>
+                <option value="1">An</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="bn-typ">Ziel</label>
+            <select id="bn-typ">
+                <option value="ntfy">ntfy</option>
+                <option value="webhook">Webhook (JSON)</option>
+            </select>
+        </div>
+        <div class="form-group span-2">
+            <label for="bn-url">Adresse</label>
+            <input type="text" id="bn-url" placeholder="https://ntfy.sh">
+        </div>
+        <div class="form-group span-2" id="bn-topic-gruppe">
+            <label for="bn-topic">Topic</label>
+            <input type="text" id="bn-topic" placeholder="meine-station-2026">
+        </div>
+    </div>
+    <div class="zone-options" id="bn-ereignisse"></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px">
+        <button class="btn btn-save" style="width:auto; margin-top:0" onclick="speichereBenachrichtigung()">Benachrichtigung speichern</button>
+        <button class="btn btn-save" style="width:auto; margin-top:0" onclick="testeBenachrichtigung()">Probenachricht senden</button>
+    </div>
+    <div id="monitor-feedback" class="feedback"></div>
+</section>

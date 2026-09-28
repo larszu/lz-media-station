@@ -123,6 +123,42 @@ def lan_adresse():
     return "127.0.0.1"
 
 
+def lage_der_station(controller):
+    """Die echte Lage einsammeln und pruefen lassen.
+
+    Das Einsammeln (Platte, Dateien, Systemwerte, Puls der Anzeigen) steht
+    hier, die Beurteilung in `gesundheit.pruefe` — sonst waere kein einziger
+    Befund ohne echtes Dateisystem testbar. Modulfunktion, weil der Waechter
+    der Benachrichtigung (api_anzeige) sie ausserhalb einer Anfrage braucht.
+    """
+    import shutil
+    try:
+        freier_platz = shutil.disk_usage(BASE_DIR).free
+    except Exception:
+        freier_platz = None
+    vorhandene = {}
+    for art, verzeichnis in MEDIA_DIRS.items():
+        try:
+            vorhandene[art] = set(os.listdir(verzeichnis))
+        except OSError:
+            vorhandene[art] = set()
+    return gesundheit.pruefe(
+        controller.config,
+        sensor_ok=controller.sensor.distance is not None,
+        sensor_status=controller.sensor.status,
+        freier_platz_b=freier_platz,
+        vorhandene=vorhandene,
+        aktiv=controller.active,
+        geschlossen=not controller.ist_offen(),
+        zonen=[(z, ZONEN_NAMEN.get(z, z)) for z in aktive_zonen(controller.config)],
+        sync_ok=(None if not controller.follower
+                 else controller.follower.zone is not None),
+        sync_status=(controller.follower.status if controller.follower else None),
+        system=gesundheit.systemwerte(),
+        anzeige=(controller.anzeigen.zusammenfassung() if hasattr(controller, "anzeigen") else None),
+    )
+
+
 def create_app(controller, anzeigen=None):
     """`anzeigen` ist der Mehrschirm-Spieler dieses Rechners (`displays.py`).
 
@@ -156,6 +192,11 @@ def create_app(controller, anzeigen=None):
         try:
             modul = importlib.import_module(name)
             app.register_blueprint(modul.erzeuge_blueprint(controller))
+            # Optional `init(app, controller)`: fuer Hintergrundfaeden und
+            # Hooks an der App (Tuersteher, Waechter) — siehe architektur-v3.md.
+            init = getattr(modul, "init", None)
+            if init:
+                init(app, controller)
         except Exception as e:  # noqa: BLE001 — der Start geht vor
             print(f"[Erweiterung] {name}: nicht registriert ({e})")
 
@@ -208,6 +249,8 @@ def create_app(controller, anzeigen=None):
             "display_url": "http://" + host_ip + ":" + str(port) + "/display",
             "version": lies_version(),
             "config": controller.config,
+            # Puls der Anzeigeseiten (api_anzeige, 3.0): wie viele, wie viele online.
+            "anzeige": (controller.anzeigen.zusammenfassung() if hasattr(controller, "anzeigen") else None),
         }
 
     @app.route("/api/status")
@@ -313,36 +356,7 @@ def create_app(controller, anzeigen=None):
     # ── Zustandspruefung ──────────────────────────────────────────────────
 
     def _lage():
-        """Die echte Lage einsammeln und pruefen lassen.
-
-        Das Einsammeln (Platte, Dateien) steht hier, die Beurteilung in
-        `gesundheit.pruefe` — sonst waere kein einziger Befund ohne echtes
-        Dateisystem testbar.
-        """
-        import shutil
-        try:
-            freier_platz = shutil.disk_usage(BASE_DIR).free
-        except Exception:
-            freier_platz = None
-        vorhandene = {}
-        for art, verzeichnis in MEDIA_DIRS.items():
-            try:
-                vorhandene[art] = set(os.listdir(verzeichnis))
-            except OSError:
-                vorhandene[art] = set()
-        return gesundheit.pruefe(
-            controller.config,
-            sensor_ok=controller.sensor.distance is not None,
-            sensor_status=controller.sensor.status,
-            freier_platz_b=freier_platz,
-            vorhandene=vorhandene,
-            aktiv=controller.active,
-            geschlossen=not controller.ist_offen(),
-            zonen=[(z, ZONEN_NAMEN.get(z, z)) for z in aktive_zonen(controller.config)],
-            sync_ok=(None if not controller.follower
-                     else controller.follower.zone is not None),
-            sync_status=(controller.follower.status if controller.follower else None),
-        )
+        return lage_der_station(controller)
 
     @app.route("/api/health")
     def api_health():

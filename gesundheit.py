@@ -30,6 +30,59 @@ PLATZ_WARNUNG_B = 1024 * 1024 * 1024
 
 MEDIENARTEN = ("videos", "images", "audio")
 
+#: Ab hier drosselt ein Raspberry Pi den Takt (Soft-Limit 80 °C); das Bild
+#: ruckelt dann, und niemand sieht, warum.
+TEMP_FEHLER_C = 80.0
+TEMP_WARNUNG_C = 70.0
+
+#: Ohne Puls von einer Anzeigeseite laenger als das gilt: kein Schirm zeigt
+#: etwas — egal, was der Kern glaubt zu spielen.
+ANZEIGE_VERLOREN_S = 60.0
+
+
+def systemwerte(thermal_glob="/sys/class/thermal/thermal_zone*/temp",
+                meminfo="/proc/meminfo", platz_pfad=None):
+    """Temperatur, Last, Speicher und Platte — oder None, wo es das nicht gibt.
+
+    NICHTS ERFINDEN: auf einem Mac gibt es kein /sys/class/thermal, und dann
+    steht da `None`, nicht 0 °C. Die Verwaltung zeigt eine Kachel nur, wenn
+    ein Wert da ist.
+    """
+    import glob as _glob
+    import os as _os
+    werte = {"temp_c": None, "last_1m": None, "kerne": None,
+             "ram_frei_mb": None, "ram_gesamt_mb": None, "platte_frei_mb": None}
+    temps = []
+    for pfad in _glob.glob(thermal_glob):
+        try:
+            with open(pfad) as f:
+                temps.append(int(f.read().strip()) / 1000.0)
+        except (OSError, ValueError):
+            continue
+    if temps:
+        werte["temp_c"] = round(max(temps), 1)
+    try:
+        werte["last_1m"] = round(_os.getloadavg()[0], 2)
+        werte["kerne"] = _os.cpu_count()
+    except (OSError, AttributeError):
+        pass
+    try:
+        with open(meminfo) as f:
+            zeilen = dict(z.split(":", 1) for z in f if ":" in z)
+        gesamt = int(zeilen["MemTotal"].split()[0])
+        frei = int(zeilen["MemAvailable"].split()[0])
+        werte["ram_gesamt_mb"] = gesamt // 1024
+        werte["ram_frei_mb"] = frei // 1024
+    except (OSError, KeyError, ValueError, IndexError):
+        pass
+    if platz_pfad:
+        try:
+            import shutil as _shutil
+            werte["platte_frei_mb"] = _shutil.disk_usage(platz_pfad).free // (1024 * 1024)
+        except OSError:
+            pass
+    return werte
+
 
 def _befund(stufe, thema, text):
     return {"stufe": stufe, "thema": thema, "text": text}
@@ -72,7 +125,8 @@ def gesamtstufe(befunde):
 
 
 def pruefe(config, sensor_ok, sensor_status, freier_platz_b, vorhandene,
-           aktiv, geschlossen, zonen=None, sync_status=None, sync_ok=None):
+           aktiv, geschlossen, zonen=None, sync_status=None, sync_ok=None,
+           system=None, anzeige=None):
     """Alle Befunde als Liste. Leer heisst: nichts zu melden.
 
     `vorhandene` ist {"videos": {...}, "images": {...}, "audio": {...}} mit den
@@ -87,8 +141,55 @@ def pruefe(config, sensor_ok, sensor_status, freier_platz_b, vorhandene,
     beiden Standardzonen. Wichtig, weil eine Station mit zwei Stufen die
     Mitte zwar in der Konfiguration traegt, aber nicht benutzt — sie zu
     pruefen hiesse, dauerhaft „Zone Mitte hat keine Medien" zu melden.
+
+    `system` (3.0) ist das Ergebnis von `systemwerte()` — oder None, dann
+    wird davon nichts geprueft. `anzeige` ist `{"anzahl", "online",
+    "alter_s"}` aus dem Puls der Anzeigeseiten (api_anzeige) — oder None,
+    wenn niemand Puls sammelt; auch dann kein Befund. Beide Vorgaben sind
+    None, damit die Pruefung ohne diese Quellen genauso antwortet wie vor 3.0.
     """
     befunde = []
+
+    # --- Anzeige (3.0) ----------------------------------------------------
+    # Der Kern kann eine Zone spielen, ohne dass irgendwo ein Schirm sie
+    # zeigt: Chromium abgestuerzt, Kabel raus, Tablet aus. Die Anzeigeseite
+    # meldet sich alle 10 s; bleibt das aus, ist das ein Befund — aber nur,
+    # wenn gerade etwas zu sehen sein SOLL (aktiv und offen).
+    if anzeige is not None and aktiv and not geschlossen:
+        alter = anzeige.get("alter_s")
+        if not anzeige.get("anzahl"):
+            befunde.append(_befund(
+                "warnung", "anzeige",
+                "Keine Anzeige verbunden — noch nie hat sich eine Anzeigeseite gemeldet."))
+        elif alter is None or alter > ANZEIGE_VERLOREN_S:
+            befunde.append(_befund(
+                "warnung", "anzeige",
+                f"Keine Anzeige verbunden — seit {int(alter or 0)} s kein Puls von einer Anzeigeseite."))
+
+    # --- System (3.0) -----------------------------------------------------
+    if system:
+        temp = system.get("temp_c")
+        if temp is not None:
+            if temp >= TEMP_FEHLER_C:
+                befunde.append(_befund(
+                    "fehler", "temperatur",
+                    f"CPU bei {temp:.0f} °C — der Pi drosselt, das Bild ruckelt. Lueftung pruefen."))
+            elif temp >= TEMP_WARNUNG_C:
+                befunde.append(_befund(
+                    "warnung", "temperatur",
+                    f"CPU bei {temp:.0f} °C — wird warm, Gehaeuse und Lueftung pruefen."))
+        frei, gesamt = system.get("ram_frei_mb"), system.get("ram_gesamt_mb")
+        if frei is not None and gesamt:
+            if frei < gesamt * 0.1:
+                befunde.append(_befund(
+                    "warnung", "speicher",
+                    f"Nur noch {frei} MB Arbeitsspeicher frei — Browser oder Kern koennten abstuerzen."))
+        last, kerne = system.get("last_1m"), system.get("kerne")
+        if last is not None and kerne:
+            if last > kerne * 2:
+                befunde.append(_befund(
+                    "warnung", "last",
+                    f"Systemlast {last:.1f} bei {kerne} Kernen — die Wiedergabe kann stocken."))
 
     # --- Gleichtakt ---------------------------------------------------------
     # Folgt diese Station einer anderen, ist der Kontakt zum Taktgeber ihr

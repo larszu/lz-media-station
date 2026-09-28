@@ -26,7 +26,7 @@ ROUTEN_QUELLEN = [WURZEL / "web_ui.py"] + sorted(WURZEL.glob("api_*.py"))
 WEB_UI = "\n".join(p.read_text(encoding="utf-8") for p in ROUTEN_QUELLEN)
 
 #: Seiten, keine Schnittstelle — sie stehen im README als Text, nicht als Pfad.
-KEINE_API = {"/", "/admin", "/display"}
+KEINE_API = {"/", "/admin", "/display", "/login"}
 
 
 def platzhalter_vereinheitlichen(pfad):

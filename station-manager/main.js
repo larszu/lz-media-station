@@ -21,6 +21,19 @@ function persistManual() {
     try { fs.writeFileSync(storePath, JSON.stringify(manual, null, 2)); } catch { /* ignore */ }
 }
 
+// PINs je Station (Zugangsschutz 3.0, `zugang.py` auf der Station). Schluessel
+// ist host:port, damit die PIN auch nach einem Neustart der Station (neue
+// Kennung) passt. Liegt in userData wie stations.json — nicht im Log, nicht
+// in der Oberflaeche.
+const pinPath = path.join(app.getPath('userData'), 'pins.json');
+let pins = {};
+try { pins = JSON.parse(fs.readFileSync(pinPath, 'utf8')); } catch { pins = {}; }
+function persistPins() {
+    try { fs.writeFileSync(pinPath, JSON.stringify(pins, null, 2), { mode: 0o600 }); } catch { /* ignore */ }
+}
+function pinFor(s) { return s ? (pins[`${s.host}:${s.port}`] || null) : null; }
+function pinHeaders(s) { const p = pinFor(s); return p ? { 'X-LZ-Pin': p } : {}; }
+
 function emitStations() {
     if (!mainWindow) return;
     mainWindow.webContents.send('stations:update', Array.from(stations.values()));
@@ -166,9 +179,29 @@ ipcMain.handle('station:apiCall', async (_e, id, action, method = 'POST', body =
     const s = stations.get(id);
     if (!s) return { error: 'unknown station' };
     try {
-        const r = await httpJson(`http://${s.host}:${s.port}/api/${action}`, { method }, body);
-        return { ok: r.status >= 200 && r.status < 300, status: r.status, body: r.body };
+        const r = await httpJson(`http://${s.host}:${s.port}/api/${action}`, { method, headers: pinHeaders(s) }, body);
+        // 401 mit `zugang`: die Station verlangt eine PIN (oder die gespeicherte
+        // stimmt nicht mehr). Der Renderer fragt dann nach und wiederholt.
+        return { ok: r.status >= 200 && r.status < 300, status: r.status, body: r.body,
+                 needsPin: r.status === 401 && !!(r.body && r.body.zugang) };
     } catch (e) { return { error: e.message }; }
+});
+ipcMain.handle('station:setPin', (_e, id, pin) => {
+    const s = stations.get(id);
+    if (!s) return false;
+    const key = `${s.host}:${s.port}`;
+    if (pin) pins[key] = String(pin); else delete pins[key];
+    persistPins();
+    return true;
+});
+ipcMain.handle('station:hasPin', (_e, id) => !!pinFor(stations.get(id)));
+ipcMain.handle('station:accessInfo', async (_e, id) => {
+    const s = stations.get(id);
+    if (!s) return { error: 'unknown station' };
+    try {
+        const r = await httpJson(`http://${s.host}:${s.port}/api/zugang`, { timeout: 3000 });
+        return { ok: r.status === 200, gesetzt: !!(r.body && r.body.gesetzt), gespeichert: !!pinFor(s) };
+    } catch (e) { return { error: e.message, gespeichert: !!pinFor(s) }; }
 });
 ipcMain.handle('station:openAdmin', (_e, id) => {
     const s = stations.get(id);
@@ -194,10 +227,11 @@ ipcMain.handle('media:uploadToStations', async (_e, ids, type, files) => {
         if (!s) { results.push({ id, ok: false, error: 'unknown' }); continue; }
         for (const file of files) {
             try {
-                await uploadFile(s.host, s.port, type, file);
+                await uploadFile(s.host, s.port, type, file, pinHeaders(s));
                 results.push({ id, file: path.basename(file), ok: true });
             } catch (e) {
-                results.push({ id, file: path.basename(file), ok: false, error: e.message });
+                results.push({ id, file: path.basename(file), ok: false, error: e.message,
+                               needsPin: /^HTTP 401/.test(e.message) });
             }
             mainWindow.webContents.send('upload:progress', { id, file: path.basename(file) });
         }
@@ -210,15 +244,15 @@ ipcMain.handle('config:pushToStations', async (_e, ids, partialConfig) => {
         const s = stations.get(id);
         if (!s) { results.push({ id, ok: false, error: 'unknown' }); continue; }
         try {
-            const r = await httpJson(`http://${s.host}:${s.port}/api/config`, { method: 'POST' }, partialConfig);
-            results.push({ id, ok: r.status === 200, status: r.status });
+            const r = await httpJson(`http://${s.host}:${s.port}/api/config`, { method: 'POST', headers: pinHeaders(s) }, partialConfig);
+            results.push({ id, ok: r.status === 200, status: r.status, needsPin: r.status === 401 });
         } catch (e) { results.push({ id, ok: false, error: e.message }); }
     }
     return results;
 });
 
 // Multipart uploader (raw, no extra deps)
-function uploadFile(host, port, type, filePath) {
+function uploadFile(host, port, type, filePath, extraHeaders = {}) {
     return new Promise((resolve, reject) => {
         const boundary = '----lzstation' + Date.now();
         const filename = path.basename(filePath);
@@ -234,6 +268,7 @@ function uploadFile(host, port, type, filePath) {
             headers: {
                 'Content-Type': `multipart/form-data; boundary=${boundary}`,
                 'Content-Length': total,
+                ...extraHeaders,
             },
             timeout: 600000,
         }, (res) => {

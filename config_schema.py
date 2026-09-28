@@ -8,6 +8,7 @@ Eigenes Modul, damit `main.py` (Ladeweg) und `web_ui.py` (Schreibweg) es
 teilen koennen — `main` importiert `web_ui`, ein Import zurueck waere ein
 Kreis.
 """
+import benachrichtigung as _bn
 import re
 
 import layouts as layouts_modul
@@ -177,6 +178,12 @@ DEFAULT_CONFIG = {
     # .vtt-Datei zu: {"film.mp4": {"de": "film-de.vtt"}}.
     "sprachen": [],
     "untertitel": {},
+    # Benachrichtigung (3.0, benachrichtigung.py): Webhook oder ntfy bei
+    # Stoerung, verlorener Anzeige, Beginn der Oeffnungszeit. Aus, bis
+    # jemand ein Ziel eintraegt.
+    "benachrichtigung": _bn.standard(),
+    # Proof-of-Play (wiedergabe_log.py): so viele Tage bleiben die Starts.
+    "wiedergabe_aufbewahrung_tage": 90,
     # Gleichtakt mehrerer Stationen. "aus" (Vorgabe) wertet den eigenen Sensor
     # aus; "follower" uebernimmt die Zone von `sync_master`. Eine „master"-
     # Rolle gibt es NICHT: jede Station beantwortet /api/sync ohnehin.
@@ -283,6 +290,7 @@ GRENZEN = {
     "sync_master": (str, lambda v: len(v) <= 64 and all(c.isalnum() or c in ".-" for c in v),
                     "Hostname oder IP, max. 64 Zeichen"),
     "sync_port": (int, lambda v: 1 <= v <= 65535, "1..65535"),
+    "wiedergabe_aufbewahrung_tage": (int, lambda v: 1 <= v <= 3650, "1..3650 Tage"),
 }
 
 
@@ -386,6 +394,7 @@ def heile_config(cfg):
     cfg["zeitplan"] = heile_zeitplan(cfg.get("zeitplan"))
     cfg["sprachen"] = heile_sprachen(cfg.get("sprachen"))
     cfg["untertitel"] = heile_untertitel(cfg.get("untertitel"))
+    cfg["benachrichtigung"] = _bn.heile(cfg.get("benachrichtigung"))
     # Und die Kreuzbedingung der Schwellen: liegt die Mitte nicht weiter weg
     # als die Nah-Schwelle, gibt es sie rechnerisch nicht. Beim Laden wird das
     # repariert statt abgebrochen (Politik wie oben).

@@ -53,6 +53,17 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
   very page that runs on the screen — no sensor, no auto-start
 - **The display never redirects to the admin any more**: a screen in a foyer
   stays black and says in one discreet line what is missing
+- **Monitoring**: every display page reports every 10 s what it plays in each
+  region; the admin shows connected displays, a **screenshot on demand**
+  (real screen via `grim`/`scrot` on the Pi, otherwise rendered by the page),
+  CPU temperature, load, RAM — see [`docs/monitoring.md`](docs/monitoring.md)
+- **Proof of play**: every start of an entry lands in a SQLite file; summary
+  per file/day/hour/layout and CSV export, retention configurable
+- **Notifications**: ntfy (push to your phone) or webhook on a **change** —
+  fault, display lost or back, start of opening hours
+- **Access protection**: an optional PIN in front of the admin; write calls
+  need the session or the `X-LZ-Pin` header (the Station Manager sends it),
+  the display and the kiosk itself stay free — see [`docs/zugang.md`](docs/zugang.md)
 - **Extension points**: `api_*.py` blueprints, `templates/admin/zusatz/`,
   `static/module/`, `static/anzeige/`, `static/i18n/` — wave 2 (layout editor,
   widgets, scheduling) only adds files
@@ -421,6 +432,12 @@ player process.)
 | `layouts.py` | Layouts, regions, playlists (3.0): schema, migration of old zone lists, mirror into the zone, date filter |
 | `api_layouts.py` | Blueprint for the layout routes (`/api/layouts`) — the pattern every `api_*.py` extension follows |
 | `ereignisse.py` | Event bus for Server-Sent Events (pure, no Flask) |
+| `api_anzeige.py` | Pulse of the display pages, screenshot on demand, notification settings (`/api/anzeige/*`, `/api/benachrichtigung/*`) |
+| `wiedergabe_log.py` | Proof of play: SQLite log of every started entry, dedup, retention, CSV |
+| `api_wiedergabe.py` | Blueprint for the proof-of-play routes (`/api/wiedergabe/*`) |
+| `benachrichtigung.py` | Notifier: reports **changes** (fault, display lost/back, opening hours) via ntfy or webhook; pure decision, sending separate |
+| `zugang.py` | Access protection: PIN hash (PBKDF2), rate limit, the pure decision `entscheide()` — the PIN lives in `zugang.json`, not in the config |
+| `api_zugang.py` | Login page, `/api/zugang/*`, the `before_request` gatekeeper |
 | `VERSION` | The one source of the version (`/api/identity`, `/api/status`, `main.py --version`) |
 | `sensor.py` | Base of all distance sources (averaging, staleness) + HC-SR04 |
 | `camera_sensor.py` | Camera source (OpenCV + YuNet/Haar), cross-platform |
@@ -489,6 +506,23 @@ All endpoints under `http://<pi-ip>:5000`.
 | DELETE | `/api/media/<type>/<name>` | Remove from all zones (the file stays) |
 | GET | `/media/<type>/<name>` | Serve the file |
 
+### Monitoring, proof of play, access (3.0)
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/anzeige/puls` | A display page reports in (every 10 s): id, layout, zone, what plays per region, last JS errors |
+| GET | `/api/anzeige` | All displays with `online`, `alter_s`, regions, last screenshot — plus the system values (temperature, load, RAM, disk) |
+| POST | `/api/anzeige/screenshot/anfordern` | Request a screenshot: real screen (`grim`/`scrot`) or command to the display pages, waits up to 4 s |
+| POST | `/api/anzeige/screenshot` | A display page delivers its picture (`{kennung, bild: dataURL}`, max. 2 MB) |
+| GET | `/api/anzeige/screenshot` | The latest picture (`?kennung=`), header `X-LZ-Zeit` |
+| POST | `/api/wiedergabe` | Proof of play: `{kennung, eintraege: [{zeit, region, typ, name\|url, layout_id, zone}]}` — deduplicated |
+| GET | `/api/wiedergabe/zusammenfassung` | Starts per `gruppe=datei\|tag\|stunde\|layout\|zone`, `?von=&bis=` (calendar days) |
+| GET | `/api/wiedergabe.csv` | Every start as a row (`;`-separated), `?von=&bis=` |
+| GET/PUT | `/api/benachrichtigung` | Notification settings `{aktiv, ziel_typ: ntfy\|webhook, url, topic, ereignisse}` |
+| POST | `/api/benachrichtigung/test` | Send a test message with the given (or saved) target |
+| GET/POST/DELETE | `/api/zugang` | Is a PIN set / set or change it (`{pin, alt?, sitzungsdauer_h?}`) / remove it |
+| POST | `/api/zugang/login` · `/api/zugang/logout` | Session for `/admin` (the page is `/login`) |
+
 ### Statistics
 
 | Method | Path | Description |
@@ -524,6 +558,8 @@ This README is the overview. Topics that need more than a paragraph live in
 | [Multiple languages](docs/mehrsprachigkeit.md) | Subtitle tracks per video, language buttons |
 | [Lockstep](docs/gleichtakt.md) | One station follows another station's zone |
 | [Operation](docs/betrieb.md) | Media check on upload, backup and restore |
+| [Monitoring](docs/monitoring.md) | Pulse of the display pages, screenshot on demand, system values, proof of play, notifications |
+| [Access](docs/zugang.md) | Optional PIN: login page, `X-LZ-Pin` for the manager, free reporting paths of the display, storage outside the config |
 | [Architecture 3.0](docs/architektur-v3.md) | Layouts and regions, validity per item, SSE instead of polling, commands, preview, extension points |
 
 **Two rules apply everywhere:** without a measurement nothing is invented — if

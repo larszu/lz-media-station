@@ -31,7 +31,15 @@ window.LZ_I18N_EN = /*JSON*/{
   "Mitte": "Mid",
   "Fern": "Far",
   "Inaktiv": "Inactive",
-  "manuell": "manual"
+  "manuell": "manual",
+  "PIN der Station": "Station PIN",
+  "PIN eingeben": "Enter PIN",
+  "Speichern": "Save",
+  "Vergessen": "Forget",
+  "Die Station verlangt eine PIN": "The station requires a PIN",
+  "PIN gespeichert": "PIN stored",
+  "Diese Station hat keine PIN": "This station has no PIN",
+  "Eine Station verlangt eine PIN — 🔑 an der Karte": "A station requires a PIN — 🔑 on its card"
  },
  "muster": [
   [

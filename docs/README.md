@@ -12,6 +12,8 @@ den Überblick; hier steht das Wie und — wichtiger — das **Warum**.
 | [Mehrsprachigkeit](mehrsprachigkeit.md) | Untertitelspuren (WebVTT) je Video, Sprachknöpfe auf der Anzeige |
 | [Gleichtakt](gleichtakt.md) | Mehrere Stationen im Takt: eine folgt der Zone einer anderen |
 | [Betrieb](betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung der Konfiguration |
+| [Monitoring](monitoring.md) | Puls der Anzeigeseiten („was läuft gerade"), Screenshot auf Abruf, Systemwerte, **Proof-of-Play** (SQLite, CSV), **Benachrichtigung** per ntfy oder Webhook bei Störung, verlorener Anzeige, Beginn der Öffnungszeit |
+| [Zugang](zugang.md) | Optionale PIN vor der Verwaltung: Anmeldeseite, Kopf `X-LZ-Pin` für den Manager, freie Meldewege der Anzeige, Ablage außerhalb der Konfiguration |
 | [Architektur 3.0](architektur-v3.md) | Layouts und Regionen mit gemischten Playlists, Gültigkeit je Eintrag, Ereignisse (SSE) statt Polling, Befehle an die Anzeige, Vorschau, Erweiterungspunkte für Welle 2 |
 
 ## Zwei Dinge, die überall gelten

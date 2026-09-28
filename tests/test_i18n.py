@@ -28,6 +28,8 @@ GLEICH = {
     "1.1.1.1,8.8.8.8", "192.168.1.50", "Auto-Start in",
     # Layouts (3.0): Fachwoerter, die im Englischen genauso heissen.
     "Layout", "Layouts", "Ticker", "Region",
+    # Monitor und Zugang (3.0)
+    "Monitor", "System", "Topic", "Webhook (JSON)", "ntfy", "https://ntfy.sh", "PIN", "Zone",
 }
 
 
