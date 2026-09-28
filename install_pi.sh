@@ -1,11 +1,11 @@
 #!/bin/bash
 # LZ Media Station - One-Shot Installer für Raspberry Pi
-# Verwendung:  curl -sSL https://raw.githubusercontent.com/larszu/pi-media-station/main/install_pi.sh | bash
+# Verwendung:  curl -sSL https://raw.githubusercontent.com/larszu/lz-media-station/main/install_pi.sh | bash
 # oder lokal:  bash install_pi.sh
 
 set -e
 
-REPO_URL="https://github.com/larszu/pi-media-station.git"
+REPO_URL="https://github.com/larszu/lz-media-station.git"
 APP_NAME="pi_media_station"
 APP_DIR="$HOME/$APP_NAME"
 BRANCH="${BRANCH:-main}"
@@ -18,7 +18,7 @@ err()  { echo -e "${RED}[X]${NC} $1"; }
 cat <<'BANNER'
 ========================================================
    LZ Media Station - Installer
-   github.com/larszu/pi-media-station
+   github.com/larszu/lz-media-station
 ========================================================
 BANNER
 
