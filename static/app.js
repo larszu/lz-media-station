@@ -254,10 +254,12 @@ async function ladeLayouts() {
             layoutVorlagen = await v.json();
         }
     } catch (e) { return; }
-    renderLayouts();
     ['near', 'mid', 'far'].forEach(function (zone) {
         fuelleLayoutWahl(zone, ((config[zone] || {}).layout) || '');
     });
+    // Die Karte „Layouts" (static/module/layout-editor.js) zeichnet sich
+    // daraufhin neu — sie kennt diese Datei, nicht umgekehrt.
+    document.dispatchEvent(new CustomEvent('lz-layouts'));
 }
 
 // Die Auswahl je Zone: leer heisst „das Zonen-Layout" (zone-<zone>).
@@ -276,88 +278,6 @@ function fuelleLayoutWahl(zone, gewaehlt) {
 
 function setzeZonenLayout(zone, id) {
     sendeZone(zone, { layout: id || '' }).then(ladeLayouts);
-}
-
-function renderLayouts() {
-    var liste = el('layouts-liste');
-    if (!liste) return;
-    var ids = Object.keys(layoutsStand.layouts || {});
-    var nutzer = {};
-    Object.keys(layoutsStand.zonen || {}).forEach(function (zone) {
-        var id = layoutsStand.zonen[zone];
-        (nutzer[id] = nutzer[id] || []).push(ZONEN_NAMEN[zone] || zone);
-    });
-    liste.innerHTML = ids.length ? ids.map(function (id) {
-        var l = layoutsStand.layouts[id];
-        var zonen = nutzer[id] ? '<span class="badge">' + esc('Zonen: ' + nutzer[id].join(', ')) + '</span>' : '';
-        var n = (l.regionen || []).length;
-        return '<div class="media-item">' +
-            '<div class="media-info">' +
-                '<span class="media-name">' + esc(l.name) + ' <small>(' + esc(id) + ')</small></span>' +
-                '<span class="media-size">' + esc(VORLAGEN_NAMEN[l.vorlage] || l.vorlage) + ' · ' +
-                    esc(n + (n === 1 ? ' Region' : ' Regionen')) + '</span>' +
-            '</div>' +
-            '<div class="media-actions">' + zonen +
-                '<a class="btn btn-small" target="_blank" rel="noopener" href="/display?vorschau=1&layout=' +
-                    encodeURIComponent(id) + '">Vorschau</a>' +
-                '<button class="btn btn-small" onclick="dupliziereLayout(\'' + escAttr(id) + '\')">Duplizieren</button>' +
-                (nutzer[id] ? '' :
-                    '<button class="del-btn" onclick="loescheLayout(\'' + escAttr(id) + '\',\'' + escAttr(l.name) + '\')" title="Löschen">\u2715</button>') +
-            '</div></div>';
-    }).join('') : '<div class="empty">Noch keine Layouts.</div>';
-
-    var sel = el('layout-neu-vorlage');
-    if (sel && !sel.options.length) {
-        sel.innerHTML = layoutVorlagen.map(function (v) {
-            return '<option value="' + escAttr(v.id) + '" title="' + escAttr(v.beschreibung) + '">' +
-                esc(VORLAGEN_NAMEN[v.id] || v.id) + '</option>';
-        }).join('');
-    }
-}
-
-function layoutRueckmeldung(text, fehler) {
-    var fb = el('layouts-feedback');
-    if (!fb) return;
-    fb.textContent = text;
-    fb.className = 'feedback ' + (fehler ? 'error' : 'success');
-    setTimeout(function () { fb.textContent = ''; }, 4000);
-}
-
-async function neuesLayout() {
-    var name = (el('layout-neu-name').value || '').trim();
-    if (!name) { layoutRueckmeldung('Bitte einen Namen eingeben.', true); return; }
-    try {
-        var r = await fetch('/api/layouts', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, vorlage: el('layout-neu-vorlage').value || 'vollbild' }),
-        });
-        var d = await r.json();
-        if (!r.ok) throw new Error(d.error || 'Fehler');
-        el('layout-neu-name').value = '';
-        layoutRueckmeldung('\u2713 Angelegt');
-        ladeLayouts();
-    } catch (e) { layoutRueckmeldung('\u2717 ' + e.message, true); }
-}
-
-async function dupliziereLayout(id) {
-    try {
-        var r = await fetch('/api/layouts/' + encodeURIComponent(id) + '/duplizieren', { method: 'POST' });
-        var d = await r.json();
-        if (!r.ok) throw new Error(d.error || 'Fehler');
-        layoutRueckmeldung('\u2713 Kopiert');
-        ladeLayouts();
-    } catch (e) { layoutRueckmeldung('\u2717 ' + e.message, true); }
-}
-
-async function loescheLayout(id, name) {
-    if (!confirm(tr('Layout "' + name + '" löschen? Die Medien bleiben erhalten.'))) return;
-    try {
-        var r = await fetch('/api/layouts/' + encodeURIComponent(id), { method: 'DELETE' });
-        var d = await r.json();
-        if (!r.ok) throw new Error(d.error || 'Fehler');
-        layoutRueckmeldung('\u2713 Gelöscht');
-        ladeLayouts();
-    } catch (e) { layoutRueckmeldung('\u2717 ' + e.message, true); }
 }
 
 /* ---- Reihenfolge und Standzeit ---- */
