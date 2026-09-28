@@ -379,7 +379,7 @@ async function spieleEin(eingabe) {
     if (!datei) return;
     // Rueckfrage, weil das die laufende Konfiguration ERSETZT — und zwar
     // vollstaendig, nicht ergaenzend.
-    if (!confirm('Die aktuelle Konfiguration durch "' + datei.name + '" ersetzen?')) {
+    if (!confirm(tr('Die aktuelle Konfiguration durch "' + datei.name + '" ersetzen?'))) {
         eingabe.value = '';
         return;
     }
@@ -477,7 +477,7 @@ async function loadStatistik() {
 }
 
 async function resetStatistik() {
-    if (!confirm('Alle erfassten Besuchszahlen unwiderruflich löschen?')) return;
+    if (!confirm(tr('Alle erfassten Besuchszahlen unwiderruflich löschen?'))) return;
     var fb = el('stat-feedback');
     try {
         await fetch('/api/statistik/reset', { method: 'POST' });
@@ -691,7 +691,7 @@ function makeZonePayload(zone, type, list) {
 }
 
 async function deleteMedia(type, name) {
-    if (!confirm('"' + name + '" aus allen Zonen entfernen?\n(Die Datei bleibt auf dem Pi erhalten.)')) return;
+    if (!confirm(tr('"' + name + '" aus allen Zonen entfernen?\n(Die Datei bleibt auf dem Pi erhalten.)'))) return;
     await fetch('/api/media/' + type + '/' + encodeURIComponent(name), { method: 'DELETE' });
     await loadAllMedia();
 }
@@ -890,7 +890,7 @@ async function saveNetwork() {
     };
     if (!body.connection) { fb.textContent = 'Keine Verbindung gewählt.'; fb.className = 'feedback error'; return; }
     if (method === 'manual' && !body.address) { fb.textContent = 'IP-Adresse fehlt.'; fb.className = 'feedback error'; return; }
-    if (!confirm('Netzwerk-Einstellungen jetzt anwenden?\nDie Verbindung wird kurz unterbrochen.')) return;
+    if (!confirm(tr('Netzwerk-Einstellungen jetzt anwenden?\nDie Verbindung wird kurz unterbrochen.'))) return;
     fb.textContent = 'Wende an...';
     fb.className = 'feedback';
     try {
@@ -915,7 +915,7 @@ async function saveNetwork() {
 }
 
 async function rebootPi() {
-    if (!confirm('Pi wirklich neu starten?')) return;
+    if (!confirm(tr('Pi wirklich neu starten?'))) return;
     try { await fetch('/api/system/reboot', { method: 'POST' }); } catch (e) { /* expected */ }
     el('net-feedback').textContent = 'Pi wird neu gestartet...';
 }
@@ -1021,6 +1021,10 @@ async function connectWifi() {
 
 function el(id) { return document.getElementById(id); }
 
+// Texte, die nicht ins DOM gehen (confirm-Dialoge), uebersetzt i18n.js nicht
+// von selbst — sie laufen hier durch. Alles im DOM erledigt der Beobachter.
+function tr(text) { return (window.LZ && window.LZ.t) ? window.LZ.t(text) : text; }
+
 function esc(s) {
     var d = document.createElement('div');
     d.textContent = s;
@@ -1077,7 +1081,7 @@ function zeichneSchirme(schirme, d) {
                 zustand +
                 '<button class="btn btn-small" data-schirm="' + s.index + '" ' +
                 'data-was="' + (s.zeigt ? 'stop' : 'play') + '">' +
-                (s.zeigt ? 'Schliessen' : 'Zeigen') + '</button>' +
+                (s.zeigt ? 'Schließen' : 'Zeigen') + '</button>' +
                 '</div>';
         }).join('');
         liste.querySelectorAll('button[data-schirm]').forEach(function (b) {
@@ -1093,8 +1097,8 @@ function zeichneSchirme(schirme, d) {
     if (!d.browser) {
         hint.innerHTML = '<strong>Kein Chrome, Chromium oder Edge gefunden.</strong> ' +
             'Gesucht wurde: ' + esc((d.suchorte || []).join(', ')) +
-            '. (Firefox und Safari koennen kein Fenster auf einem bestimmten ' +
-            'Schirm oeffnen.)';
+            '. (Firefox und Safari können kein Fenster auf einem bestimmten ' +
+            'Schirm öffnen.)';
     }
 }
 

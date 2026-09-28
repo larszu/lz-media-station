@@ -17,6 +17,7 @@
         </div>
         <div class="nav-right">
             <span id="system-name">Station</span>
+            <button type="button" class="lang-switch" id="lang-switch">EN</button>
             <span class="status-dot" id="status-dot"></span>
         </div>
     </nav>
@@ -81,13 +82,13 @@
         <section class="card" id="card-displays" hidden>
             <h2>Bildschirme dieses Rechners</h2>
             <p class="hint" id="displays-hint">
-                Die Anzeige laeuft als Vollbild-Fenster auf jedem Schirm,
-                der an diesem Rechner haengt &mdash; der eingebaute z&auml;hlt mit.
+                Die Anzeige l&auml;uft als Vollbild-Fenster auf jedem Schirm,
+                der an diesem Rechner h&auml;ngt &mdash; der eingebaute z&auml;hlt mit.
             </p>
             <div id="displays-list" class="media-list"></div>
             <div class="row" style="gap:8px;margin-top:10px;">
                 <button class="btn" id="btn-displays-play">Auf allen zeigen</button>
-                <button class="btn btn-secondary" id="btn-displays-stop">Alle schliessen</button>
+                <button class="btn btn-secondary" id="btn-displays-stop">Alle schlie&szlig;en</button>
             </div>
             <div id="displays-feedback" class="feedback"></div>
         </section>
@@ -198,7 +199,7 @@
         <!-- Untertitel -->
         <section class="card">
             <h2>Untertitel &amp; Sprachen</h2>
-            <p class="karten-hinweis">
+            <p class="karten-hinweis" data-i18n="untertitel-hinweis">
                 Sprachcodes durch Komma getrennt (z.&nbsp;B. <code>de, en</code>). Ab zwei
                 Sprachen erscheinen Knöpfe auf der Anzeige. Leer = keine Umschaltung.
                 Untertitel m&uuml;ssen <strong>WebVTT (.vtt)</strong> sein &mdash; nur das spielt
@@ -225,7 +226,7 @@
         <!-- Sicherung -->
         <section class="card">
             <h2>Sicherung</h2>
-            <p class="karten-hinweis">
+            <p class="karten-hinweis" data-i18n="sicherung-hinweis">
                 Sichert alle Einstellungen (Zonen, Zeitplan, Sensor, Lautst&auml;rken) als
                 Datei &mdash; zum Klonen einer Station oder zur Wiederherstellung nach
                 einem SD-Karten-Defekt. <strong>Medien-Dateien sind nicht enthalten.</strong>
@@ -250,7 +251,7 @@
         <!-- Besucher-Statistik -->
         <section class="card">
             <h2>Besucher-Statistik</h2>
-            <p class="karten-hinweis">
+            <p class="karten-hinweis" data-i18n="statistik-hinweis">
                 Gez&auml;hlt wird, <strong>wann</strong> und <strong>wie lange</strong> jemand in der
                 Nah-Zone stand &mdash; nichts &uuml;ber einzelne Personen.
             </p>
@@ -292,13 +293,13 @@
                 <span>Zeitsteuerung aktiv</span>
             </label>
             <div id="zeitplan-tage" class="zeitplan-tage"></div>
-            <p class="karten-hinweis">
+            <p class="karten-hinweis" data-i18n="zeitplan-mitternacht">
                 Ende <strong>00:00</strong> bedeutet Mitternacht (Tagesende). Ein Ende
                 <em>vor</em> dem Beginn l&auml;uft &uuml;ber Mitternacht &mdash; z.&nbsp;B. 20:00 bis 02:00.
             </p>
             <label class="checkbox-label">
                 <input type="checkbox" id="cfg-cec">
-                <span>Fernseher au&szlig;erhalb der Zeiten per HDMI-CEC abschalten (braucht <code>cec-client</code>)</span>
+                <span data-i18n="cec-label">Fernseher au&szlig;erhalb der Zeiten per HDMI-CEC abschalten (braucht <code>cec-client</code>)</span>
             </label>
             <button class="btn btn-save" onclick="saveZeitplan()">Zeitsteuerung speichern</button>
             <div id="zeitplan-feedback" class="feedback"></div>
@@ -435,6 +436,8 @@
         </section>
     </main>
 
+    <script src="/static/i18n-en.js"></script>
+    <script src="/static/i18n.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

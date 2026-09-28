@@ -31,6 +31,7 @@
 </head>
 <body>
     <div class="container">
+        <button type="button" class="lang-switch lang-switch-ecke" id="lang-switch">EN</button>
         <img class="launch-signet" src="/static/brand/lzm_signet_offwhite_tally.svg" alt="" height="64">
         <h1>LZ Media Station</h1>
         <p class="subtitle" id="sys-name"></p>
@@ -64,6 +65,8 @@
             </div>
         </div>
     </div>
+    <script src="/static/i18n-en.js"></script>
+    <script src="/static/i18n.js"></script>
     <script>
         // Auto-Start nur wenn Medien konfiguriert sind
         var t = 15;
@@ -106,7 +109,7 @@
             } else {
                 stopCountdown();
                 var c = document.getElementById('countdown');
-                if (c) { c.style.display = 'block'; c.classList.add('leer'); c.innerHTML = 'Keine Medien konfiguriert &mdash; bitte erst Konfiguration &ouml;ffnen'; }
+                if (c) { c.style.display = 'block'; c.classList.add('leer'); c.textContent = 'Keine Medien konfiguriert — bitte erst Konfiguration öffnen'; }
             }
         }).catch(function () {});
     </script>
