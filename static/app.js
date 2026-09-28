@@ -1128,3 +1128,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (zu) { zu.addEventListener('click', function () { schirmBefehl('stop', null); }); }
     ladeSchirme();
 });
+
+fetch('/api/identity').then(function (r) { return r.json(); }).then(function (d) {
+    var v = document.getElementById('about-version');
+    if (v && d.version) v.textContent = d.version;
+}).catch(function () {});

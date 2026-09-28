@@ -4,57 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LZ Media Station</title>
+    <link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <link rel="stylesheet" href="/static/style.css">
     <style>
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: #080818;
-            color: #e0e0f0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        .container { text-align: center; max-width: 720px; padding: 40px 20px; }
-        .logo { font-size: 4rem; color: #00d4ff; margin-bottom: 10px; }
-        h1 { font-size: 1.6rem; font-weight: 600; margin-bottom: 4px; }
-        .subtitle { color: #6060a0; margin-bottom: 6px; font-size: 0.95rem; }
-        .ip { font-size: 0.85rem; color: #6060a0; margin-bottom: 30px; }
-        .ip strong { color: #00d4ff; }
-        .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .container { max-width: 720px; width: 100%; padding: 40px 20px; }
+        .launch-signet { display: block; height: 64px; width: auto; margin-bottom: 24px; }
+        h1 { font-size: 1.6rem; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+        .subtitle, .ip { color: var(--text-dim); font-size: 0.95rem; }
+        .ip { margin-bottom: 30px; padding-bottom: 8px; border-bottom: 1px solid var(--line-steel); }
+        .ip strong { color: var(--accent); }
+        .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         @media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }
-        .card {
-            background: #0f0f2a;
-            border: 1px solid #1a1a40;
-            border-radius: 12px;
-            padding: 24px 16px;
-            text-decoration: none;
-            color: inherit;
-            transition: all 0.2s;
-            cursor: pointer;
-            display: block;
-        }
-        .card:hover { transform: translateY(-3px); border-color: #00d4ff; box-shadow: 0 8px 30px rgba(0,212,255,0.1); }
-        .card .icon { font-size: 2rem; margin-bottom: 10px; }
-        .card h2 { font-size: 1rem; margin-bottom: 6px; }
-        .card p { font-size: 0.8rem; color: #6060a0; line-height: 1.4; }
-        .card code {
-            display: block; margin-top: 8px; padding: 6px;
-            background: rgba(255,255,255,0.04); border-radius: 6px;
-            font-size: 0.8rem; color: #00d4ff; word-break: break-all;
-            user-select: all;
-        }
-        .countdown { margin-top: 10px; font-size: 0.75rem; color: #ffab00; }
-        .card-present:hover { border-color: #00e676; box-shadow: 0 8px 30px rgba(0,230,118,0.15); }
-        .card-present .icon { color: #00e676; }
-        .card-config .icon { color: #00d4ff; }
-        .card-remote .icon { color: #ffab00; }
+        a.card, div.card { display: block; margin: 0; padding: 24px 16px; text-decoration: none; color: inherit; transition: border-color 0.35s cubic-bezier(.2,.8,.2,1); }
+        a.card { cursor: pointer; }
+        a.card:hover { border-color: var(--accent); }
+        .card .icon { font-size: 2rem; margin-bottom: 10px; color: var(--accent); }
+        .card h2 { font-size: 1rem; font-weight: 800; letter-spacing: 0; text-transform: none; color: var(--accent); border: 0; padding: 0; margin-bottom: 6px; }
+        .card p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.4; }
+        .card code { display: block; margin-top: 8px; padding: 6px; background: var(--accent-dim); font-size: 0.8rem; color: var(--accent); word-break: break-all; user-select: all; }
+        .countdown { margin-top: 10px; font-size: 0.75rem; color: var(--warning); }
+        .countdown.leer { color: var(--danger); }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">&#9673;</div>
+        <img class="launch-signet" src="/static/brand/lzm_signet_offwhite_tally.svg" alt="" height="64">
         <h1>LZ Media Station</h1>
         <p class="subtitle" id="sys-name"></p>
         <p class="ip">Adresse: <strong id="ip-addr"></strong></p>
@@ -129,7 +106,7 @@
             } else {
                 stopCountdown();
                 var c = document.getElementById('countdown');
-                if (c) { c.style.display = 'block'; c.style.color = '#ff6b6b'; c.innerHTML = 'Keine Medien konfiguriert &mdash; bitte erst Konfiguration &ouml;ffnen'; }
+                if (c) { c.style.display = 'block'; c.classList.add('leer'); c.innerHTML = 'Keine Medien konfiguriert &mdash; bitte erst Konfiguration &ouml;ffnen'; }
             }
         }).catch(function () {});
     </script>

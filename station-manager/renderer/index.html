@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <title>LZ Station Manager</title>
+    <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <div class="brand"><span class="logo">◉</span> LZ Station Manager</div>
+        <div class="brand"><img class="signet" src="brand/lzm_signet_offwhite_tally.svg" alt="" height="32"><span>LZ Station Manager</span></div>
         <div class="actions">
             <button id="btn-rescan">↻ Neu scannen</button>
             <button id="btn-add">+ Station hinzufügen</button>
@@ -37,6 +38,13 @@
                 <label>Verzögerung (s)<input id="bulk-delay" type="number" step="0.5" placeholder="z.B. 1.5"></label>
                 <button id="bulk-push-config">Config pushen</button>
                 <div id="bulk-feedback"></div>
+            </div>
+            <div class="about">
+                <h4>&Uuml;ber</h4>
+                <img class="about-logo" src="brand/lzm_hauptlogo_offwhite.svg" alt="Lars Zumpe Medienproduktion" width="160">
+                <p class="about-name">LZ Station Manager</p>
+                <p>Version <span id="about-version">&ndash;</span></p>
+                <p>Lars Zumpe Medienproduktion</p>
             </div>
         </aside>
 

@@ -123,7 +123,8 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1280, height: 800,
         title: 'LZ Station Manager',
-        backgroundColor: '#1a1a2e',
+        backgroundColor: '#132040',
+        icon: path.join(__dirname, 'renderer', 'brand', 'icon-512.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -137,6 +138,7 @@ function createWindow() {
 }
 
 // ---- IPC handlers ----
+ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('stations:list', () => Array.from(stations.values()));
 ipcMain.handle('stations:addManual', async (_e, host, port = 5000) => {
     const ok = await probeHost(host, port);
