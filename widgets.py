@@ -330,11 +330,17 @@ def _ics_dauer(wert):
     return -delta if vz == "-" else delta
 
 
+#: Zeitzone, in der Termine auf dem Schirm stehen. None = Ortszeit des Rechners
+#: (auf dem Pi die richtige). Tests setzen sie fest, damit der CI-Runner in UTC
+#: dasselbe rechnet wie die Station in Berlin.
+ANZEIGE_ZONE = None
+
+
 def _vergleichbar(t):
     """Fuer Sortierung/Fenster: alles zu naiver Ortszeit, Datum zu Mitternacht."""
     if isinstance(t, datetime):
         if t.tzinfo is not None:
-            t = t.astimezone().replace(tzinfo=None)
+            t = t.astimezone(ANZEIGE_ZONE).replace(tzinfo=None)
         return t
     return datetime(t.year, t.month, t.day)
 

@@ -108,9 +108,18 @@ ICS = "\r\n".join([
 
 class Kalender(unittest.TestCase):
     def setUp(self):
+        # Der CI-Runner steht in UTC, die Station in Berlin: Termine mit TZID
+        # muessen in der Zone der Anzeige verglichen werden, nicht in der des
+        # Rechners, auf dem der Test gerade laeuft.
+        from zoneinfo import ZoneInfo
+        self._zone = W.ANZEIGE_ZONE
+        W.ANZEIGE_ZONE = ZoneInfo("Europe/Berlin")
         self.von = datetime(2026, 9, 17)
         self.bis = datetime(2026, 10, 10)
         self.k = W.parse_ics(ICS, self.von, self.bis)
+
+    def tearDown(self):
+        W.ANZEIGE_ZONE = self._zone
 
     def titel(self, t):
         return [x for x in self.k["termine"] if x["titel"].startswith(t)]
