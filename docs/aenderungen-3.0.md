@@ -1,5 +1,10 @@
 # Änderungen in 3.0
 
+**Versionen.** 3.0.0 brachte das Fundament (Layouts mit Regionen, Sofort-
+Veröffentlichung, Vorschau). 3.0.1 vervollständigt 3.0 mit allem Übrigen,
+was hier steht: Layout-Editor, Widgets, Wochenprogramm, Sofortmeldung,
+Auslöser, Monitoring, Zugangsschutz, Station Manager, Einrichtung per QR-Code.
+
 Mit 3.0 wird aus der sensorgesteuerten Medienstation ein vollständiges
 Digital-Signage-System: Layouts mit Regionen, ein Wochenprogramm, Widgets,
 Auslöser, Überwachung und ein Manager für viele Stationen. Die Bedienung
