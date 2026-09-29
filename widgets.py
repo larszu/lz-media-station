@@ -25,9 +25,12 @@ Die Parser (`parse_rss`, `parse_ics`) sind REIN — sie bekommen Text und
 liefern Listen. Nur deshalb sind Feeds mit Eigenheiten (Atom, RRULE ueber
 Mitternacht, gefaltete Zeilen) in der CI testbar, ohne ins Netz zu gehen.
 """
+import http.client
+import ipaddress
 import json
 import os
 import re
+import socket
 import threading
 import time
 import urllib.error
@@ -56,6 +59,17 @@ BENUTZER_AGENT = "LZ-Media-Station/3.0 (+https://github.com/larszu/lz-media-stat
 #: Ordnername eines eigenen Widgets: kein Punkt, kein Schraegstrich.
 WIDGET_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
 
+#: Darf der Proxy Ziele im eigenen Netz holen (127.0.0.1, 192.168.x, fe80::)?
+#: Vorgabe nein: die Anzeige soll ueber den Kern keine LAN-Geraete abfragen
+#: koennen, die selbst keine Anmeldung verlangen. Wer einen Kalender vom
+#: NAS im selben Netz zeigen will, setzt LZ_WIDGET_PRIVATE_ZIELE=1.
+PRIVATE_ZIELE_ERLAUBT = os.environ.get("LZ_WIDGET_PRIVATE_ZIELE", "") in ("1", "ja", "true")
+
+#: Mehr Eintraege haelt der Zwischenspeicher nicht — jede Adresse ist ein
+#: Schluessel, und wer den Proxy mit immer neuen Adressen fuettert, darf
+#: den Pi nicht in den Speichertod treiben.
+CACHE_MAX_EINTRAEGE = 200
+
 
 class Abrufsfehler(Exception):
     """Der Abruf ist gescheitert — Grund im Text, fuer die Antwort an das Widget."""
@@ -78,10 +92,40 @@ def pruefe_url(url):
     return url.strip()
 
 
+def _ist_privat(adresse):
+    ip = ipaddress.ip_address(adresse)
+    return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast
+            or ip.is_reserved or ip.is_unspecified)
+
+
+def pruefe_ziel(url):
+    """Zeigt der Host ins eigene Netz? Dann ist der Proxy kein Feed-Holer
+    mehr, sondern ein Tor: `http://192.168.1.1/` waere der Router, `127.0.0.1`
+    die Station selbst. Namen werden aufgeloest und jede Adresse geprueft;
+    laesst sich ein Name nicht aufloesen, entscheidet der Abruf selbst."""
+    if PRIVATE_ZIELE_ERLAUBT:
+        return
+    host = urllib.parse.urlsplit(url).hostname or ""
+    try:
+        adressen = [host] if ipaddress.ip_address(host) else []
+    except ValueError:
+        try:
+            adressen = {a[4][0] for a in socket.getaddrinfo(host, None)}
+        except (socket.gaierror, UnicodeError, OSError):
+            return
+    for a in adressen:
+        try:
+            if _ist_privat(a.split("%", 1)[0]):
+                raise Abrufsfehler("url: Ziele im eigenen Netz holt der Proxy nicht")
+        except ValueError:
+            continue
+
+
 def hole_url(url, max_bytes=MAX_BYTES, zeitgrenze=ZEITGRENZE_S, nur_kopf=False):
     """GET ohne Cookies; liefert (bytes, headers). Mehr als `max_bytes` gilt
     als Fehler — ein Feed von 50 MB ist keiner."""
     url = pruefe_url(url)
+    pruefe_ziel(url)
     anfrage = urllib.request.Request(url, headers={
         "User-Agent": BENUTZER_AGENT,
         "Accept": "application/rss+xml, application/atom+xml, text/calendar, "
@@ -99,6 +143,11 @@ def hole_url(url, max_bytes=MAX_BYTES, zeitgrenze=ZEITGRENZE_S, nur_kopf=False):
         raise Abrufsfehler(f"nicht erreichbar ({e.reason})") from None
     except (TimeoutError, OSError) as e:
         raise Abrufsfehler(f"nicht erreichbar ({e})") from None
+    except (http.client.HTTPException, ValueError) as e:
+        # InvalidURL (Leerzeichen in der Adresse), IncompleteRead, LineTooLong:
+        # alles Abruffehler, kein Grund fuer eine 500-Seite — und der
+        # Zwischenspeicher soll das Alte liefern koennen.
+        raise Abrufsfehler(f"Abruf gescheitert ({e.__class__.__name__}: {e})") from None
     if len(daten) > max_bytes:
         raise Abrufsfehler(f"Antwort groesser als {max_bytes // 1000} kB")
     return daten, kopf
@@ -152,7 +201,23 @@ class Cache:
             raise
         with self._lock:
             self._werte[schluessel] = (jetzt, wert)
+            self._deckeln(jetzt, ttl)
         return dict(wert, veraltet=False, aus_cache=False)
+
+    def _deckeln(self, jetzt, ttl):
+        """Unter dem Lock: erst alles weg, was doppelt abgelaufen ist, dann
+        die aeltesten, bis der Deckel wieder passt."""
+        if len(self._werte) <= CACHE_MAX_EINTRAEGE:
+            return
+        for k in [k for k, (t, _) in self._werte.items() if jetzt - t > 2 * max(ttl, 1.0)]:
+            del self._werte[k]
+        while len(self._werte) > CACHE_MAX_EINTRAEGE:
+            aeltester = min(self._werte, key=lambda k: self._werte[k][0])
+            del self._werte[aeltester]
+
+    def __len__(self):
+        with self._lock:
+            return len(self._werte)
 
     def leeren(self):
         with self._lock:
@@ -223,7 +288,9 @@ def parse_rss(text, anzahl=20):
     if art == "rss" or art == "RDF":
         kanal = next((k for k in wurzel if _lokal(k.tag) == "channel"), wurzel)
         quelle = _kind_text(kanal, "title")
-        items = [k for k in kanal.iter() if _lokal(k.tag) == "item"]
+        # RSS 1.0 (RDF) haengt die <item> NEBEN den <channel>, nicht hinein —
+        # deshalb von der Wurzel aus suchen, das findet beide Formen.
+        items = [k for k in wurzel.iter() if _lokal(k.tag) == "item"]
         for item in items:
             eintraege.append({
                 "titel": _entferne_html(_kind_text(item, "title")),
@@ -246,7 +313,8 @@ def parse_rss(text, anzahl=20):
         raise Abrufsfehler(f"kein RSS- oder Atom-Feed (Wurzel <{art}>)")
     eintraege = [e for e in eintraege if e["titel"]]
     if all(e["zeit"] for e in eintraege):
-        eintraege.sort(key=lambda e: e["zeit"], reverse=True)
+        # Nicht am Text sortieren: "09:30+00:00" ist SPAETER als "10:00+02:00".
+        eintraege.sort(key=lambda e: datetime.fromisoformat(e["zeit"]), reverse=True)
     return {"titel": quelle, "eintraege": eintraege[:max(1, int(anzahl))]}
 
 
@@ -412,8 +480,10 @@ def _wiederholungen(start, regel, von, bis):
             woche += 1
     if ist_datum:
         return [t.date() for t in termine]
-    return [start.replace(year=t.year, month=t.month, day=t.day) if isinstance(start, datetime) else t
-            for t in termine]
+    # `termine` sind schon Ortszeit der Anzeige (aus `start_v`). Sie auf den
+    # Original-Start mit seiner Zeitzone zurueckzuschreiben, wuerde einen
+    # UTC-Start (22:30Z = 00:30 Berlin) um einen Tag verschieben.
+    return termine
 
 
 def parse_ics(text, von=None, bis=None):
@@ -430,28 +500,58 @@ def parse_ics(text, von=None, bis=None):
     if not any(z.upper().startswith("BEGIN:VCALENDAR") for z in zeilen[:5]):
         raise Abrufsfehler("keine iCalendar-Datei (BEGIN:VCALENDAR fehlt)")
     name = ""
-    termine = []
+    ereignisse = []
     ereignis = None
+    verschachtelt = 0  # VALARM & Co. IN einem VEVENT: ueberlesen, nicht uebernehmen
     for zeile in zeilen:
         eigenschaft, params, wert = _ics_eigenschaft(zeile)
+        if ereignis is not None and verschachtelt:
+            if eigenschaft == "BEGIN":
+                verschachtelt += 1
+            elif eigenschaft == "END":
+                verschachtelt -= 1
+            continue
         if eigenschaft == "BEGIN" and wert.upper() == "VEVENT":
-            ereignis = {}
+            ereignis = {"EXDATE": []}
+            continue
+        if eigenschaft == "BEGIN" and ereignis is not None:
+            verschachtelt = 1
             continue
         if eigenschaft == "END" and wert.upper() == "VEVENT" and ereignis is not None:
-            termine.extend(_ereignis_ausrollen(ereignis, von, bis))
+            ereignisse.append(ereignis)
             ereignis = None
             continue
         if ereignis is None:
             if eigenschaft in ("X-WR-CALNAME", "NAME") and not name:
                 name = _ics_unescape(wert)
             continue
-        if eigenschaft in ("DTSTART", "DTEND", "DURATION", "SUMMARY", "LOCATION", "RRULE", "UID"):
+        if eigenschaft == "EXDATE":
+            ereignis["EXDATE"].append((params, wert))
+        elif eigenschaft in ("DTSTART", "DTEND", "DURATION", "SUMMARY", "LOCATION", "RRULE", "UID",
+                             "RECURRENCE-ID", "STATUS"):
             ereignis[eigenschaft] = (params, wert)
+
+    # Eine verschobene Einzelfolge (RECURRENCE-ID) ersetzt den Termin der
+    # Reihe zu genau diesem Ursprungszeitpunkt — sonst stuende er doppelt.
+    ersetzt = set()
+    for e in ereignisse:
+        if "RECURRENCE-ID" in e and "UID" in e:
+            try:
+                t, _ = _ics_zeit(e["RECURRENCE-ID"][1], e["RECURRENCE-ID"][0])
+            except ValueError:
+                continue
+            ersetzt.add((e["UID"][1].strip(), _vergleichbar(t)))
+    termine = []
+    for e in ereignisse:
+        status = e.get("STATUS", ({}, ""))[1].strip().upper()
+        if status == "CANCELLED":
+            continue
+        termine.extend(_ereignis_ausrollen(e, von, bis, ersetzt))
     termine.sort(key=lambda t: t["start"])
     return {"name": name, "termine": termine}
 
 
-def _ereignis_ausrollen(ereignis, von, bis):
+def _ereignis_ausrollen(ereignis, von, bis, ersetzt=frozenset()):
     if "DTSTART" not in ereignis:
         return []
     params, wert = ereignis["DTSTART"]
@@ -475,9 +575,24 @@ def _ereignis_ausrollen(ereignis, von, bis):
         starts = _wiederholungen(start, _rrule_parsen(ereignis["RRULE"][1]), von, bis)
     else:
         starts = [start]
+    # Ausnahmen der Reihe: EXDATE (geloescht) und RECURRENCE-ID (verschoben,
+    # steht als eigener VEVENT im Kalender).
+    ausgenommen = set()
+    for params, wert in ereignis.get("EXDATE", []):
+        for einzel in wert.split(","):
+            try:
+                t, _ = _ics_zeit(einzel, params)
+                ausgenommen.add(_vergleichbar(t))
+            except ValueError:
+                continue
+    uid = ereignis.get("UID", ({}, ""))[1].strip()
+    if "RRULE" in ereignis and uid:
+        ausgenommen |= {t for (u, t) in ersetzt if u == uid}
     ergebnis = []
     for s in starts:
         s_v = _vergleichbar(s)
+        if s_v in ausgenommen or (ganztags and datetime(s_v.year, s_v.month, s_v.day) in ausgenommen):
+            continue
         e_v = s_v + dauer
         # Ein Termin zaehlt, wenn er das Fenster beruehrt — auch der, der um
         # 22 Uhr begann und bis 2 Uhr geht.
@@ -585,6 +700,17 @@ def wetter_umformen(roh):
 # Einbettbarkeit einer Webseite
 # --------------------------------------------------------------------------
 
+def _frame_ancestors_offen(quellen):
+    """Erlaubt die Quellenliste JEDEN Rahmen? Nur ein nacktes `*` oder ein
+    reines Schema (`https:`) tut das — `https://*.partner.com` ist eine
+    Wildcard fuer EINEN Anbieter und sperrt uns genauso aus wie 'self'."""
+    for token in quellen.split():
+        t = token.strip().strip("'").lower()
+        if t in ("*", "http:", "https:"):
+            return True
+    return False
+
+
 def einbettbar(url, ttl=None):
     """Sagt eine Seite per Header, dass sie sich nicht in einen Rahmen legen
     laesst? `onerror` eines iframes feuert dafuer nicht — der Browser zeigt
@@ -596,7 +722,7 @@ def einbettbar(url, ttl=None):
             return {"einbettbar": False, "grund": f"X-Frame-Options: {xfo}"}
         csp = kopf.get("content-security-policy") or ""
         m = re.search(r"frame-ancestors\s+([^;]+)", csp, re.I)
-        if m and "*" not in m.group(1):
+        if m and not _frame_ancestors_offen(m.group(1)):
             return {"einbettbar": False, "grund": f"Content-Security-Policy: frame-ancestors {m.group(1).strip()}"}
         return {"einbettbar": True, "grund": ""}
     return CACHE.hole(("einbettbar", url), lader, 3600.0 if ttl is None else ttl)
