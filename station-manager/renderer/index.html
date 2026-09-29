@@ -9,7 +9,16 @@
 <body>
     <header>
         <div class="brand"><img class="signet" src="brand/lzm_signet_offwhite_tally.svg" alt="" height="32"><span>LZ Station Manager</span></div>
+        <div class="kopf-mitte">
+            <input id="suche" type="search" placeholder="Station suchen" aria-label="Station suchen">
+            <select id="filter-gruppe" aria-label="Gruppe filtern"><option value="">Alle Gruppen</option></select>
+            <div class="ansicht" role="group" aria-label="Ansicht">
+                <button type="button" id="ansicht-kacheln" class="aktiv" title="Kacheln">▦ Kacheln</button>
+                <button type="button" id="ansicht-liste" title="Liste">☰ Liste</button>
+            </div>
+        </div>
         <div class="actions">
+            <button id="btn-alarme" title="Alarme">🔔 Alarme <span id="alarm-zahl" class="zahl" hidden>0</span></button>
             <button id="btn-rescan">↻ Neu scannen</button>
             <button id="btn-add">+ Station hinzufügen</button>
             <button type="button" class="lang-switch" id="lang-switch">EN</button>
@@ -19,26 +28,94 @@
     <main>
         <aside class="sidebar">
             <div class="bulk">
-                <h3>Bulk-Aktionen <small id="sel-count">(0)</small></h3>
+                <h3>Auswahl <small id="sel-count">(0)</small></h3>
                 <div class="btn-row">
-                    <button id="bulk-start">▶ Start</button>
-                    <button id="bulk-stop">■ Stop</button>
+                    <button id="sel-alle">Alle sichtbaren</button>
+                    <button id="sel-keine">Keine</button>
                 </div>
-                <div class="btn-row">
-                    <button id="bulk-reboot" class="danger">⟲ Reboot</button>
-                </div>
-                <h4>Medien hochladen</h4>
-                <div class="btn-row">
-                    <button data-upload="videos">📹 Videos</button>
-                    <button data-upload="images">🖼 Bilder</button>
-                    <button data-upload="audio">🎵 Audio</button>
-                </div>
-                <h4>Config-Push</h4>
-                <label>Stationsname<input id="bulk-name" placeholder="(leer = behalten)"></label>
-                <label>Schwelle (m)<input id="bulk-threshold" type="number" step="0.05" placeholder="z.B. 1.0"></label>
-                <label>Verzögerung (s)<input id="bulk-delay" type="number" step="0.5" placeholder="z.B. 1.5"></label>
-                <button id="bulk-push-config">Config pushen</button>
+                <div id="tag-filter" class="chips" aria-label="Tags filtern"></div>
+
+                <details open>
+                    <summary>Steuerung</summary>
+                    <div class="btn-row">
+                        <button id="bulk-start">▶ Start</button>
+                        <button id="bulk-stop">■ Stop</button>
+                        <button id="bulk-reboot" class="danger">⟲ Reboot</button>
+                    </div>
+                </details>
+
+                <details open>
+                    <summary>Layout zuweisen</summary>
+                    <label>Zone
+                        <select id="zuweisen-zone">
+                            <option value="near">Nah</option>
+                            <option value="mid">Mitte</option>
+                            <option value="far">Fern</option>
+                        </select>
+                    </label>
+                    <label>Layout<select id="zuweisen-layout"></select></label>
+                    <p class="klein">Angeboten werden Layouts, die es auf allen ausgewählten Stationen gibt.</p>
+                    <button id="bulk-zuweisen" class="primary">Zuweisen</button>
+                </details>
+
+                <details>
+                    <summary>Layout kopieren</summary>
+                    <label>Von Station<select id="kopie-quelle"></select></label>
+                    <label>Layout<select id="kopie-layout"></select></label>
+                    <button id="bulk-kopieren" class="primary">Auf Auswahl kopieren</button>
+                </details>
+
+                <details>
+                    <summary>Wochenprogramm kopieren</summary>
+                    <label>Von Station<select id="programm-quelle"></select></label>
+                    <button id="bulk-programm" class="primary">Auf Auswahl kopieren</button>
+                </details>
+
+                <details>
+                    <summary>Sofortmeldung</summary>
+                    <label>Text<input id="meldung-text" maxlength="200" placeholder="z.B. Bitte Gebäude verlassen"></label>
+                    <label>Untertext<input id="meldung-untertext" maxlength="300"></label>
+                    <div class="zwei">
+                        <label>Farbe<input id="meldung-farbe" type="color" value="#b04a3f"></label>
+                        <label>Dauer (min)<input id="meldung-dauer" type="number" min="0" step="1" placeholder="leer = bis Ende"></label>
+                    </div>
+                    <div class="btn-row">
+                        <button id="meldung-an" class="danger">Einblenden</button>
+                        <button id="meldung-aus">Beenden</button>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Gruppe und Tags</summary>
+                    <label>Gruppe<input id="ordnung-gruppe" list="gruppen-liste" placeholder="z.B. Foyer"></label>
+                    <datalist id="gruppen-liste"></datalist>
+                    <button id="ordnung-gruppe-setzen">Gruppe setzen</button>
+                    <label>Tag<input id="ordnung-tag" placeholder="z.B. Eingang"></label>
+                    <div class="btn-row">
+                        <button id="ordnung-tag-dazu">Tag hinzufügen</button>
+                        <button id="ordnung-tag-weg">Tag entfernen</button>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Medien hochladen</summary>
+                    <div class="btn-row">
+                        <button data-upload="videos">📹 Videos</button>
+                        <button data-upload="images">🖼 Bilder</button>
+                        <button data-upload="audio">🎵 Audio</button>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>Config-Push</summary>
+                    <label>Stationsname<input id="bulk-name" placeholder="(leer = behalten)"></label>
+                    <label>Schwelle (m)<input id="bulk-threshold" type="number" step="0.05" placeholder="z.B. 1.0"></label>
+                    <label>Verzögerung (s)<input id="bulk-delay" type="number" step="0.5" placeholder="z.B. 1.5"></label>
+                    <button id="bulk-push-config">Config pushen</button>
+                </details>
+
                 <div id="bulk-feedback"></div>
+                <ul id="ergebnis" class="ergebnis"></ul>
             </div>
             <div class="about">
                 <h4>&Uuml;ber</h4>
@@ -52,13 +129,28 @@
         <section class="grid" id="station-grid"></section>
     </main>
 
-    <!-- Detail / Iframe overlay -->
+    <!-- Detail: die Verwaltung der Station, eingebettet -->
     <div id="detail" class="hidden">
         <header>
             <span id="detail-title"></span>
-            <button id="detail-close">×</button>
+            <div class="actions">
+                <button id="detail-extern">Im Browser öffnen</button>
+                <button id="detail-close" aria-label="Schließen">×</button>
+            </div>
         </header>
         <webview id="detail-frame" src="about:blank"></webview>
+    </div>
+
+    <!-- Alarme -->
+    <div id="alarm-panel" class="hidden">
+        <div class="modal breit">
+            <h3>Alarme</h3>
+            <ul id="alarm-liste" class="alarm-liste"></ul>
+            <div class="btn-row">
+                <button id="alarme-leeren">Liste leeren</button>
+                <button id="alarme-zu" class="primary">Schließen</button>
+            </div>
+        </div>
     </div>
 
     <!-- PIN dialog (Zugangsschutz 3.0): erscheint, wenn eine Station 401 antwortet -->

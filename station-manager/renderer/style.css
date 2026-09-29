@@ -100,6 +100,9 @@ main {
 }
 .station.selected { border-color: var(--accent); }
 .station.offline { opacity: 0.55; }
+/* Rot = etwas liegt im Argen (offline, Gesundheit Fehler, alle Anzeigen weg). */
+.station.rot { border-left: 4px solid var(--signal); }
+.station.rot.selected { border-color: var(--accent); border-left-color: var(--signal); }
 .station-head {
     display: flex;
     justify-content: space-between;
@@ -147,7 +150,7 @@ main {
     width: 32px; height: 32px; border-radius: 0;
     font-size: 1.2rem; line-height: 1; cursor: pointer;
 }
-#add-dialog, #pin-dialog {
+#add-dialog, #pin-dialog, #alarm-panel {
     position: fixed; inset: 0;
     background: var(--overlay);
     display: flex; align-items: center; justify-content: center;
@@ -181,3 +184,76 @@ select:focus-visible, textarea:focus-visible {
 
 /* Sprachumschalter (i18n.js): nennt die ANDERE Sprache. */
 .lang-switch { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; }
+
+
+/* ---- Signage 3.0 ---- */
+[hidden] { display: none !important; }
+.kopf-mitte { display: flex; gap: 8px; align-items: center; flex: 1; max-width: 640px; margin: 0 16px; }
+.kopf-mitte input { flex: 1; }
+.kopf-mitte select { width: auto; min-width: 140px; }
+header .actions { display: flex; gap: 6px; align-items: center; }
+.ansicht { display: flex; }
+.ansicht button { white-space: nowrap; }
+.ansicht button.aktiv { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+#btn-alarme.alarm { border-color: var(--signal); }
+.zahl { background: var(--signal); color: var(--accent); padding: 0 6px; margin-left: 4px; font-weight: 700; }
+@media (max-width: 1000px) { .kopf-mitte { display: none; } }
+
+.sidebar details { border-top: 1px solid var(--line); padding: 8px 0; }
+.sidebar summary { cursor: pointer; font-size: 0.8rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.sidebar select { margin-top: 3px; }
+.sidebar .klein, .klein { font-size: 0.7rem; color: var(--muted); margin-bottom: 6px; }
+.sidebar .zwei { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sidebar button.primary { width: 100%; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
+.chip { font-size: 0.7rem; padding: 2px 8px; background: transparent; border: 1px solid var(--line); color: var(--text); }
+.chip.an { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.chip.klein { display: inline-block; padding: 1px 6px; color: var(--muted); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; min-height: 0; }
+
+.ergebnis { list-style: none; font-size: 0.72rem; margin-top: 6px; max-height: 220px; overflow-y: auto; }
+.ergebnis li { padding: 3px 0 3px 8px; border-left: 3px solid var(--line); margin-bottom: 2px; }
+.ergebnis li.ok { border-left-color: var(--green); }
+.ergebnis li.warnung { border-left-color: var(--yellow); }
+.ergebnis li.fehler { border-left-color: var(--red); }
+
+/* Kachel */
+.vorschau {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; aspect-ratio: 16 / 9; margin-bottom: 8px; padding: 0;
+    background: #000; border: 1px solid var(--line); position: relative;
+    color: var(--muted); font-size: 0.75rem; overflow: hidden;
+}
+.vorschau img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.bild-zeit { position: absolute; right: 4px; bottom: 4px; background: var(--overlay); padding: 1px 4px; font-size: 0.65rem; color: var(--text); }
+.station-meta .zeile { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
+.station-meta .zeile span { margin: 0; }
+.station-meta .zeile span:last-child { color: var(--text); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.station-meta .zeile.fein span:last-child { color: var(--muted); }
+.station-meta .schlecht { color: var(--signal) !important; font-weight: 700; }
+.station-meta .mittel { color: var(--yellow) !important; }
+.station-actions .rechts { margin-left: auto; }
+.leer { color: var(--muted); padding: 20px; }
+
+/* Liste: dieselbe Karte als Zeile */
+.grid.liste { grid-template-columns: 1fr; gap: 4px; }
+.grid.liste .station { display: grid; grid-template-columns: 220px 120px 1fr auto; gap: 12px; align-items: center; padding: 6px 10px; }
+.grid.liste .station-head { margin: 0; flex-direction: column; align-items: flex-start; gap: 4px; }
+.grid.liste .vorschau { margin: 0; }
+.grid.liste .station-meta { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 12px; }
+.grid.liste .station-meta .zeile.fein { display: none; }
+.grid.liste .tags { display: none; }
+
+/* Detail */
+#detail header .actions button { height: 32px; }
+
+/* Alarme */
+.modal.breit { width: min(640px, 92vw); }
+.alarm-liste { list-style: none; max-height: 60vh; overflow-y: auto; margin-bottom: 12px; font-size: 0.8rem; }
+.alarm-liste li { padding: 6px 8px; border-left: 3px solid var(--line); margin-bottom: 3px; background: var(--field-bg); }
+.alarm-liste li.fehler { border-left-color: var(--signal); }
+.alarm-liste li.warnung { border-left-color: var(--yellow); }
+.alarm-liste li.ok { border-left-color: var(--green); }
+.alarm-liste li.stumm { opacity: 0.6; }
+.alarm-liste .zeit { color: var(--muted); margin-right: 8px; font-size: 0.72rem; }

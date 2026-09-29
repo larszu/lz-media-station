@@ -12,6 +12,7 @@
   },
   "scripts": {
     "start": "electron .",
+    "test": "node --test test/*.test.js",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac --x64 --arm64"
@@ -29,6 +30,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "alarme.js",
       "renderer/**/*",
       "package.json"
     ],
