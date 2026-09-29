@@ -52,7 +52,8 @@ def pfade_aus_readme(text=None):
     der bei einer voellig richtigen Formulierung rot wird, wird beim naechsten
     Mal angepasst statt gelesen.
     """
-    treffer = re.findall(r"`(/(?:api|media)[^`]*)`", README if text is None else text)
+    # `/widgets/…` (3.0): die Dateien eigener Widgets sind ebenfalls Routen.
+    treffer = re.findall(r"`(/(?:api|media|widgets)[^`]*)`", README if text is None else text)
     return {platzhalter_vereinheitlichen(p.strip())
             for p in treffer if "*" not in p}
 

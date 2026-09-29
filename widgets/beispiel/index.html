@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<!--
+  Beispiel für ein eigenes Widget der LZ Media Station.
+
+  SO GEHT ES:
+  1. Ordner unter widgets/ anlegen (Name: a-z, 0-9, „-", „_"), darin index.html.
+     Weitere Dateien (CSS, JS, Bilder) daneben legen — sie kommen unter
+     /widgets/<ordner>/<datei> heraus, nur aus diesem Ordner, nichts darüber.
+  2. Im Layout eine Region vom Typ „Widget" mit Typ „Eigenes Widget (HTML)"
+     anlegen und den Ordnernamen eintragen.
+  3. Einstellungen stehen im Editor als „schluessel=wert" je Zeile. Sie
+     kommen hier zweimal an — als Query-String (?schluessel=wert&…) und, sobald
+     die Seite geladen ist, als window.LZ_WIDGET_EINSTELLUNGEN. Dazu immer:
+       sprache=de|en        Sprache der Anzeige
+       station=<Name>       Name der Station
+       zeit=<ISO>           nur in der Vorschau: der gewählte Zeitpunkt
+
+  REGELN, DIE FÜR DEN SCHIRM GELTEN:
+  - Der Grund der Anzeige ist schwarz; wer keinen eigenen Hintergrund setzt,
+    ist durchsichtig — das ist gewollt.
+  - Die Fläche ist so groß wie die Region. Schriftgrößen relativ zur Fläche
+    wählen (vw/vh/clamp beziehen sich hier auf den Rahmen, also die Region).
+  - Keine Dialoge (alert/confirm): sie blockieren den Kiosk.
+  - Nichts aus dem Netz laden, was die Station nicht auch offline zeigen kann —
+    ein Schirm im Foyer hat nicht immer Internet.
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Beispiel-Widget</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; color: #E1ECEF;
+               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; justify-content: center; align-items: center;
+         text-align: center; padding: 4vmin; box-sizing: border-box; }
+  h1 { font-size: 12vmin; margin: 0 0 2vmin; color: #F6F5F0; font-weight: 700; }
+  p  { font-size: 5vmin; margin: 0; opacity: 0.85; }
+  small { display: block; margin-top: 4vmin; font-size: 3vmin; opacity: 0.55; }
+</style>
+</head>
+<body>
+  <h1 id="gruss">Hallo</h1>
+  <p id="text">Dieses Widget kommt aus <code>widgets/beispiel/index.html</code>.</p>
+  <small id="meta"></small>
+<script>
+  // Einstellungen: erst der Query-String, dann (falls schon da) das Fenster-Objekt.
+  var q = new URLSearchParams(location.search), e = {};
+  q.forEach(function (v, k) { e[k] = v; });
+  Object.assign(e, window.LZ_WIDGET_EINSTELLUNGEN || {});
+  var en = e.sprache === 'en';
+  document.getElementById('gruss').textContent = e.gruss || (en ? 'Hello' : 'Hallo');
+  if (e.text) document.getElementById('text').textContent = e.text;
+  var meta = [];
+  if (e.station) meta.push((en ? 'Station: ' : 'Station: ') + e.station);
+  if (e.zeit) meta.push((en ? 'Preview time: ' : 'Vorschau-Zeit: ') + new Date(e.zeit).toLocaleString(en ? 'en-GB' : 'de-DE'));
+  document.getElementById('meta').textContent = meta.join(' · ');
+</script>
+</body>
+</html>
