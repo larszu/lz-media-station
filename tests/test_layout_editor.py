@@ -103,10 +103,19 @@ class Markenregeln(unittest.TestCase):
 
 class ZuschauerModusDerAnzeige(unittest.TestCase):
     def test_zuschauen_startet_die_steuerung_nicht(self):
-        # Der Auto-Start steht in genau einem Zweig; er muss den Zuschauer
-        # ausnehmen — sonst wirft „Was laeuft gerade?" die Station an.
-        self.assertRegex(DISPLAY, r"if \(!startAttempted && !zuschauen\)")
+        # Der Zuschauer kehrt VOR dem Auto-Start um — sonst wirft „Was laeuft
+        # gerade?" die Station an. Und er sagt nicht „Starte...", wenn er es
+        # nicht tut (Review 2026-09-28).
+        zweig = re.search(r"if \(zuschauen\) \{(.*?)\}", DISPLAY, re.S)
+        self.assertTrue(zweig and "return;" in zweig.group(1) and "Steuerung ist aus" in zweig.group(1))
+        self.assertLess(DISPLAY.index("if (zuschauen) {"), DISPLAY.index("if (!startAttempted) {"))
         self.assertRegex(DISPLAY, r"var master = zuschauen \? 0 : anteil\(scene\.master_volume\)")
+
+    def test_escape_fuehrt_im_iframe_nicht_zum_admin(self):
+        # Die Vorschau ist /display in einem iframe des Admins. ESC dort darf
+        # nicht den ganzen Admin verschachtelt in die Karte laden.
+        self.assertRegex(DISPLAY, r"eingebettet = window\.top !== window")
+        self.assertRegex(DISPLAY, r"e\.keyCode === 27\) && !eingebettet")
 
     def test_die_anzeige_liefert_den_zuschauer_modus_aus(self):
         r = frische_app().test_client().get("/display?zuschauen=1")
@@ -126,6 +135,58 @@ class DieStartseiteZaehltLayouts(unittest.TestCase):
     def test_ohne_layouts_gilt_der_alte_weg(self):
         # Ein Kern von vor 3.0: die Listen der Zone entscheiden weiter.
         self.assertRegex(LAUNCH, r"if \(!layouts\) return \(z\.videos \|\| \[\]\)\.length")
+
+
+class ReviewFunde(unittest.TestCase):
+    """Zehn Funde des Code-Reviews vom 2026-09-28 — jeder als Waechter, damit
+    er nicht still zurueckkommt."""
+
+    STYLE = (WURZEL / "static/style.css").read_text(encoding="utf-8")
+    I18N = json.loads((WURZEL / "static/i18n/layout-editor.en.js").read_text(encoding="utf-8").split("/*JSON*/")[1])
+
+    def test_hidden_gewinnt_gegen_eigene_display_regeln(self):
+        # Autor-CSS schlaegt die Browser-Vorgabe [hidden]{display:none}; ohne
+        # diesen Reset blieben `.le-web{display:flex}` und
+        # `.checkbox-label{display:flex !important}` trotz `hidden` sichtbar.
+        self.assertRegex(self.STYLE, r"\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}")
+
+    def test_kein_neuzeichnen_waehrend_zug_oder_eingabe(self):
+        u = re.search(r"function uebernimm\(\) \{(.*?)\n    \}", MODUL, re.S).group(1)
+        self.assertIn("if (zug) { nachholen = true; return; }", u)
+        self.assertIn("if (eingabeLaeuft())", u)
+        self.assertIn("if (nachholen) { nachholen = false; uebernimm(); return; }", MODUL)
+
+    def test_playlist_zug_wird_bei_dragend_geloescht_und_dateien_haben_vorrang(self):
+        self.assertRegex(MODUL, r"addEventListener\('dragend', function \(\) \{ zugEintrag = null; \}\)")
+        drop = re.search(r"var nach = Number\(z\.getAttribute\('data-i'\)\);(.*?)\}\);", MODUL, re.S).group(1)
+        self.assertLess(drop.index("getData('lz-datei')"), drop.index("bewegeEintrag"))
+
+    def test_freiform_widget_behaelt_seine_einstellungen_beim_typwechsel(self):
+        w = re.search(r"API\.widgetTyp = function \(typ\) \{(.*?)\n    \};", MODUL, re.S).group(1)
+        self.assertIn("} else if (typ) {", w)
+        self.assertRegex(w, r"Object\.keys\(alt\)\.forEach\(function \(k\) \{ if \(k !== 'typ'\) r\.widget\[k\] = alt\[k\]; \}\)")
+
+    def test_layoutwahl_vergleicht_mit_dem_erzeugten_string_und_schont_den_fokus(self):
+        self.assertNotIn("if (sel.innerHTML !== html) sel.innerHTML = html;", MODUL)
+        self.assertIn("if (document.activeElement !== sel && html !== wahlHtml) { wahlHtml = html; sel.innerHTML = html; }", MODUL)
+
+    def test_dynamische_texte_haben_ein_muster(self):
+        muster = [m for m, _ in self.I18N["muster"]]
+        for text in ("Zonen: Nah, Fern", 'Layout "Foyer" löschen? Die Medien bleiben erhalten.'):
+            self.assertTrue(any(re.match(m, text) for m in muster), text)
+        self.assertIn("Steuerung ist aus", self.I18N["texte"])
+
+    def test_heute_kommt_aus_der_ortszeit(self):
+        # Der Kern filtert mit datetime.now().date(); toISOString() waere UTC
+        # und um 00:30 in Berlin noch beim Vortag.
+        h = re.search(r"function heute\(\) \{(.*?)\n    \}", MODUL, re.S).group(1)
+        self.assertNotIn("toISOString", h)
+        self.assertIn("getFullYear()", h)
+
+    def test_keine_doppelten_oder_toten_konstanten(self):
+        self.assertNotIn("TYP_ZU_ART", MODUL)
+        self.assertNotIn("ZONEN_TEXT", MODUL)
+        self.assertIn("window.ZONEN_NAMEN", MODUL)
 
 
 class Woerterbuch(unittest.TestCase):

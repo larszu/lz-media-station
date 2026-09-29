@@ -72,10 +72,13 @@
   "Höchstens 12 Regionen je Layout.": "At most 12 regions per layout.",
   "Adresse muss mit http:// oder https:// beginnen.": "The address must start with http:// or https://.",
   "Das Ende liegt vor dem Anfang — bitte prüfen.": "The end lies before the start — please check.",
-  "Objekt erwartet": "object expected"
+  "Objekt erwartet": "object expected",
+  "Steuerung ist aus": "Control is off"
  },
  "muster": [
   ["^(\\d+) Einträge$", "{1} entries"],
+  ["^Zonen: (.+)$", "Zones: {1}"],
+  ["^Layout \"(.+)\" löschen\\? Die Medien bleiben erhalten\\.$", "Delete layout \"{1}\"? The media files are kept."],
   ["^Region (\\d+)$", "Region {1}"],
   ["^Widget: (.+)$", "Widget: {1}"],
   ["^Einstellungen sind kein gültiges JSON: (.+)$", "Settings are not valid JSON: {1}"],

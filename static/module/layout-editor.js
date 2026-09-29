@@ -29,10 +29,8 @@
     var RASTER = 5;          // Prozent — Raster beim Ziehen
     var MIN = 5;             // Prozent — kleinste Kantenlaenge
     var ZONEN = ['near', 'mid', 'far'];
-    var ZONEN_TEXT = { near: 'Nah', mid: 'Mitte', far: 'Fern' };
     var SYMBOL = { video: '🎬', image: '🖼', audio: '🎵', web: '🌐' };
     var ART_ZU_TYP = { videos: 'video', images: 'image', audio: 'audio' };
-    var TYP_ZU_ART = { video: 'videos', image: 'images', audio: 'audio' };
 
     var stand = { layouts: {}, zonen: {} };
     var vorlagen = [];
@@ -45,6 +43,7 @@
     var vorschauSrc = '';
     var zug = null;          // laufender Zieh-Vorgang auf der Leinwand
     var zugEintrag = null;   // laufender Zieh-Vorgang in der Playlist
+    var wahlHtml = '';       // zuletzt in #le-wahl geschriebene Optionen
 
     /* ---- Anbindung an app.js ---- */
 
@@ -75,7 +74,22 @@
             entwurf = kopie(stand.layouts[aktuell]);
             if (gewaehlt && !region(gewaehlt)) gewaehlt = null;
         }
+        // Waehrend eines Zugs oder einer Eingabe im Panel wird NICHT neu
+        // gezeichnet: `config`-Ereignisse kommen bei jedem Schreibzugriff
+        // irgendeines Admins — die Leinwand unter dem Finger wegzureissen
+        // oder ein halb getipptes Feld zu ueberschreiben waere ein Datenverlust.
+        // Nachgeholt wird, sobald der Zug endet.
+        if (zug) { nachholen = true; return; }
+        if (eingabeLaeuft()) { renderWahl(); return; }
         renderAlles();
+    }
+
+    var nachholen = false;
+    function eingabeLaeuft() {
+        var a = document.activeElement;
+        if (!a || a === document.body) return false;
+        var panel = el('le-region-panel');
+        return !!(panel && panel.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
     }
 
     function kopie(o) { return JSON.parse(JSON.stringify(o)); }
@@ -104,7 +118,12 @@
     }
     function snap(v) { return Math.round(v / RASTER) * RASTER; }
     function klemme(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-    function heute() { return new Date().toISOString().slice(0, 10); }
+    // Lokales Datum, nicht UTC: der Kern filtert mit `datetime.now().date()`,
+    // und um 00:30 in Berlin waere `toISOString()` noch beim Vortag.
+    function heute() {
+        var d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
 
     /* ---- Zeichnen ---- */
 
@@ -119,7 +138,7 @@
 
     function nutzerVon(id) {
         var n = [];
-        ZONEN.forEach(function (z) { if (stand.zonen[z] === id) n.push(ZONEN_TEXT[z]); });
+        ZONEN.forEach(function (z) { if (stand.zonen[z] === id) n.push((window.ZONEN_NAMEN || {})[z] || z); });
         return n;
     }
 
@@ -131,8 +150,12 @@
             return '<option value="' + escAttr(id) + '"' + (id === aktuell ? ' selected' : '') + '>' +
                 esc(stand.layouts[id].name) + ' (' + esc(id) + ')</option>';
         }).join('');
-        if (sel.innerHTML !== html) sel.innerHTML = html;
-        sel.value = aktuell || '';
+        // Verglichen wird mit dem zuletzt ERZEUGTEN String, nicht mit
+        // sel.innerHTML — der Browser serialisiert `selected` anders, der
+        // Vergleich ginge nie auf und die Liste wuerde bei jedem Ereignis neu
+        // gebaut, auch unter der offenen Auswahl (wie fuelleLayoutWahl in app.js).
+        if (document.activeElement !== sel && html !== wahlHtml) { wahlHtml = html; sel.innerHTML = html; }
+        if (document.activeElement !== sel) sel.value = aktuell || '';
         var nutzer = nutzerVon(aktuell);
         var badge = el('le-zonen');
         if (badge) {
@@ -247,6 +270,7 @@
         d.removeEventListener('pointercancel', zugEnde);
         if (zug.bewegt) markiere();
         zug = null;
+        if (nachholen) { nachholen = false; uebernimm(); return; }
         renderLeinwand();
     }
 
@@ -326,14 +350,18 @@
                 e.dataTransfer.effectAllowed = 'move';
                 try { e.dataTransfer.setData('text/plain', 'eintrag'); } catch (err) { /* IE */ }
             });
+            // Ein ausserhalb losgelassener Zug hinterlaesst sonst einen Rest,
+            // den der naechste Ablage-Vorgang als Umsortierung missversteht.
+            z.addEventListener('dragend', function () { zugEintrag = null; });
             z.addEventListener('dragover', function (e) { e.preventDefault(); z.classList.add('ziel'); });
             z.addEventListener('dragleave', function () { z.classList.remove('ziel'); });
             z.addEventListener('drop', function (e) {
                 e.preventDefault(); z.classList.remove('ziel');
                 var nach = Number(z.getAttribute('data-i'));
-                if (zugEintrag) { bewegeEintrag(zugEintrag.von, nach); zugEintrag = null; return; }
+                // Was abgelegt wird, sagt der Transfer selbst — nicht ein Merker.
                 var datei = e.dataTransfer.getData('lz-datei');
-                if (datei) { var t = datei.split('|'); fuegeHinzu(t[0], t[1], nach); }
+                if (datei) { var t = datei.split('|'); fuegeHinzu(t[0], t[1], nach); zugEintrag = null; return; }
+                if (zugEintrag) { bewegeEintrag(zugEintrag.von, nach); zugEintrag = null; }
             });
         });
     }
@@ -347,7 +375,7 @@
         box.addEventListener('drop', function (e) {
             e.preventDefault();
             var datei = e.dataTransfer.getData('lz-datei');
-            if (datei && !zugEintrag && !e.target.closest('.le-eintrag')) { var t = datei.split('|'); fuegeHinzu(t[0], t[1]); }
+            if (datei && !e.target.closest('.le-eintrag')) { var t = datei.split('|'); fuegeHinzu(t[0], t[1]); }
             zugEintrag = null;
         });
     })();
@@ -691,15 +719,21 @@
         typ = String(typ || '').trim();
         var alt = r.widget || {};
         r.widget = typ ? { typ: typ } : {};
-        // Vorgaben aus dem Katalog, damit ein neues Widget sofort etwas zeigt.
         var kat = katalog() || [];
-        kat.forEach(function (w) {
-            if (w.typ !== typ) return;
-            (w.felder || []).forEach(function (f) {
+        var def = null;
+        kat.forEach(function (w) { if (w.typ === typ) def = w; });
+        if (def) {
+            // Vorgaben aus dem Katalog, damit ein neues Widget sofort etwas zeigt.
+            (def.felder || []).forEach(function (f) {
                 if (f.default !== undefined) r.widget[f.key] = f.default;
                 if (alt.typ === typ && alt[f.key] !== undefined) r.widget[f.key] = alt[f.key];
             });
-        });
+        } else if (typ) {
+            // Ohne Katalogeintrag (Widgets nicht installiert, fremder Typ) sind
+            // die Einstellungen aus dem JSON-Feld das Einzige, was der Nutzer
+            // hat — sie bleiben; nur der Typ wechselt.
+            Object.keys(alt).forEach(function (k) { if (k !== 'typ') r.widget[k] = alt[k]; });
+        }
         markiere();
         renderWidget(r); renderLeinwand();
     };
