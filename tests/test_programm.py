@@ -192,7 +192,10 @@ class ImController(unittest.TestCase):
 
     def test_ein_programmwechsel_meldet_die_szene(self):
         # Ohne Zonenwechsel, ohne Start/Stopp: nur die Uhr ist weitergelaufen.
-        self.c.config["programm"]["eintraege"][0]["tage"] = ["di"]
+        # `melde_szene` liest die echte Uhr — deshalb ein Tag, der NIE heute
+        # ist (sonst haengt der Test vom Wochentag ab, an dem er laeuft).
+        nicht_heute = P.TAGE[(datetime.now().weekday() + 3) % 7]
+        self.c.config["programm"]["eintraege"][0]["tage"] = [nicht_heute]
         self.c.active = True
         self.c.zone = "near"
         q = self.c.bus.abonnieren()

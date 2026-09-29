@@ -125,8 +125,11 @@
 
     function webhookInfo() {
         var id = (el('aus-id').value || 'kennung').trim();
-        var host = (config && config.display_ip) || location.host.split(':')[0];
-        var port = (config && config.web_port) || location.port || 80;
+        // Die Adresse, unter der DIESE Seite laeuft — nicht `web_port` aus der
+        // Konfiguration: `--port` kann ihn uebersteuern, und dann zeigte die
+        // Karte eine Adresse, unter der niemand antwortet.
+        var host = (config && config.display_ip) || location.hostname;
+        var port = location.port || (location.protocol === 'https:' ? 443 : 80);
         var url = 'http://' + host + ':' + port + '/api/trigger/' + id;
         var token = (el('aus-token').value || '').trim();
         var curl = 'curl -X POST ' + (token ? '-H "X-LZ-Token: ' + token + '" ' : '') + url;
