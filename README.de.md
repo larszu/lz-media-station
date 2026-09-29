@@ -61,6 +61,14 @@
 - **Erweiterungspunkte**: `api_*.py`-Blueprints, `templates/admin/zusatz/`,
   `static/module/`, `static/anzeige/`, `static/i18n/` — Welle 2 (Layout-Editor,
   Widgets, Zeitplanung) legt nur Dateien hin
+- **Widgets** in jeder Region: Uhr (digital/analog), Text-Folie mit Vorlagen
+  (Willkommen, Wegweiser, Speisekarte, Hinweis, Öffnungszeiten aus der
+  Zeitsteuerung), Laufschrift, Wetter (Open-Meteo, ohne Schlüssel),
+  Nachrichten (RSS/Atom), Kalender (ICS, auch als Raumbelegung), QR-Code
+  (eingebaut, offline), Webseite mit Einbettungs-Prüfung, Zähler und **eigene
+  HTML-Widgets** aus `widgets/<name>/`. Feeds und Wetter gehen durch den Kern
+  (`/api/widgets/*`, Zwischenspeicher); ohne Netz bleibt der letzte Stand auf
+  dem Schirm — siehe [`docs/widgets.md`](docs/widgets.md)
 
 ### Sensor-/Medien-Kern
 - **Drei wählbare Abstandsquellen** (`sensor_type`):
@@ -433,6 +441,8 @@ keinen Player-Prozess.)
 | `config_schema.py` | Vorgaben **und** Grenzen; Heilung beim Laden, Ablehnung beim Schreiben |
 | `layouts.py` | Layouts, Regionen, Playlists (3.0): Schema, Migration alter Zonenlisten, Spiegel in die Zone, Datumsfilter |
 | `api_layouts.py` | Blueprint für die Layout-Routen (`/api/layouts`) — das Muster für jede `api_*.py`-Erweiterung |
+| `widgets.py` | Widget-Kern (3.0): Abruf mit Zwischenspeicher, RSS/Atom- und ICS-Parser (nur Standardbibliothek), Open-Meteo, Einbettungs-Prüfung, eigene Widget-Ordner |
+| `api_widgets.py` | Blueprint für die Widget-Proxys (`/api/widgets/*`) und die Dateien eigener Widgets (`/widgets/<name>/<path>`) |
 | `ereignisse.py` | Ereignisbus für Server-Sent Events (rein, ohne Flask) |
 | `VERSION` | Die eine Quelle der Version (`/api/identity`, `/api/status`, `main.py --version`) |
 | `sensor.py` | Basis aller Abstandsquellen (Mittelwert, Veralten) + HC-SR04 |
@@ -448,6 +458,7 @@ keinen Player-Prozess.)
 | `displays.py` | Bildschirme dieses Rechners finden und bespielen |
 | `static/`, `templates/` | Frontend (Admin, Anzeige, Startseite); die Admin-Karten sind Includes in `templates/admin/` |
 | `static/module/`, `static/anzeige/`, `static/i18n/`, `templates/admin/zusatz/` | Erweiterungspunkte — Dateien dort werden automatisch eingebunden |
+| `static/anzeige/widgets.js`, `widgets/` | Die Widgets der Anzeige (`window.LZ_WIDGETS`, samt QR-Encoder) und der Ordner für eigene HTML-Widgets |
 | `static/i18n.js`, `static/i18n-en.js` | Oberflächensprache: Deutsch als Quelle, englisches Wörterbuch; `tests/test_i18n.py` findet fehlende Einträge |
 | `lzstation.service` | Avahi mDNS für die Manager-Discovery |
 
@@ -492,6 +503,22 @@ Alle Endpoints unter `http://<pi-ip>:5000`.
 | POST | `/api/layouts` | Anlegen `{name, vorlage?, id?}` — die Kennung entsteht aus dem Namen |
 | GET/PUT/DELETE | `/api/layouts/<id>` | Lesen, ersetzen (**lehnt ab** und nennt das Feld), löschen (409, solange eine Zone es spielt) |
 | POST | `/api/layouts/<id>/duplizieren` | Kopie `{name?, id?}` |
+
+### Widgets (3.0)
+
+| Method | Path | Beschreibung |
+|---|---|---|
+| GET | `/api/widgets/rss` | `?url=&anzahl=` — RSS 2.0/Atom geparst: `{titel, eintraege[], veraltet}` |
+| GET | `/api/widgets/ics` | `?url=&tage=` — iCalendar-Termine, Wiederholungen (DAILY/WEEKLY) ausgerollt |
+| GET | `/api/widgets/wetter` | `?lat=&lon=&einheit=c\|f` — aktuelles Wetter und 4 Tage (Open-Meteo) |
+| GET | `/api/widgets/einbettbar` | `?url=` — darf die Seite in einen Rahmen? (`X-Frame-Options`, `frame-ancestors`) |
+| GET | `/api/widgets/eigene` | Eigene HTML-Widgets unter `widgets/` |
+| GET | `/widgets/<name>/` · `/widgets/<name>/<path>` | Dateien eines eigenen Widgets — nur aus seinem Ordner |
+
+Alle Proxys: nur GET, nur `http(s)`, höchstens 1 MB und 5 s, keine Cookies,
+Zwischenspeicher je Adresse (Vorgabe 300 s, `LZ_WIDGET_CACHE_S`); scheitert der
+Abruf, kommt der letzte Stand als `veraltet: true`, Fehler als `{fehler}` mit
+400/502.
 
 ### Medien
 
@@ -539,6 +566,7 @@ stehen in [`docs/`](docs/README.md) — dort steht das Wie und, wichtiger, das
 | [Betrieb](docs/betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung |
 | [Layouts](docs/layouts.md) | Regionen mit gemischten Playlists, Vorlagen, der Editor (ziehen und skalieren mit Maus und Finger, Gültigkeit je Eintrag), Live-Vorschau mit Zeitpunkt, „Was läuft gerade?" |
 | [Architektur 3.0](docs/architektur-v3.md) | Layouts und Regionen, Gültigkeit je Eintrag, SSE statt Polling, Befehle, Vorschau, Erweiterungspunkte |
+| [Widgets](docs/widgets.md) | Uhr, Text-Folie, Laufschrift, Wetter, RSS, Kalender, QR, Webseite, Zähler, eigene HTML-Widgets; Proxys, Zwischenspeicher, Verhalten ohne Netz |
 
 **Zwei Regeln gelten überall:** Ohne Messung wird nichts erfunden — fehlt der
 Sensor, die Kamera oder der Kontakt zum Taktgeber, gibt es *keinen* Wert, die
