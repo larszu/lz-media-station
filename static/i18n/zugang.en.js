@@ -38,6 +38,6 @@
   ["^zugang\\.json nicht schreibbar: (.+)$", "zugang.json not writable: {1}"]
  ],
  "html": {
-  "zugang-hinweis": "Without a PIN the admin is open to everyone on the network — as before. With a PIN, <code>/admin</code> requires a login, and every change via the API needs the PIN in the <code>X-LZ-Pin</code> header (that is how the Station Manager sends it). The display page and the kiosk on the Pi itself stay free. The PIN is <strong>not</strong> part of the configuration and does not travel with a backup."
+  "zugang-hinweis": "Without a PIN the admin is open to everyone on the network. With a PIN, <code>/admin</code> requires a login, and every change via the API needs the PIN in the <code>X-LZ-Pin</code> header (that is how the Station Manager sends it). The display page and the kiosk on the Pi itself stay free. The PIN is <strong>not</strong> part of the configuration and does not travel with a backup."
  }
 }/*JSON*/);

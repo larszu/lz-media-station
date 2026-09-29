@@ -62,7 +62,11 @@
         [kern].concat(extras || []).forEach(function (t) {
             if (!t) return;
             Object.keys(t.texte || {}).forEach(function (k) { w.texte[k] = t.texte[k]; });
-            w.muster = w.muster.concat(t.muster || []);
+            // Nur echte Paare [Regex, Ersatz]: ein falsch geformtes
+            // Woerterbuch darf die Uebersetzung der ganzen Seite nicht kippen.
+            (Array.isArray(t.muster) ? t.muster : []).forEach(function (m) {
+                if (Array.isArray(m) && typeof m[0] === 'string' && typeof m[1] === 'string') w.muster.push(m);
+            });
             Object.keys(t.html || {}).forEach(function (k) { w.html[k] = t.html[k]; });
         });
         return w;

@@ -1,0 +1,36 @@
+<!-- Ersteinrichtung (3.0). Erscheint nur, solange keine Zone etwas zu zeigen
+     hat, und steht dann ganz oben (static/module/einrichtung.js verschiebt
+     sie). Drei Schritte, jeder mit Sprung zur passenden Karte — mehr braucht
+     es fuer den ersten Inhalt nicht. -->
+<style>
+.einrichtung-schritte { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px; }
+.einrichtung-schritt { border: 1px solid var(--border); padding: 12px; }
+.einrichtung-schritt .nr { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+.einrichtung-schritt h3 { font-size: 0.95rem; margin: 4px 0; color: var(--accent); }
+.einrichtung-schritt p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.4; margin-bottom: 8px; }
+@media (max-width: 639px) { .einrichtung-schritte { grid-template-columns: 1fr; } }
+</style>
+<section class="card" id="card-einrichtung" hidden>
+    <h2>In 3 Schritten zum ersten Inhalt</h2>
+    <p class="hint">Diese Station zeigt noch nichts. So geht es los:</p>
+    <div class="einrichtung-schritte">
+        <div class="einrichtung-schritt">
+            <div class="nr">1</div>
+            <h3>Medien hochladen</h3>
+            <p>Videos, Bilder oder Ton in die Medienbibliothek ziehen.</p>
+            <a class="btn btn-small" href="#card-medien">Zur Medienbibliothek</a>
+        </div>
+        <div class="einrichtung-schritt">
+            <div class="nr">2</div>
+            <h3>Layout w&auml;hlen</h3>
+            <p>Eine Vorlage nehmen und Medien oder Widgets in die Regionen legen.</p>
+            <a class="btn btn-small" href="#card-layouts">Zu den Layouts</a>
+        </div>
+        <div class="einrichtung-schritt">
+            <div class="nr">3</div>
+            <h3>Zone zuordnen</h3>
+            <p>Das Layout einer Zone geben &mdash; dann spielt die Anzeige.</p>
+            <a class="btn btn-small" href="#card-zonen">Zu den Zonen</a>
+        </div>
+    </div>
+</section>

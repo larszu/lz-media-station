@@ -56,7 +56,7 @@
         q = q || {};
         if (q.typ === 'webhook') return tr_('Webhook') + ' ' + (q.token ? '🔒' : '');
         if (q.typ === 'taster') return tr_('Taster an BCM') + ' ' + q.pin;
-        if (q.typ === 'zeit') return (q.tage || []).map(function (t) { return TAG_NAMEN[t]; }).join(', ') + ' ' + q.zeit;
+        if (q.typ === 'zeit') return (q.tage || []).map(function (t) { return tr_(TAG_NAMEN[t]); }).join(', ') + ' ' + q.zeit;
         if (q.typ === 'video_ende') return tr_('Video zu Ende') + (q.datei ? ': ' + q.datei : '');
         if (q.typ === 'zone') return tr_('Zone wechselt zu') + ' ' + tr_(ZONEN[q.zone] || q.zone);
         return q.typ || '';

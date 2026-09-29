@@ -2,26 +2,35 @@
 
 [Deutsch](README.de.md) · **English**
 
-> Sensor-driven media station with web admin, display mode and a multi-station manager.
-> Runs on a **Raspberry Pi** (HC-SR04 ultrasonic sensor) and on **Mac/Windows** (camera detection as the distance source).
-> Without a sensor the camera takes over on its own — `sensor_type: "auto"` is the default ([details](docs/sensoren.md), German).
+> **Digital signage that reacts to people.** Layouts with regions, a weekly
+> programme, widgets and instant messages — driven by a distance sensor, a
+> button, a webhook or the clock. Runs on a **Raspberry Pi** and on any
+> **Mac/Windows** computer, fully offline, with a desktop manager for many
+> stations.
 
 [![Release](https://img.shields.io/github/v/release/larszu/lz-media-station)](https://github.com/larszu/lz-media-station/releases/latest)
 
-![Web admin of the LZ Media Station](docs/screenshot-admin-en.png)
+![A layout with a poster, a clock and a ticker on the display](docs/screenshot-widgets.png)
 
-| Start page | Admin on a phone | Station Manager |
+| Layout editor with live preview | Weekly programme | Triggers |
 |---|---|---|
-| ![Start page with addresses for other devices](docs/screenshot-start-en.png) | ![Web admin on a phone](docs/screenshot-handy-en.png) | ![Station Manager with four stations](docs/screenshot-manager-en.png) |
+| ![Layout editor: regions on a canvas, live preview below](docs/screenshot-layout-editor-en.png) | ![Weekly calendar with priorities and an exception day](docs/screenshot-programm-en.png) | ![Triggers: webhook, time of day, zone change](docs/screenshot-ausloeser-en.png) |
+
+| Start page with QR code | Admin on a phone | Monitor | Station Manager |
+|---|---|---|---|
+| ![Start page: scan the QR code to set up the station](docs/screenshot-start-en.png) | ![Admin on a phone](docs/screenshot-handy-en.png) | ![Monitor: connected displays, proof of play](docs/screenshot-monitor-en.png) | ![Station Manager with four stations](docs/screenshot-manager-en.png) |
 
 **Project page:** https://larszu.github.io/lz-media-station/ — README and docs, rebuilt on every push to `main` (`.github/workflows/pages.yml`).
-
-The detailed documentation in [`docs/`](docs/README.md) is written in German.
+The detailed documentation in [`docs/`](docs/README.md) — including the
+step-by-step [user manual](docs/handbuch.md) — is written in German.
 
 ---
 ## Contents
 
+- [Why this and not BrightSign, Crestron, Xibo or Yodeck?](#why-this-and-not-brightsign-crestron-xibo-or-yodeck)
+- [Quick start](#quick-start)
 - [Features](#features)
+- [Upgrade from 2.x](#upgrade-from-2x)
 - [Running on your own computer](#running-on-your-own-computer--no-pi-needed)
 - [Raspberry Pi quick start](#raspberry-pi-quick-start)
 - [Manual deploy / update](#manual-deploy--update)
@@ -36,30 +45,105 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
 
 ---
 
+## Why this and not BrightSign, Crestron, Xibo or Yodeck?
+
+The established systems are good at playing content on a schedule. Where
+users most often complain — per-screen fees, cloud lock-in, clumsy layout
+and schedule editors, no real preview, slow publishing — this station takes
+a different route:
+
+| | LZ Media Station | Typical signage system |
+|---|---|---|
+| **Cost** | No licence per screen, no subscription | Fee per screen and month (cloud) or player hardware plus a CMS licence |
+| **Offline** | Everything runs on the station; network only for widgets that fetch feeds | Cloud account required, or a local cache that syncs from the cloud |
+| **Reacting to people** | Distance sensor (ultrasonic or camera), button, webhook, time, video ended, zone change — built in | Usually a schedule only; interaction via scripts (BrightSign) or an occupancy sensor that only switches on/off (Crestron) |
+| **Preview** | The layout runs in the very page the screen uses, at a simulated point in time | Screenshot of the player or no preview |
+| **Publishing** | Instant: the display gets the change via Server-Sent Events | Publish/sync step that can take minutes |
+| **Hardware** | A Raspberry Pi or any computer with a browser — every connected screen counts | Dedicated player per screen |
+| **Setup** | Scan the QR code on the start page, three steps to the first content | Installer or IT project |
+
+What it deliberately does **not** do (yet): frame-accurate video walls,
+automatic transcoding, PDF/PowerPoint import — see the
+[issues](https://github.com/larszu/lz-media-station/issues).
+
+---
+
+## Quick start
+
+```bash
+./run-local.sh              # Linux / macOS — or run_windows.bat on Windows
+```
+
+1. The start page (`http://localhost:5000/`) shows a **QR code** — scan it
+   with your phone, or click **Configuration**.
+2. The admin shows **"First content in 3 steps"**: upload media → pick a
+   layout template → assign it to a zone.
+3. Open **Presentation** (`/display`) on the screen. Done.
+
+On a Raspberry Pi, `install_pi.sh` sets up the service and the kiosk — see
+[Raspberry Pi quick start](#raspberry-pi-quick-start).
+
+---
+
 ## Features
 
-### Layouts and instant publish (3.0)
+### Content: layouts, playlists, widgets
 - **Layouts with regions**: a layout divides the screen into percent
-  rectangles; each media region plays its own **mixed playlist** (video,
-  image, web page, audio) with cross-fades, a per-item duration and a
-  **validity period** (`from`/`to`, filtered in the core). Templates: full
-  screen, split, L-shape, ticker. Every zone plays one layout — see
-  [`docs/architektur-v3.md`](docs/architektur-v3.md)
+  rectangles (templates: full screen, split, L-shape, ticker, free); each
+  media region plays its own **mixed playlist** — video, image, web page,
+  audio — with cross-fades, a duration per entry and a **validity period**
+  (`from`/`to`, filtered in the core, so expired content never reaches the
+  screen) — see [`docs/layouts.md`](docs/layouts.md)
 - **Layout editor with live preview**: draw regions on a canvas (drag,
   resize at the corners, 5 % grid — mouse and one finger on a phone), build
-  mixed playlists from the library with a duration and a validity per entry,
-  configure widget regions from the widget catalogue; next to it the layout
-  runs in the very page the screen uses, with a **simulated point in time**
-  ("show me Tuesday 18:00"), and "What is playing now?" shows the real scene
-  muted — see [`docs/layouts.md`](docs/layouts.md)
-- **Instant publish**: `GET /api/events` (Server-Sent Events) pushes the new
+  playlists from the library, configure widgets from a catalogue; next to it
+  the layout runs in the page the screen uses, at a **simulated point in
+  time** ("show me Tuesday 18:00"), and **"What is playing now?"** shows the
+  real scene muted
+- **Widgets** in any region: clock (digital/analogue), text slide with
+  templates (welcome, signpost, menu, notice, opening hours from the
+  schedule), ticker, weather (Open-Meteo, no key), news (RSS/Atom), calendar
+  (ICS, also as room occupancy), QR code (built in, offline), web page with
+  embed check, countdown, and **your own HTML widgets** from `widgets/<name>/`.
+  Feeds and weather go through the core (`/api/widgets/*`, cached); without
+  network the last state stays on screen — see [`docs/widgets.md`](docs/widgets.md)
+- **Instant publish**: `GET /api/events` (Server-Sent Events) pushes a new
   scene the moment it changes; polling is only the fallback
+- **Unattended display**: a screen in a foyer never jumps to the admin; if
+  something is missing it stays black and says so in one discreet line, and
+  it keeps playing the last scene when the station is briefly unreachable
+
+### Timing and events
+- **Weekly programme**: which layout a zone plays **when** — a calendar
+  (Mon–Sun × 24 h), drag to create an entry, priorities, entries across
+  midnight, exception days (public holidays), "what is playing now" — see
+  [`docs/programm.md`](docs/programm.md)
+- **Opening hours**: outside them the screen stays black, audio off and
+  nothing triggers; optionally the TV switches off via HDMI-CEC — see
+  [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
+- **Instant message**: one message over everything, on every screen, at once
+  — evacuation, notice, break; with duration and alert tone; survives a
+  display reload
+- **Triggers** (when … then …): webhook (Home Assistant, Node-RED, ioBroker),
+  GPIO button, time of day, video ended, zone change → show a layout, instant
+  message, screen black/on (+ HDMI-CEC), start/stop — with a test button and a
+  log, see [`docs/ausloeser.md`](docs/ausloeser.md)
 - **Commands to all displays** (`POST /api/befehl`): reload, show a layout
-  for a while (announcement), screenshot (evaluation follows)
-- **Preview**: `/display?vorschau=1&layout=<id>` renders a layout with the
-  very page that runs on the screen — no sensor, no auto-start
-- **The display never redirects to the admin any more**: a screen in a foyer
-  stays black and says in one discreet line what is missing
+  for a while, screenshot
+
+### Reacting to visitors
+- **Three selectable distance sources** (`sensor_type`):
+  - **HC-SR04 ultrasonic sensor** on GPIO 23 (trigger) / GPIO 24 (echo) — freely configurable
+  - **Camera detection** via a webcam (OpenCV + YuNet/Haar) — also runs on **Mac and Windows**, see [`docs/sensoren.md`](docs/sensoren.md)
+  - **Push button**: the visitor presses a button instead of being measured
+  - `auto` (the default) picks what is there: without a sensor the camera takes over
+- **Two or three zones**: NEAR / FAR, optionally MID in between — each zone plays its own layout, with a configurable delay against flicker, see [`docs/zonen.md`](docs/zonen.md)
+- **No invented values**: with no sensor connected the station measures nothing and does not trigger — the interface says so in plain words instead of showing a made-up distance
+- **Lockstep across stations**: one station follows another station's zone over the LAN — one sensor drives a whole wall, see [`docs/gleichtakt.md`](docs/gleichtakt.md)
+- **Multiple languages**: subtitle tracks (WebVTT) per video with language buttons on the display, see [`docs/mehrsprachigkeit.md`](docs/mehrsprachigkeit.md)
+- **Playback options per region**: shuffle, "play once", order, duration per image, video resume; volume separately for master / video / audio
+
+### Operation and monitoring
 - **Monitoring**: every display page reports every 10 s what it plays in each
   region; the admin shows connected displays, a **screenshot on demand**
   (real screen via `grim`/`scrot` on the Pi, otherwise rendered by the page),
@@ -68,93 +152,63 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
   per file/day/hour/layout and CSV export, retention configurable
 - **Notifications**: ntfy (push to your phone) or webhook on a **change** —
   fault, display lost or back, start of opening hours
+- **Health check**: sensor without readings, full disk, zone without content, missing files, no display connected — in the admin and via `/api/identity` for the Station Manager
+- **Visitor statistics**: visits and dwell time per day/hour, CSV export — without storing anything about individual people, see [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)
 - **Access protection**: an optional PIN in front of the admin; write calls
   need the session or the `X-LZ-Pin` header (the Station Manager sends it),
   the display and the kiosk itself stay free — see [`docs/zugang.md`](docs/zugang.md)
-- **Extension points**: `api_*.py` blueprints, `templates/admin/zusatz/`,
-  `static/module/`, `static/anzeige/`, `static/i18n/` — wave 2 (layout editor,
-  widgets, scheduling) only adds files
-- **Widgets** in any region: clock (digital/analogue), text slide with
-  templates (welcome, signpost, menu, notice, opening hours from the
-  schedule), ticker, weather (Open-Meteo, no key), news (RSS/Atom), calendar
-  (ICS, also as room occupancy), QR code (built in, offline), web page with
-  embed check, countdown, and **your own HTML widgets** from `widgets/<name>/`.
-  Feeds and weather go through the core (`/api/widgets/*`, cached); without
-  network the last state stays on screen — see [`docs/widgets.md`](docs/widgets.md)
-
-### Weekly programme, instant message, triggers (3.0, wave 2)
-- **Weekly programme**: which layout a zone plays **when** — a calendar
-  (Mon–Sun × 24 h), drag to create an entry, priorities, entries across
-  midnight, exception days (public holidays), "what is playing now" — see
-  [`docs/programm.md`](docs/programm.md)
-- **Instant message**: one line over everything, on every screen, at once —
-  evacuation, notice, break; with duration and alert tone; survives a display
-  reload
-- **Triggers** (when … then …): webhook (Home Assistant, Node-RED, ioBroker),
-  GPIO button, time of day, video ended, zone change → show a layout, instant
-  message, screen black/on (+ HDMI-CEC), start/stop — with a test button and a
-  log, see [`docs/ausloeser.md`](docs/ausloeser.md)
-
-### Sensor and media core
-- **Three selectable distance sources** (`sensor_type`):
-  - **HC-SR04 ultrasonic sensor** on GPIO 23 (trigger) / GPIO 24 (echo) — freely configurable (default)
-  - **Camera detection** via a webcam (OpenCV + YuNet/Haar) — also runs on **Mac and Windows**, see [`docs/sensoren.md`](docs/sensoren.md)
-  - **Push button**: the visitor presses a button instead of being measured
-- **No invented values**: with no sensor connected the station measures nothing and does not trigger — the interface says so in plain words instead of showing a made-up distance
-- **Health check**: sensor without readings, full disk, zone without media, missing files — visible in the admin and via `/api/identity` for the Station Manager
-- **Visitor statistics**: visits and dwell time per day/hour, CSV export — without storing anything about individual people, see [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)
-- **Scheduling**: weekly plan with opening hours (also across midnight) — outside them the screen stays black, audio off and nothing triggers; optionally switch the TV off via HDMI-CEC, see [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
-- **Two or three zones**: NEAR / FAR, optionally with MID in between — with a configurable delay against flicker, see [`docs/zonen.md`](docs/zonen.md)
-- **Per zone** any selection of videos, images and audio
-- **Lockstep across stations**: one station follows another station's zone over the LAN — one sensor drives a whole wall, see [`docs/gleichtakt.md`](docs/gleichtakt.md)
-- **Multiple languages**: subtitle tracks (WebVTT) per video with language buttons on the display, see [`docs/mehrsprachigkeit.md`](docs/mehrsprachigkeit.md)
-- **Playlist options per zone**: shuffle, "play once", reordering and a custom duration per image, see [`docs/zonen.md`](docs/zonen.md)
-- **Image slideshow** with adjustable interval
-- **Volume** separately for master / video / audio (0–100 %)
-- **Video resume**: optionally continue playback where it left off instead of from the start
+- **Backup**: export and restore the configuration — to clone a station or after an SD card failure; backups from 2.x restore too, see [`docs/betrieb.md`](docs/betrieb.md)
 
 ### Web admin (`/admin`)
 - **German and English**: the DE/EN button in the header switches the language; without a choice the browser language decides, `?lang=en` in the address fixes it (also for a kiosk). The Station Manager has the same switch
-- Zone overview
-- Media library with tabs (videos / images / audio)
-- **Drag-and-drop upload** with progress and **media check** (warns about 4K/60 fps/foreign codecs that stutter on the Pi)
-- **Backup**: export and restore the configuration — to clone a station or after an SD card failure, see [`docs/betrieb.md`](docs/betrieb.md)
-- **Non-destructive** deletion: removes a file from the zones only, the file stays on the Pi
+- **First content in 3 steps**: an empty station shows a short guide at the top (upload → layout → zone) that disappears with the first content
+- Zone overview with a layout per zone
+- Media library with tabs (videos / images / audio), **drag-and-drop upload** with progress and **media check** (warns about 4K/60 fps/foreign codecs that stutter on the Pi)
+- **Non-destructive** deletion: removes a file from the zones only, the file stays on the station
 - Live status: distance, active zone, plain-language state of the distance source
-- Settings: station name, threshold, delay, image interval, volumes, video resume
+- Works on a phone (one column below 640 px)
 
 ### System settings (own section in `/admin`)
 - **Distance source**: ultrasonic (GPIO trigger/echo), camera (index, focal length) or push button (pin, hold time)
 - **Lockstep**: assign another station as the clock source
 - **Display IP** for remote control (empty = auto-detect)
-- **Network** via `nmcli`:
-  - DHCP / static IP
-  - IP/CIDR, gateway, DNS directly configurable
-- **Wi-Fi control**:
-  - Wi-Fi on/off toggle
-  - network scan with signal strength and encryption
-  - pick an SSID, enter the password → connect
-- **Pi reboot** straight from the UI
+- **Network** via `nmcli`: DHCP / static IP, IP/CIDR, gateway, DNS
+- **Wi-Fi control**: on/off, network scan with signal strength and encryption, pick an SSID, enter the password → connect
+- **Reboot** straight from the UI
 
 ### Start page (`/`) and display (`/display`)
-- `/` is a small menu linking to display and admin — **the kiosk opens this page at boot**
-- `/display` is the full-screen player (Chromium `--kiosk`), with cross-fades, subtitle tracks and language buttons
-- ESC opens `/admin` from either page
-- The cursor hides itself on the display
+- `/` is a small menu linking to display and admin, with a **QR code** to the admin for setting up from a phone — **the kiosk opens this page at boot** and starts the display after 15 s once there is content
+- `/display` is the full-screen player (Chromium `--kiosk`), with regions, cross-fades, widgets, subtitle tracks and language buttons
+- ESC opens `/admin` from either page; the cursor hides itself on the display
 
 ### Manager desktop app (`station-manager/`)
-- Manages **several Pi stations** centrally
-- **Auto-discovery** via mDNS (`_lzstation._tcp` over Avahi)
-- **Add manually** by IP/hostname
+- Manages **many stations** centrally: **auto-discovery** via mDNS (`_lzstation._tcp` over Avahi) or added by IP/hostname
 - **Tiles or list** per station: zone, active layout, health, displays online, last screenshot as preview (click = request a fresh one), version
 - **Search, groups and tags**: groups and tags live in the Manager only; filter by group or tag
-- **Bulk actions on the selection**, with a result per station: assign a layout to a zone, copy a layout to other stations (with a list of missing media), copy the weekly schedule (missing layouts are reported first), instant message on/off, start / stop / reboot
-- **Bulk upload**: the same file to N stations at once
-- **Config push**: station name, threshold, delay
+- **Bulk actions on the selection**, with a result per station: assign a layout to a zone, copy a layout to other stations (with a list of missing media), copy the weekly schedule (missing layouts are reported first), instant message on/off, start / stop / reboot, the same file to N stations, config push
 - **Alerts**: polled every 10 s; a station going offline, health turning to *error* or a display dropping out raises a system notification and an entry in the alert list — mutable per station
 - **Admin embedded**: each station's `/admin` opens inside the Manager; "Open in browser" stays available
 - **PIN**: stations with an admin PIN are asked for it once; the Manager sends it as `X-LZ-Pin`
 - Builds for **Windows (NSIS + portable)**, **macOS (Intel + Apple Silicon)**, **Linux (AppImage)**
+
+### Extending it
+- `api_*.py` blueprints, `templates/admin/zusatz/`, `static/module/`,
+  `static/anzeige/`, `static/i18n/` — a new feature is a set of new files,
+  not a change to the core; see [`docs/architektur-v3.md`](docs/architektur-v3.md)
+
+---
+
+## Upgrade from 2.x
+
+Nothing to do by hand. On the first start 3.0 moves each zone's videos and
+images into a layout `zone-near` / `zone-mid` / `zone-far` with one
+full-screen region, keeping order, shuffle, "play once" and the duration per
+image; the zones keep playing exactly what they played before. Backups made
+with 2.x restore into 3.0 the same way, and a 2.x Station Manager can still
+push media and settings. All new functions — programme, triggers, widgets,
+PIN, notifications — are off until someone switches them on.
+
+What changed in detail: [`docs/aenderungen-3.0.md`](docs/aenderungen-3.0.md) (German).
 
 ---
 
@@ -619,6 +673,8 @@ This README is the overview. Topics that need more than a paragraph live in
 
 | Document | Topic |
 |---|---|
+| [User manual](docs/handbuch.md) | Step by step for operators without technical background: set up, content, programme, messages, everyday operation |
+| [Changes in 3.0](docs/aenderungen-3.0.md) | Everything new in 3.0 and how an existing station is migrated |
 | [Distance sources](docs/sensoren.md) | Ultrasonic, camera, button; calibration; **comparison matrix** of common sensor types with a recommendation per use case |
 | [Zones and playback](docs/zonen.md) | Two or three levels; shuffle, "play once", order, duration per image |
 | [Scheduling](docs/zeitsteuerung.md) | Weekly plan (also across midnight), HDMI-CEC |

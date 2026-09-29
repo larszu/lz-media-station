@@ -163,7 +163,8 @@ class DieAnzeigeLeitetNichtMehrUm(unittest.TestCase):
 
     def test_ereignisse_zuerst_polling_als_rueckfall(self):
         self.assertIn("new EventSource('/api/events')", self.js)
-        self.assertIn("setInterval(hole, 5000)", self.js)
+        # Die Schirm-Anzeige fragt alle 5 s nach, eingebettet (Vorschau) alle 2 s.
+        self.assertIn("setInterval(hole, eingebettet ? 2000 : 5000)", self.js)
         self.assertNotIn("setInterval(poll, 500)", self.js)
 
     def test_regionen_und_widgets(self):

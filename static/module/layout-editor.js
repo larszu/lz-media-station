@@ -209,10 +209,12 @@
             d.style.zIndex = String(10 + (r.z || 0));
             d.setAttribute('data-region', r.id);
             var info = r.typ === 'widget'
-                ? ((r.widget && r.widget.typ) ? 'Widget: ' + r.widget.typ : 'Widget')
+                ? ((r.widget && r.widget.typ) ? 'Widget: ' + widgetName(r.widget.typ) : 'Widget')
                 : anzahlText(r.playlist.length);
+            // Das Ton-Zeichen in einem eigenen Knoten: haengt es am Text,
+            // passt „2 Einträge ♫" auf kein Uebersetzungsmuster mehr.
             d.innerHTML = '<span class="le-region-name">' + esc(r.name) + '</span>' +
-                '<span class="le-region-info">' + esc(info) + (r.ton ? ' ♫' : '') + '</span>' +
+                '<span class="le-region-info"><span>' + esc(info) + '</span>' + (r.ton ? '<span> ♫</span>' : '') + '</span>' +
                 ['nw', 'ne', 'sw', 'se'].map(function (g) { return '<span class="le-griff ' + g + '" data-griff="' + g + '"></span>'; }).join('');
             d.addEventListener('pointerdown', zugStart);
             lw.appendChild(d);
@@ -220,6 +222,14 @@
     }
 
     function anzahlText(n) { return n === 1 ? '1 Eintrag' : n + ' Einträge'; }
+
+    // Anzeigename aus dem Widget-Katalog („Uhr" statt „uhr"); ohne Katalog
+    // die Kennung.
+    function widgetName(typ) {
+        var kat = (window.LZ_WIDGETS && window.LZ_WIDGETS.katalog) ? window.LZ_WIDGETS.katalog() : [];
+        for (var i = 0; i < kat.length; i++) if (kat[i].typ === typ) return kat[i].name;
+        return typ;
+    }
 
     /* ---- Ziehen und Skalieren (Maus und Finger gleich) ---- */
 

@@ -48,7 +48,10 @@
                     + '<a href="/display" target="_blank">Anzeige öffnen</a>.</div>';
                 return;
             }
-            liste.innerHTML = d.anzeigen.map(function (a) {
+            // Eine Vorschau aus der Verwaltung ist keine Anzeige: offline
+            // (Tab zu) hat sie in der Liste nichts verloren.
+            var anzeigen = d.anzeigen.filter(function (a) { return a.online || !a.vorschau; });
+            liste.innerHTML = anzeigen.map(function (a) {
                 var regionen = (a.regionen || []).map(function (r) {
                     var was = r.item ? (ART[r.item.typ] || r.item.typ) + ': ' + esc(r.item.name)
                         : (r.typ === 'widget' ? 'Widget' : 'leer');
@@ -60,13 +63,19 @@
                     + '<div style="flex:1; min-width:0">'
                     + '<div class="media-name"><span class="status-dot ' + (a.online ? 'active' : '') + '"></span> '
                     + esc(a.adresse || a.kennung) + (a.vorschau ? ' <span class="badge">Vorschau</span>' : '')
-                    + ' <span class="media-size">' + (a.online ? 'online' : 'offline') + ' · Puls vor ' + alterText(a.alter_s)
-                    + (a.zone ? ' · Zone ' + esc(a.zone) : '') + (a.layout_id ? ' · Layout ' + esc(a.layout_id) : '') + '</span></div>'
+                    // Jeder Teil ein eigener Knoten: nur so greifen die
+                    // Uebersetzungsmuster („Puls vor …") einzeln.
+                    + ' <span class="media-size"><span>' + (a.online ? 'online' : 'offline') + '</span> · <span>Puls vor '
+                    + alterText(a.alter_s) + '</span>'
+                    + (a.zone ? ' · <span>' + esc(zonenName(a.zone)) + '</span>' : '')
+                    + (a.layout_id ? ' · <span>' + esc(a.layout_id) + '</span>' : '') + '</span></div>'
                     + regionen + fehler
                     + '</div></div>';
             }).join('');
         } catch (e) { /* die Karte darf die Seite nicht mitreissen */ }
     }
+
+    function zonenName(z) { return (window.ZONEN_NAMEN && window.ZONEN_NAMEN[z]) || z; }
 
     window.screenshotAnfordern = async function () {
         feedback('Bild wird angefordert …');

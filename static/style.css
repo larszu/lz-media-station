@@ -213,6 +213,9 @@ main { max-width: 860px; margin: 0 auto; padding: 16px; }
 
 /* --- Zones --- */
 .zones-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* Ein Gitterfeld ist sonst so breit wie sein laengster Dateiname: auf dem
+   Handy ragte die Zone rechts aus ihrer Karte. */
+.zones-grid > .zone { min-width: 0; }
 .zone { background: rgba(255,255,255,0.02); border-radius: 0; padding: 12px; border: 1px solid var(--border); }
 .zone h3 { font-size: 0.85rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .zone h3 small { color: var(--text-dim); font-weight: 400; }
@@ -439,3 +442,6 @@ select:focus-visible, textarea:focus-visible {
 .monitor-region { font-size: 0.8rem; color: var(--text-dim); padding: 2px 0 2px 18px; }
 .monitor-anzeige.offline .media-name { color: var(--text-dim); }
 .monitor-anzeige .health-befund { margin-top: 6px; }
+/* Die Zeile einer Anzeige traegt Zustand, Puls, Zone und Layout: umbrechen
+   statt abschneiden, sonst fehlt auf dem Handy gerade das Wichtigste. */
+.monitor-anzeige .media-name { white-space: normal; }

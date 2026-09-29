@@ -2,24 +2,35 @@
 
 **Deutsch** · [English](README.md)
 
-> Sensor-gesteuerte Medien-Station mit Web-Admin, Display-Modus und Multi-Station Manager.
-> Läuft auf **Raspberry Pi** (HC-SR04 Ultraschallsensor) sowie auf **Mac/Windows** (Kamera-Erkennung als Abstandsquelle).
-> Ist kein Sensor da, übernimmt die Kamera von selbst — `sensor_type: "auto"` ist die Vorgabe ([Details](docs/sensoren.md)).
+> **Digital Signage, das auf Menschen reagiert.** Layouts mit Regionen, ein
+> Wochenprogramm, Widgets und Sofortmeldungen — gesteuert von einem
+> Abstandssensor, einem Taster, einem Webhook oder der Uhr. Läuft auf einem
+> **Raspberry Pi** und auf jedem **Mac/Windows**-Rechner, komplett offline,
+> mit einem Desktop-Manager für viele Stationen.
 
 [![Release](https://img.shields.io/github/v/release/larszu/lz-media-station)](https://github.com/larszu/lz-media-station/releases/latest)
 
-![Web-Admin der LZ Media Station](docs/screenshot-admin.png)
+![Ein Layout mit Plakat, Uhr und Laufschrift auf der Anzeige](docs/screenshot-widgets.png)
 
-| Startseite | Verwaltung am Handy | Station Manager |
+| Layout-Editor mit Live-Vorschau | Wochenprogramm | Auslöser |
 |---|---|---|
-| ![Startseite mit Adressen für andere Geräte](docs/screenshot-start.png) | ![Web-Admin auf dem Handy](docs/screenshot-handy.png) | ![Station Manager mit vier Stationen](docs/screenshot-manager.png) |
+| ![Layout-Editor: Regionen auf der Leinwand, darunter die Live-Vorschau](docs/screenshot-layout-editor.png) | ![Wochenkalender mit Prioritäten und einem Ausnahmetag](docs/screenshot-programm.png) | ![Auslöser: Webhook, Uhrzeit, Zonenwechsel](docs/screenshot-ausloeser.png) |
+
+| Startseite mit QR-Code | Verwaltung am Handy | Monitor | Station Manager |
+|---|---|---|---|
+| ![Startseite: QR-Code scannen, um die Station einzurichten](docs/screenshot-start.png) | ![Verwaltung am Handy](docs/screenshot-handy.png) | ![Monitor: verbundene Anzeigen, Proof-of-Play](docs/screenshot-monitor.png) | ![Station Manager mit vier Stationen](docs/screenshot-manager.png) |
 
 **Projektseite:** https://larszu.github.io/lz-media-station/ — README und Doku, bei jedem Push auf `main` neu gebaut (`.github/workflows/pages.yml`).
+Schritt für Schritt für den Betrieb: das [Handbuch](docs/handbuch.md).
 
 ---
 ## Inhalt
 
+- [Warum nicht BrightSign, Crestron, Xibo oder Yodeck?](#warum-nicht-brightsign-crestron-xibo-oder-yodeck)
+- [Schnellstart](#schnellstart)
 - [Features](#features)
+- [Upgrade von 2.x](#upgrade-von-2x)
+- [Auf dem eigenen Rechner starten](#auf-dem-eigenen-rechner-starten--ohne-pi)
 - [Schnellstart Raspberry Pi](#schnellstart-raspberry-pi)
 - [Manuelles Deploy / Update](#manuelles-deploy--update)
 - [Bedienung](#bedienung)
@@ -33,127 +44,176 @@
 
 ---
 
+## Warum nicht BrightSign, Crestron, Xibo oder Yodeck?
+
+Die etablierten Systeme spielen Inhalte zuverlässig nach Plan. Wo Nutzer am
+häufigsten klagen — Gebühren pro Bildschirm, Cloud-Zwang, umständliche
+Layout- und Zeitplan-Editoren, keine echte Vorschau, langsames
+Veröffentlichen — geht diese Station einen anderen Weg:
+
+| | LZ Media Station | Übliches Signage-System |
+|---|---|---|
+| **Kosten** | Keine Lizenz pro Bildschirm, kein Abo | Gebühr pro Bildschirm und Monat (Cloud) oder Player-Hardware plus CMS-Lizenz |
+| **Offline** | Alles läuft auf der Station; Netz nur für Widgets, die Feeds holen | Cloud-Konto nötig oder ein lokaler Zwischenspeicher, der aus der Cloud nachlädt |
+| **Auf Menschen reagieren** | Abstandssensor (Ultraschall oder Kamera), Taster, Webhook, Uhrzeit, Video zu Ende, Zonenwechsel — eingebaut | Meist nur Zeitplan; Interaktion per Skript (BrightSign) oder ein Belegungssensor, der nur an/aus schaltet (Crestron) |
+| **Vorschau** | Das Layout läuft in derselben Seite wie auf dem Schirm, zu einem simulierten Zeitpunkt | Screenshot vom Player oder gar keine |
+| **Veröffentlichen** | Sofort: die Anzeige bekommt die Änderung per Server-Sent Events | Veröffentlichungs-/Sync-Schritt, der Minuten dauern kann |
+| **Hardware** | Ein Raspberry Pi oder jeder Rechner mit Browser — jeder angeschlossene Schirm zählt | Eigener Player je Bildschirm |
+| **Einrichtung** | QR-Code auf der Startseite scannen, drei Schritte zum ersten Inhalt | Installateur oder IT-Projekt |
+
+Was sie bewusst (noch) nicht kann: bildgenaue Videowände, automatisches
+Umwandeln von Videos, PDF-/PowerPoint-Import — siehe die
+[Issues](https://github.com/larszu/lz-media-station/issues).
+
+---
+
+## Schnellstart
+
+```bash
+./run-local.sh              # Linux / macOS — unter Windows run_windows.bat
+```
+
+1. Die Startseite (`http://localhost:5000/`) zeigt einen **QR-Code** — mit
+   dem Handy scannen oder auf **Konfiguration** klicken.
+2. Die Verwaltung zeigt oben **„In 3 Schritten zum ersten Inhalt"**: Medien
+   hochladen → Layout-Vorlage wählen → einer Zone zuordnen.
+3. Auf dem Schirm **Präsentation** (`/display`) öffnen. Fertig.
+
+Auf einem Raspberry Pi richtet `install_pi.sh` Dienst und Kiosk ein — siehe
+[Schnellstart Raspberry Pi](#schnellstart-raspberry-pi).
+
+---
+
 ## Features
 
-### Layouts und Sofort-Veröffentlichung (3.0)
-- **Layouts mit Regionen**: ein Layout teilt den Schirm in Prozent-Rechtecke;
-  jede Medien-Region spielt ihre eigene **gemischte Playlist** (Video, Bild,
-  Webseite, Audio) mit Blende, Standzeit je Eintrag und **Gültigkeit**
-  (`von`/`bis`, gefiltert im Kern). Vorlagen: Vollbild, geteilt, L-Form,
-  Ticker. Jede Zone spielt ein Layout — siehe
-  [`docs/architektur-v3.md`](docs/architektur-v3.md)
+### Inhalte: Layouts, Playlists, Widgets
+- **Layouts mit Regionen**: ein Layout teilt den Schirm in Prozent-Rechtecke
+  (Vorlagen: Vollbild, geteilt, L-Form, Laufschrift, frei); jede
+  Medien-Region spielt ihre eigene **gemischte Playlist** — Video, Bild,
+  Webseite, Ton — mit Überblendung, Standzeit je Eintrag und
+  **Gültigkeitszeitraum** (`von`/`bis`, im Kern gefiltert, Abgelaufenes
+  erreicht den Schirm nie) — siehe [`docs/layouts.md`](docs/layouts.md)
 - **Layout-Editor mit Live-Vorschau**: Regionen auf einer Leinwand zeichnen
-  (ziehen, an den Ecken skalieren, Raster 5 % — mit der Maus wie mit einem
-  Finger am Handy), gemischte Playlists aus der Bibliothek mit Standzeit und
-  Gültigkeit je Eintrag, Widget-Regionen aus dem Widget-Katalog; daneben
-  läuft das Layout in derselben Seite wie auf dem Schirm, mit **simuliertem
-  Zeitpunkt** („zeig mir Dienstag 18:00"), und „Was läuft gerade?" zeigt die
-  echte Szene stumm — siehe [`docs/layouts.md`](docs/layouts.md)
-- **Sofort-Veröffentlichung**: `GET /api/events` (Server-Sent Events) schickt
-  die neue Szene in dem Moment, in dem sie feststeht; gefragt wird nur noch
-  als Rückfall
-- **Befehle an alle Anzeigen** (`POST /api/befehl`): neu laden, ein Layout
-  zwischendurch zeigen (Durchsage), Screenshot (Auswertung folgt)
-- **Vorschau**: `/display?vorschau=1&layout=<id>` zeigt ein Layout mit
-  derselben Seite, die auf dem Schirm läuft — ohne Sensor, ohne Auto-Start
-- **Die Anzeige leitet nie mehr zum Admin um**: ein Schirm im Foyer bleibt
-  schwarz und sagt in einer dezenten Zeile, was fehlt
-- **Monitoring**: jede Anzeigeseite meldet alle 10 s, was sie je Region
-  spielt; die Verwaltung zeigt verbundene Anzeigen, einen **Screenshot auf
-  Abruf** (echter Bildschirm per `grim`/`scrot` auf dem Pi, sonst von der
-  Seite gezeichnet), CPU-Temperatur, Last, RAM — siehe [`docs/monitoring.md`](docs/monitoring.md)
-- **Proof-of-Play**: jeder Start eines Eintrags landet in einer SQLite-Datei;
-  Auswertung je Datei/Tag/Stunde/Layout und CSV-Export, Aufbewahrung einstellbar
-- **Benachrichtigung**: ntfy (Push aufs Handy) oder Webhook bei einem
-  **Wechsel** — Störung, Anzeige verloren oder zurück, Beginn der Öffnungszeit
-- **Zugangsschutz**: optionale PIN vor der Verwaltung; Schreibzugriffe brauchen
-  die Sitzung oder den Kopf `X-LZ-Pin` (der Station Manager schickt ihn), die
-  Anzeige und der Kiosk selbst bleiben frei — siehe [`docs/zugang.md`](docs/zugang.md)
-- **Erweiterungspunkte**: `api_*.py`-Blueprints, `templates/admin/zusatz/`,
-  `static/module/`, `static/anzeige/`, `static/i18n/` — Welle 2 (Layout-Editor,
-  Widgets, Zeitplanung) legt nur Dateien hin
+  (ziehen, an den Ecken skalieren, Raster 5 % — mit der Maus und mit einem
+  Finger am Handy), Playlists aus der Bibliothek zusammenstellen, Widgets aus
+  einem Katalog einstellen; daneben läuft das Layout in derselben Seite wie
+  auf dem Schirm, zu einem **simulierten Zeitpunkt** („zeig mir Dienstag
+  18 Uhr"), und **„Was läuft gerade?"** zeigt die echte Szene stumm
 - **Widgets** in jeder Region: Uhr (digital/analog), Text-Folie mit Vorlagen
   (Willkommen, Wegweiser, Speisekarte, Hinweis, Öffnungszeiten aus der
   Zeitsteuerung), Laufschrift, Wetter (Open-Meteo, ohne Schlüssel),
   Nachrichten (RSS/Atom), Kalender (ICS, auch als Raumbelegung), QR-Code
-  (eingebaut, offline), Webseite mit Einbettungs-Prüfung, Zähler und **eigene
-  HTML-Widgets** aus `widgets/<name>/`. Feeds und Wetter gehen durch den Kern
-  (`/api/widgets/*`, Zwischenspeicher); ohne Netz bleibt der letzte Stand auf
-  dem Schirm — siehe [`docs/widgets.md`](docs/widgets.md)
+  (eingebaut, offline), Webseite mit Einbettungsprüfung, Zähler und **eigene
+  HTML-Widgets** aus `widgets/<name>/`. Feeds und Wetter laufen über den Kern
+  (`/api/widgets/*`, zwischengespeichert); ohne Netz bleibt der letzte Stand
+  stehen — siehe [`docs/widgets.md`](docs/widgets.md)
+- **Sofort veröffentlicht**: `GET /api/events` (Server-Sent Events) schickt
+  eine neue Szene im Moment der Änderung; Abfragen sind nur der Rückfall
+- **Unbeaufsichtigte Anzeige**: ein Schirm im Foyer springt nie in die
+  Verwaltung; fehlt etwas, bleibt er schwarz und sagt es in einer dezenten
+  Zeile, und ist die Station kurz nicht erreichbar, spielt er die letzte Szene
+  weiter
 
-### Wochenprogramm, Sofortmeldung, Auslöser (3.0, Welle 2)
+### Zeit und Ereignisse
 - **Wochenprogramm**: welches Layout eine Zone **wann** spielt — ein Kalender
-  (Mo–So × 24 h), Ziehen legt einen Eintrag an, Prioritäten, Einträge über
+  (Mo–So × 24 h), Eintrag durch Ziehen anlegen, Prioritäten, Einträge über
   Mitternacht, Ausnahmetage (Feiertage), „Was läuft jetzt" — siehe
   [`docs/programm.md`](docs/programm.md)
-- **Sofortmeldung**: eine Zeile über allem, auf jedem Schirm, sofort —
-  Räumung, Hinweis, Pause; mit Dauer und Signalton; überlebt ein Neuladen der
+- **Öffnungszeiten**: außerhalb bleibt der Schirm schwarz, der Ton aus und
+  nichts löst aus; auf Wunsch schaltet der Fernseher per HDMI-CEC ab — siehe
+  [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
+- **Sofortmeldung**: eine Meldung über allem, auf jedem Schirm, sofort —
+  Räumung, Hinweis, Pause; mit Dauer und Signalton; übersteht ein Neuladen der
   Anzeige
 - **Auslöser** (wenn … dann …): Webhook (Home Assistant, Node-RED, ioBroker),
   GPIO-Taster, Uhrzeit, Video zu Ende, Zonenwechsel → Layout einblenden,
-  Sofortmeldung, Schirm schwarz/an (+ HDMI-CEC), Start/Stopp — mit Test-Knopf
+  Sofortmeldung, Schirm schwarz/an (+ HDMI-CEC), Start/Stop — mit Test-Knopf
   und Protokoll, siehe [`docs/ausloeser.md`](docs/ausloeser.md)
+- **Befehle an alle Anzeigen** (`POST /api/befehl`): neu laden, ein Layout
+  eine Weile einblenden, Screenshot
 
-### Sensor-/Medien-Kern
+### Auf Besucher reagieren
 - **Drei wählbare Abstandsquellen** (`sensor_type`):
-  - **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) / GPIO 24 (Echo) — frei konfigurierbar (Vorgabe)
+  - **HC-SR04 Ultraschallsensor** an GPIO 23 (Trigger) / GPIO 24 (Echo) — frei konfigurierbar
   - **Kamera-Erkennung** über eine Webcam (OpenCV + YuNet/Haar) — läuft auch auf **Mac und Windows**, siehe [`docs/sensoren.md`](docs/sensoren.md)
   - **Taster**: der Besucher drückt einen Knopf, statt gemessen zu werden
-- **Keine erfundenen Werte**: ist kein Sensor angeschlossen, misst die Station nichts und löst nicht aus — die Oberfläche sagt es im Klartext, statt eine erfundene Distanz zu zeigen
-- **Zustandsprüfung**: Sensor ohne Messung, volle Platte, Zone ohne Medien, fehlende Dateien — sichtbar im Admin und über `/api/identity` für den Station Manager
-- **Besucher-Statistik**: Besuche und Verweildauer pro Tag/Stunde, CSV-Export — ohne irgendetwas über einzelne Personen zu speichern, siehe [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)
-- **Zeitsteuerung**: Wochenplan mit Öffnungszeiten (auch über Mitternacht) — außerhalb bleibt der Schirm schwarz, der Ton aus und es wird nicht ausgelöst; optional Fernseher per HDMI-CEC mit abschalten, siehe [`docs/zeitsteuerung.md`](docs/zeitsteuerung.md)
-- **Zwei oder drei Zonen**: NAH / FERN, optional mit MITTE dazwischen — mit konfigurierbarer Verzögerung gegen Flackern, siehe [`docs/zonen.md`](docs/zonen.md)
-- **Pro Zone** beliebige Auswahl an Videos, Bildern und Audio
-- **Gleichtakt mehrerer Stationen**: eine Station folgt der Zone einer anderen über das LAN — ein Sensor treibt eine ganze Wand, siehe [`docs/gleichtakt.md`](docs/gleichtakt.md)
+  - `auto` (die Vorgabe) nimmt, was da ist: ohne Sensor übernimmt die Kamera
+- **Zwei oder drei Zonen**: NAH / FERN, wahlweise MITTE dazwischen — jede Zone spielt ihr eigenes Layout, mit einstellbarer Verzögerung gegen Flackern, siehe [`docs/zonen.md`](docs/zonen.md)
+- **Nichts wird erfunden**: ohne angeschlossenen Sensor misst die Station nichts und löst nicht aus — die Oberfläche sagt das in klaren Worten, statt einen ausgedachten Abstand zu zeigen
+- **Gleichtakt über Stationen**: eine Station folgt über das LAN der Zone einer anderen — ein Sensor steuert eine ganze Wand, siehe [`docs/gleichtakt.md`](docs/gleichtakt.md)
 - **Mehrsprachigkeit**: Untertitelspuren (WebVTT) je Video mit Sprachknöpfen auf der Anzeige, siehe [`docs/mehrsprachigkeit.md`](docs/mehrsprachigkeit.md)
-- **Playlist-Optionen je Zone**: zufällige Reihenfolge, „einmal abspielen", Reihenfolge umsortieren und eigene Standzeit je Bild, siehe [`docs/zonen.md`](docs/zonen.md)
-- **Bildslideshow** mit einstellbarem Intervall
-- **Lautstärke** getrennt für Master / Video / Audio (0–100 %)
-- **Video-Resume**: Optional Wiedergabe an gleicher Stelle fortsetzen, statt von vorne
+- **Wiedergabe je Region**: zufällige Reihenfolge, „einmal abspielen", Reihenfolge, Standzeit je Bild, Video fortsetzen; Lautstärke getrennt für Gesamt / Video / Ton
+
+### Betrieb und Überwachung
+- **Monitoring**: jede Anzeigeseite meldet alle 10 s, was sie in jeder Region
+  spielt; die Verwaltung zeigt verbundene Anzeigen, einen **Screenshot auf
+  Abruf** (echter Bildschirm über `grim`/`scrot` am Pi, sonst von der Seite
+  gezeichnet), CPU-Temperatur, Last, Arbeitsspeicher — siehe
+  [`docs/monitoring.md`](docs/monitoring.md)
+- **Proof-of-Play**: jeder Start eines Eintrags landet in einer SQLite-Datei;
+  Auswertung je Datei/Tag/Stunde/Layout und CSV-Export, Aufbewahrung
+  einstellbar
+- **Benachrichtigung**: ntfy (Push aufs Handy) oder Webhook bei einer
+  **Änderung** — Störung, Anzeige weg oder wieder da, Beginn der Öffnungszeit
+- **Zustandsprüfung**: Sensor ohne Messung, volle Platte, Zone ohne Inhalt, fehlende Dateien, keine Anzeige verbunden — in der Verwaltung und über `/api/identity` für den Station Manager
+- **Besucherstatistik**: Besuche und Verweildauer je Tag/Stunde, CSV-Export — ohne irgendetwas über einzelne Personen zu speichern, siehe [`docs/statistik-und-zustand.md`](docs/statistik-und-zustand.md)
+- **Zugangsschutz**: optional eine PIN vor der Verwaltung; schreibende Aufrufe
+  brauchen die Sitzung oder den Kopf `X-LZ-Pin` (der Station Manager schickt
+  ihn), die Anzeige und der Kiosk selbst bleiben frei — siehe
+  [`docs/zugang.md`](docs/zugang.md)
+- **Sicherung**: Konfiguration exportieren und wiederherstellen — um eine Station zu klonen oder nach einem Kartenausfall; Sicherungen aus 2.x lassen sich ebenfalls einspielen, siehe [`docs/betrieb.md`](docs/betrieb.md)
 
 ### Web-Admin (`/admin`)
 - **Deutsch und Englisch**: der Knopf DE/EN in der Kopfzeile schaltet um; ohne Wahl entscheidet die Browsersprache, `?lang=en` in der Adresse legt sie fest (auch für einen Kiosk). Der Station Manager hat denselben Schalter
-- Zonen-Übersicht
-- Medien-Bibliothek mit Tabs (Videos / Bilder / Audio)
-- **Drag-and-Drop-Upload** mit Fortschrittsanzeige und **Medien-Check** (warnt vor 4K/60fps/fremdem Codec, der auf dem Pi ruckelt)
-- **Sicherung**: Konfiguration exportieren und einspielen — zum Klonen einer Station oder nach SD-Karten-Defekt, siehe [`docs/betrieb.md`](docs/betrieb.md)
-- Datei-Löschung **nicht-destruktiv**: entfernt nur aus Zonen, die Datei bleibt auf dem Pi
-- Live-Status: Distanz, aktive Zone, Klartext-Zustand der Abstandsquelle
-- Einstellungen: Stationsname, Schwelle, Verzögerung, Bildwechsel, Lautstärken, Video-Resume
+- **In 3 Schritten zum ersten Inhalt**: eine leere Station zeigt oben eine kurze Anleitung (hochladen → Layout → Zone), die mit dem ersten Inhalt verschwindet
+- Zonen-Übersicht mit einem Layout je Zone
+- Medienbibliothek mit Reitern (Videos / Bilder / Ton), **Hochladen per Drag-and-drop** mit Fortschritt und **Medien-Check** (warnt vor 4K/60 fps/fremden Codecs, die am Pi ruckeln)
+- **Nicht zerstörendes** Löschen: nimmt eine Datei nur aus den Zonen, die Datei bleibt auf der Station
+- Live-Status: Abstand, aktive Zone, Zustand der Abstandsquelle in Klartext
+- Funktioniert am Handy (einspaltig unter 640 px)
 
 ### Systemeinstellungen (eigener Bereich in `/admin`)
-- **Abstandsquelle wählbar**: Ultraschall (GPIO Trigger/Echo), Kamera (Index, Brennweite) oder Taster (Pin, Haltezeit)
-- **Gleichtakt**: dieser Station eine andere als Taktgeber zuweisen
-- **Anzeige-IP** für Fernsteuerung (leer = Auto-Erkennung)
-- **Netzwerk** via `nmcli`:
-  - DHCP / statische IP wählbar
-  - IP/CIDR, Gateway, DNS direkt konfigurierbar
-- **WLAN-Steuerung**:
-  - WLAN ein/aus per Toggle
-  - Netzwerk-Scan mit Signal-Stärke und Verschlüsselung
-  - SSID per Klick übernehmen, Passwort eingeben → verbinden
-- **Pi-Reboot** direkt aus der UI
+- **Abstandsquelle**: Ultraschall (GPIO Trigger/Echo), Kamera (Index, Brennweite) oder Taster (Pin, Haltezeit)
+- **Gleichtakt**: eine andere Station als Taktgeber zuweisen
+- **Display-IP** für die Fernsteuerung (leer = automatisch)
+- **Netzwerk** über `nmcli`: DHCP / statische IP, IP/CIDR, Gateway, DNS
+- **WLAN**: an/aus, Netze suchen mit Signalstärke und Verschlüsselung, SSID wählen, Passwort eingeben → verbinden
+- **Neustart** direkt aus der Oberfläche
 
 ### Startseite (`/`) und Anzeige (`/display`)
-- `/` ist ein kleines Menü mit den Links zu Anzeige und Verwaltung — **diese Seite öffnet der Kiosk beim Boot**
-- `/display` ist der Vollbild-Player (Chromium `--kiosk`), mit Überblendungen, Untertitel-Spuren und Sprachknöpfen
-- ESC öffnet von beiden aus `/admin`
-- Auto-Verstecken des Cursors auf der Anzeige
+- `/` ist ein kleines Menü zur Anzeige und zur Verwaltung, mit einem **QR-Code** zur Verwaltung für die Einrichtung per Handy — **der Kiosk öffnet diese Seite beim Start** und startet die Anzeige nach 15 s, sobald es Inhalt gibt
+- `/display` ist der Vollbild-Player (Chromium `--kiosk`) mit Regionen, Überblendungen, Widgets, Untertitelspuren und Sprachknöpfen
+- ESC öffnet `/admin` von beiden Seiten; der Mauszeiger blendet sich auf der Anzeige aus
 
-### Manager Desktop-App (`station-manager/`)
-- Verwaltet **mehrere Pi-Stationen** zentral
-- **Auto-Discovery** via mDNS (`_lzstation._tcp` über Avahi)
-- **Manuelles Hinzufügen** per IP/Hostname
-- **Kacheln oder Liste** je Station: Zone, aktives Layout, Gesundheit, Anzeigen online, letzter Screenshot als Vorschau (Klick = frisches Bild anfordern), Version
+### Manager-Desktop-App (`station-manager/`)
+- Verwaltet **viele Stationen** zentral: **automatisch gefunden** über mDNS (`_lzstation._tcp` über Avahi) oder per IP/Hostname hinzugefügt
+- **Kacheln oder Liste** je Station: Zone, aktives Layout, Zustand, Anzeigen online, letzter Screenshot als Vorschau (Klick = neuen anfordern), Version
 - **Suche, Gruppen und Tags**: Gruppen und Tags liegen nur im Manager; Filter nach Gruppe oder Tag
-- **Massenaktionen auf die Auswahl**, mit Ergebnis je Station: Layout einer Zone zuweisen, Layout auf andere Stationen kopieren (mit Liste fehlender Medien), Wochenprogramm kopieren (fehlende Layouts werden vorher gemeldet), Sofortmeldung ein/aus, Start / Stop / Reboot
-- **Bulk-Upload**: dieselbe Datei an N Stationen gleichzeitig
-- **Config-Push**: Stationsname, Schwelle, Verzögerung
-- **Alarme**: Abfrage alle 10 s; geht eine Station offline, kippt die Gesundheit auf *Fehler* oder fällt eine Anzeige weg, gibt es eine Systembenachrichtigung und einen Eintrag in der Alarmliste — je Station stummschaltbar
-- **Verwaltung eingebettet**: `/admin` jeder Station öffnet sich im Manager; „Im Browser öffnen" bleibt
-- **PIN**: Stationen mit Admin-PIN fragen einmal danach; der Manager schickt sie als `X-LZ-Pin` mit
-- Builds für **Windows (NSIS + Portable)**, **macOS (Intel + Apple Silicon)**, **Linux (AppImage)**
+- **Massenaktionen auf die Auswahl**, mit Ergebnis je Station: Layout einer Zone zuweisen, Layout auf andere Stationen kopieren (mit Liste fehlender Medien), Wochenprogramm kopieren (fehlende Layouts werden vorher gemeldet), Sofortmeldung an/aus, Start / Stop / Neustart, dieselbe Datei auf N Stationen, Einstellungen verteilen
+- **Alarme**: alle 10 s abgefragt; geht eine Station offline, springt der Zustand auf *Fehler* oder fällt eine Anzeige weg, gibt es eine Systembenachrichtigung und einen Eintrag in der Alarmliste — je Station stummschaltbar
+- **Verwaltung eingebettet**: die `/admin` jeder Station öffnet im Manager; „Im Browser öffnen" bleibt
+- **PIN**: Stationen mit Verwaltungs-PIN fragen einmal danach; der Manager schickt sie als `X-LZ-Pin`
+- Pakete für **Windows (NSIS + portabel)**, **macOS (Intel + Apple Silicon)**, **Linux (AppImage)**
+
+### Erweitern
+- `api_*.py`-Blueprints, `templates/admin/zusatz/`, `static/module/`,
+  `static/anzeige/`, `static/i18n/` — eine neue Funktion ist ein Satz neuer
+  Dateien, keine Änderung am Kern; siehe [`docs/architektur-v3.md`](docs/architektur-v3.md)
+
+---
+
+## Upgrade von 2.x
+
+Nichts von Hand. Beim ersten Start legt 3.0 die Videos und Bilder jeder Zone
+in ein Layout `zone-near` / `zone-mid` / `zone-far` mit einer
+Vollbild-Region — mit Reihenfolge, Zufall, „einmal abspielen" und Standzeit je
+Bild; die Zonen spielen danach genau, was sie vorher gespielt haben.
+Sicherungen aus 2.x lassen sich auf dieselbe Weise in 3.0 einspielen, und ein
+Station Manager 2.x kann weiter Medien und Einstellungen verteilen. Alles
+Neue — Programm, Auslöser, Widgets, PIN, Benachrichtigung — ist aus, bis es
+jemand einschaltet.
+
+Was sich im Einzelnen geändert hat: [`docs/aenderungen-3.0.md`](docs/aenderungen-3.0.md).
 
 ---
 
@@ -627,6 +687,8 @@ stehen in [`docs/`](docs/README.md) — dort steht das Wie und, wichtiger, das
 
 | Dokument | Worum es geht |
 |---|---|
+| [Handbuch](docs/handbuch.md) | Schritt für Schritt für den Betrieb ohne Technikkenntnisse: einrichten, Inhalte, Programm, Meldungen, Alltag |
+| [Änderungen in 3.0](docs/aenderungen-3.0.md) | Alles Neue in 3.0 und wie eine bestehende Station übernommen wird |
 | [Abstandsquellen](docs/sensoren.md) | Ultraschall, Kamera, Taster; Kalibrierung; **Vergleichsmatrix** aller gängigen Sensortypen mit Empfehlung je Anwendungsfall |
 | [Zonen und Wiedergabe](docs/zonen.md) | Zwei oder drei Stufen; Shuffle, „einmal abspielen", Reihenfolge, Standzeit je Bild |
 | [Zeitsteuerung](docs/zeitsteuerung.md) | Wochenplan (auch über Mitternacht), HDMI-CEC |
