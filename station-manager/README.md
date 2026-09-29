@@ -6,15 +6,21 @@ Verwaltet mehrere LZ Media Stations (Raspberry Pi) im LAN über eine Electron-Ob
 
 - **Auto-Discovery** via mDNS (Avahi auf den Pis: `_lzstation._tcp`)
 - **Manuelles Hinzufügen** per IP/Hostname
-- Live-Status pro Station (Distanz, Zone, Online)
-- **Bulk-Aktionen**: Start / Stop / Reboot mehrerer Stationen
-- **Bulk-Upload** Videos / Bilder / Audio (gleiche Dateien an N Stationen)
-- **Config-Push**: Stationsname, Schwelle, Verzögerung an Auswahl pushen
-- Direkter Sprung in die Web-Admin-UI jeder Station
+- **Kacheln oder Liste**: Zone, aktives Layout, Gesundheit, Anzeigen online, letzter Screenshot (Klick = neues Bild anfordern), Version
+- **Suche, Gruppen, Tags** — nur im Manager gespeichert (`gruppen.json`)
+- **Massenaktionen auf die Auswahl**, Ergebnis je Station:
+  - Layout einer Zone zuweisen (angeboten wird nur, was alle Ziele kennen)
+  - Layout kopieren (`GET /api/layouts/<id>` → anlegen/ersetzen; fehlende Medien werden aufgelistet)
+  - Wochenprogramm kopieren (fehlende Layouts auf dem Ziel werden vorher gemeldet)
+  - Sofortmeldung ein/aus
+  - Start / Stop / Reboot, Upload, Config-Push
+- **Alarme**: Abfrage alle 10 s; gemeldet wird nur ein Übergang (offline, Gesundheit *Fehler*, Anzeige weg) — als Systembenachrichtigung und in der Alarmliste, je Station stummschaltbar. Die Logik steht in `alarme.js` und wird mit `npm test` (`node --test`) geprüft.
+- **Verwaltung eingebettet** im `webview`; „Im Browser öffnen" bleibt
+- **PIN** je Station (`pins.json`, Datei 0600), gesendet als `X-LZ-Pin`
 
 ## Voraussetzung auf jedem Pi
 
-- `lz-media-station` ≥ v2.1.0 (`/api/identity` Endpoint)
+- `lz-media-station` ≥ v2.1.0 (`/api/identity` Endpoint); Layouts, Programm, Sofortmeldung, Screenshot und Anzeigen-Zahl ab 3.0 — ältere Stationen erscheinen weiter, die neuen Aktionen melden dort einen Fehler je Station
 - `avahi-daemon` läuft (wird vom `install_pi.sh` mitinstalliert)
 - Datei `/etc/avahi/services/lzstation.service` vorhanden
 
@@ -25,6 +31,14 @@ cd station-manager
 npm install
 npm start
 ```
+
+## Tests
+
+```bash
+npm test          # node --test test/*.test.js (Alarm-Übergänge)
+```
+
+Die Verdrahtung Preload ↔ Hauptprozess prüft `tests/test_manager.py` im Wurzelverzeichnis.
 
 ## Build
 

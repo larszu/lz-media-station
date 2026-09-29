@@ -329,18 +329,22 @@ ipcMain.handle('station:screenshot', async (_e, id, anfordern) => {
     if (!s) return { error: 'unknown station' };
     const basis = `http://${s.host}:${s.port}`;
     let pfad = '/api/anzeige/screenshot';
+    let hinweis = null;
     try {
         if (anfordern) {
             const r = await httpJson(`${basis}/api/anzeige/screenshot/anfordern`,
                                      { method: 'POST', headers: pinHeaders(s), timeout: 8000 }, {});
             if (r.status === 401) return { needsPin: true };
-            if (r.status !== 200) return { error: (r.body && r.body.error) || `HTTP ${r.status}` };
-            pfad = r.body.url || pfad;
+            // Kein frisches Bild in der Wartezeit (z. B. Anzeige gedrosselt):
+            // das letzte vorhandene zeigen und den Grund dazu sagen, statt
+            // eine leere Kachel zu lassen.
+            if (r.status === 200) pfad = r.body.url || pfad;
+            else hinweis = (r.body && r.body.error) || `HTTP ${r.status}`;
         }
         const b = await httpRaw(`${basis}${pfad}`, { timeout: 5000 });
-        if (b.status !== 200) return { fehlt: true };
+        if (b.status !== 200) return hinweis ? { error: hinweis } : { fehlt: true };
         return { ok: true, bild: `data:${b.typ || 'image/jpeg'};base64,${b.daten.toString('base64')}`,
-                 zeit: b.zeit || null };
+                 zeit: b.zeit || null, hinweis };
     } catch (e) { return { error: e.message }; }
 });
 ipcMain.handle('station:adminUrl', (_e, id) => {

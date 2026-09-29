@@ -167,7 +167,10 @@ async function holeVorschau(s, anfordern) {
         r = await window.station.screenshot(s.id, anfordern);
     }
     const neu = { ...(vorschau.get(s.id) || {}), laedt: false };
-    if (r && r.ok) { neu.bild = r.bild; neu.zeit = r.zeit; neu.fehler = null; }
+    if (r && r.ok) {
+        neu.bild = r.bild; neu.zeit = r.zeit; neu.fehler = null;
+        if (r.hinweis && anfordern) setFeedback(`${s.name}: ${tr(r.hinweis)} — ${tr('letztes Bild')}`, 'error');
+    }
     else if (r && r.error && anfordern) {
         neu.fehler = r.error;
         setFeedback(`${s.name}: ${tr(r.error)}`, 'error');

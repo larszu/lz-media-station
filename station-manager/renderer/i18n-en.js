@@ -119,7 +119,10 @@ window.LZ_I18N_EN = /*JSON*/{
   "Keine Anzeige mehr verbunden": "No display connected any more",
   "Eine Anzeige ist nicht mehr verbunden": "A display disconnected",
   "Anzeige wieder verbunden": "Display reconnected",
-  "keine Antwort": "no answer"
+  "keine Antwort": "no answer",
+  "letztes Bild": "showing the last image",
+  "Keine Anzeige hat innerhalb der Wartezeit ein Bild geliefert": "No display delivered an image in time",
+  "Keine Anzeige hoert zu — ist eine Anzeigeseite offen?": "No display is listening — is a display page open?"
  },
  "muster": [
   [
