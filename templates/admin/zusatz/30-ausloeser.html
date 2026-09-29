@@ -1,0 +1,147 @@
+<!-- Ausloeser (Welle 2): Wenn … dann …  Skript: static/module/ausloeser.js,
+     englische Texte: static/i18n/ausloeser.en.js. -->
+<style>
+.aus-zeile { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.aus-zeile .wenn-dann { flex: 1; min-width: 200px; font-size: 0.85rem; }
+.aus-zeile .wenn-dann small { display: block; color: var(--text-dim); font-size: 0.75rem; }
+.aus-zeile .status { font-size: 0.7rem; color: var(--warning); }
+.aus-zeile.inaktiv .wenn-dann { opacity: 0.5; }
+.aus-form { margin-top: 12px; padding: 12px; border: 1px solid var(--line-steel); background: var(--bg); }
+.aus-form h3 { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
+.aus-form .zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.aus-form .zeile .form-group { flex: 1; min-width: 140px; }
+.aus-form .tage { display: flex; gap: 6px; flex-wrap: wrap; }
+.aus-form .tage label { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--line-steel); font-size: 0.8rem; cursor: pointer; }
+.aus-form .tage input { width: 14px; height: 14px; }
+.aus-form .knoepfe { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.aus-webhook { margin-top: 8px; font-size: 0.8rem; }
+.aus-webhook code { display: block; padding: 6px 8px; background: var(--surface); border: 1px solid var(--border); overflow-x: auto; white-space: pre; margin: 4px 0; font-size: 0.75rem; }
+.aus-protokoll { margin-top: 10px; font-size: 0.8rem; max-height: 220px; overflow: auto; }
+.aus-protokoll div { padding: 3px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; }
+.aus-protokoll .zeit { color: var(--text-dim); min-width: 130px; }
+.aus-protokoll .ergebnis { color: var(--text-dim); flex: 1; }
+</style>
+
+<section class="card" id="card-ausloeser">
+    <h2>Ausl&ouml;ser</h2>
+    <p class="karten-hinweis" data-i18n="ausloeser-hinweis">
+        <strong>Wenn</strong> etwas passiert, <strong>dann</strong> tut die Station etwas: ein Knopf am
+        Empfang blendet die Durchsage ein, die Hausautomation meldet per Webhook den Beginn
+        der Veranstaltung, um 18:00 geht der Schirm aus, nach dem Film kommt das Men&uuml; zur&uuml;ck.
+        Der Abstandssensor bleibt davon unber&uuml;hrt.
+    </p>
+    <div id="aus-liste"></div>
+    <button type="button" class="btn btn-small btn-secondary" style="margin-top:8px" onclick="ausNeu()">+ Ausl&ouml;ser</button>
+
+    <div id="aus-form" class="aus-form" hidden>
+        <h3 id="aus-form-titel">Ausl&ouml;ser</h3>
+        <div class="zeile">
+            <div class="form-group">
+                <label for="aus-name">Name des Ausl&ouml;sers</label>
+                <input type="text" id="aus-name" placeholder="z. B. Knopf am Empfang">
+            </div>
+            <div class="form-group">
+                <label for="aus-id">Kennung (f&uuml;r die Webhook-Adresse)</label>
+                <input type="text" id="aus-id" placeholder="z. B. empfang" pattern="[a-z0-9][a-z0-9-]*">
+            </div>
+            <div class="form-group" style="flex:0 0 auto">
+                <label class="checkbox-label"><input type="checkbox" id="aus-aktiv" checked> <span>Aktiv</span></label>
+            </div>
+        </div>
+
+        <h3>Wenn &hellip;</h3>
+        <div class="zeile">
+            <div class="form-group">
+                <label for="aus-quelle-typ">Quelle</label>
+                <select id="aus-quelle-typ" onchange="ausQuelleFelder()">
+                    <option value="webhook">Webhook (Aufruf von au&szlig;en)</option>
+                    <option value="taster">Taster am GPIO</option>
+                    <option value="zeit">Uhrzeit</option>
+                    <option value="video_ende">Video zu Ende</option>
+                    <option value="zone">Zonenwechsel</option>
+                </select>
+            </div>
+            <div class="form-group aus-q aus-q-webhook">
+                <label for="aus-token">Token (optional, sch&uuml;tzt den Aufruf)</label>
+                <input type="text" id="aus-token" placeholder="leer = ohne Token">
+            </div>
+            <div class="form-group aus-q aus-q-taster">
+                <label for="aus-pin">BCM-Pin</label>
+                <input type="number" id="aus-pin" min="2" max="27" value="27">
+            </div>
+            <div class="form-group aus-q aus-q-zeit">
+                <label for="aus-zeit">Uhrzeit</label>
+                <input type="time" id="aus-zeit" value="18:00">
+            </div>
+            <div class="form-group aus-q aus-q-video_ende">
+                <label for="aus-datei">Video (leer = jedes)</label>
+                <select id="aus-datei"></select>
+            </div>
+            <div class="form-group aus-q aus-q-zone">
+                <label for="aus-zone">Wechsel zu Zone</label>
+                <select id="aus-zone">
+                    <option value="near">Nah</option>
+                    <option value="mid">Mitte</option>
+                    <option value="far">Fern</option>
+                </select>
+            </div>
+        </div>
+        <div class="zeile aus-q aus-q-zeit">
+            <div class="form-group">
+                <label>Tage</label>
+                <div class="tage" id="aus-tage"></div>
+            </div>
+        </div>
+        <div class="aus-webhook aus-q aus-q-webhook" id="aus-webhook-info"></div>
+
+        <h3>&hellip; dann</h3>
+        <div class="zeile">
+            <div class="form-group">
+                <label for="aus-aktion-typ">Aktion</label>
+                <select id="aus-aktion-typ" onchange="ausAktionFelder()">
+                    <option value="zeige_layout">Layout einblenden</option>
+                    <option value="zurueck">Eingeblendetes Layout beenden</option>
+                    <option value="meldung">Sofortmeldung zeigen</option>
+                    <option value="display_aus">Schirm schwarz (und Fernseher aus, wenn CEC)</option>
+                    <option value="display_an">Schirm wieder an</option>
+                    <option value="start">Sensor-Steuerung starten</option>
+                    <option value="stop">Sensor-Steuerung anhalten</option>
+                </select>
+            </div>
+            <div class="form-group aus-a aus-a-zeige_layout">
+                <label for="aus-layout">Layout</label>
+                <select id="aus-layout"></select>
+            </div>
+            <div class="form-group aus-a aus-a-zeige_layout aus-a-meldung">
+                <label for="aus-dauer">Dauer in Sekunden (leer = bis zum n&auml;chsten Befehl)</label>
+                <input type="number" id="aus-dauer" min="1" max="86400" placeholder="leer">
+            </div>
+        </div>
+        <div class="zeile aus-a aus-a-meldung">
+            <div class="form-group">
+                <label for="aus-meldung-text">Meldungstext</label>
+                <input type="text" id="aus-meldung-text" maxlength="200">
+            </div>
+            <div class="form-group">
+                <label for="aus-meldung-untertext">Zweite Zeile</label>
+                <input type="text" id="aus-meldung-untertext" maxlength="400">
+            </div>
+            <div class="form-group" style="flex:0 0 auto">
+                <label for="aus-meldung-farbe">Hintergrund</label>
+                <input type="color" id="aus-meldung-farbe" value="#B04A3F">
+            </div>
+            <div class="form-group" style="flex:0 0 auto">
+                <label class="checkbox-label"><input type="checkbox" id="aus-meldung-ton"> <span>Signalton</span></label>
+            </div>
+        </div>
+        <div class="knoepfe">
+            <button type="button" class="btn" onclick="ausSpeichern()">Ausl&ouml;ser speichern</button>
+            <button type="button" class="btn btn-secondary" onclick="ausFormSchliessen()">Abbrechen</button>
+            <button type="button" class="btn btn-stop" id="aus-loeschen" onclick="ausLoeschen()">Ausl&ouml;ser l&ouml;schen</button>
+        </div>
+    </div>
+    <div id="aus-feedback" class="feedback"></div>
+
+    <h3 style="font-size:0.8rem;color:var(--text-dim);margin-top:14px;text-transform:uppercase;letter-spacing:0.1em">Protokoll</h3>
+    <div id="aus-protokoll" class="aus-protokoll"><div class="empty">Noch nichts ausgel&ouml;st.</div></div>
+</section>

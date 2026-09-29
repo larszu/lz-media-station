@@ -120,6 +120,14 @@ class Controller:
         self.lock = threading.RLock()
         # Regeln, die das Zonen-Layout uebersteuern (siehe layout_fuer_zone)
         self.layout_regeln = []
+        # Zusaetze zur Szene (Welle 2: Sofortmeldung, Schirm schwarz): jeder
+        # Eintrag ist ein Aufruf `(jetzt) -> dict`, der in die Szene gemischt
+        # wird. So bekommt die Anzeige alles mit EINER Antwort, und der Kern
+        # muss die Erweiterung nicht kennen.
+        self.szene_zusatz = []
+        # Wer nach jeder Konfigurationsaenderung gerufen werden will (Welle 2:
+        # Taster-Ausloeser oeffnen/schliessen). Aufrufe ohne Argument.
+        self.config_beobachter = []
         self._gemeldete_szene = None
 
     @property
@@ -233,6 +241,11 @@ class Controller:
         layout = (self.config.get("layouts") or {}).get(lid) if lid else None
         szene["layout_id"] = lid if layout is not None else None
         szene["layout"] = layouts_modul.filtere_layout(layout, heute) if layout is not None else None
+        for zusatz in list(self.szene_zusatz):
+            try:
+                szene.update(zusatz(jetzt) or {})
+            except Exception as e:  # ein Zusatz darf die Szene nicht verhindern
+                print(f"[Szene] Zusatz {getattr(zusatz, '__name__', zusatz)} gescheitert: {e}")
         return szene
 
     def layout_fuer_zone(self, zone, jetzt):
@@ -264,7 +277,11 @@ class Controller:
         Aendert sich die Konfiguration, setzt `melde_config` die Kennung
         zurueck — dann geht die Szene auch ohne Zonenwechsel hinaus.
         """
-        kennung = (self.active, self.zone, self.ist_offen())
+        # Seit Welle 2 zaehlt auch das AUFGELOESTE Layout der Zone: das
+        # Wochenprogramm wechselt es zur vollen Stunde, ohne dass sich Zone
+        # oder Oeffnung aendern — und die Anzeige soll das sofort erfahren.
+        kennung = (self.active, self.zone, self.ist_offen(),
+                   self.layout_fuer_zone(self.zone, datetime.now()) if self.active else None)
         if kennung == self._gemeldete_szene:
             return
         self._gemeldete_szene = kennung
@@ -275,6 +292,11 @@ class Controller:
         """Nach jedem Schreibzugriff: Konfiguration UND Szene — die Anzeige
         braucht die Szene, die Verwaltung die Konfiguration."""
         self._gemeldete_szene = None
+        for beobachter in list(self.config_beobachter):
+            try:
+                beobachter()
+            except Exception as e:  # ein Beobachter darf die Meldung nicht verhindern
+                print(f"[Config] Beobachter {getattr(beobachter, '__name__', beobachter)}: {e}")
         self.bus.senden("config", self.config)
         self.melde_szene()
 
@@ -539,6 +561,7 @@ def main():
         os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
 
     controller = Controller(config)
+    controller.ausloeser_faden = True   # der Ausloeser-Faden (api_ausloeser) laeuft nur auf der Station
     # Ein Follower wertet den eigenen Sensor nicht aus — dann ist auch kein
     # Grund, GPIO oder eine Kamera zu belegen. Auf einem Rechner, der nur
     # einen zweiten Schirm bespielt, ist oft gar keine Hardware angeschlossen.

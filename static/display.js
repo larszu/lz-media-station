@@ -74,9 +74,14 @@
     var ueberblendung = null;
     var ueberblendungTimer = null;
 
-    // ESC -> zur Admin-Seite (bewusst der einzige Weg dorthin)
+    // ESC -> zur Admin-Seite (bewusst der einzige Weg dorthin). Nicht in
+    // einem iframe: dort ist die Seite die Vorschau IM Admin, und ESC (etwa
+    // um einen Datumswaehler zu schliessen) laedt sonst den ganzen Admin
+    // verschachtelt in die Layout-Karte.
+    var eingebettet = false;
+    try { eingebettet = window.top !== window; } catch (err) { eingebettet = true; }
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' || e.keyCode === 27) {
+        if ((e.key === 'Escape' || e.keyCode === 27) && !eingebettet) {
             window.location.href = '/admin';
         }
     });
@@ -233,7 +238,12 @@
 
         if (!scene.active && !vorschau) {
             if (currentHash) { fadeAllOut(); currentHash = ''; }
-            if (!startAttempted && !zuschauen) {
+            if (zuschauen) {
+                // Der Zuschauer startet nichts — und behauptet es auch nicht.
+                showHint('<strong>Steuerung ist aus</strong>');
+                return;
+            }
+            if (!startAttempted) {
                 startAttempted = true;
                 fetch('/api/start', { method: 'POST' }).catch(function () {});
             }
