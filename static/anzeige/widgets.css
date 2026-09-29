@@ -1,0 +1,109 @@
+/* Widgets der Anzeige (3.0) — geladen von widgets.js.
+
+   Alles skaliert mit --wg-basis, das widgets.js aus der Groesse der Region
+   setzt (kleinere Kante / 12, mal Schriftfaktor). Keine Pixelwerte fuer
+   Schrift: ein Ticker am unteren Rand und eine Vollbild-Uhr nutzen dieselbe
+   Regel und sind beide lesbar.
+
+   Marke wie in style.css: keine Rundungen, keine Schatten, keine Verlaeufe.
+   Schwarz ist hier kein Geschmack, sondern der Grund der Anzeige — die
+   Widgets sind durchsichtig, bis jemand einen Hintergrund waehlt. */
+.wg { --wg-basis: 24px; --wg-akzent: #F6F5F0; }
+.wg-box {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: calc(var(--wg-basis) * 0.6);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: var(--wg-basis);
+    line-height: 1.25;
+    overflow: hidden;
+    color: #E1ECEF;
+}
+.wg-mitte { align-items: center; text-align: center; }
+.wg-links { align-items: flex-start; text-align: left; }
+.wg-rechts { align-items: flex-end; text-align: right; }
+.wg-dim { opacity: 0.65; }
+.wg-dezent {
+    font-size: calc(var(--wg-basis) * 0.55);
+    opacity: 0.6;
+    margin-top: calc(var(--wg-basis) * 0.4);
+}
+
+/* Uhr */
+.wg-uhr .wg-zeit { font-size: calc(var(--wg-basis) * 2.6); font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.wg-uhr .wg-datum { font-size: calc(var(--wg-basis) * 0.8); opacity: 0.8; margin-top: calc(var(--wg-basis) * 0.3); }
+.wg-analog { width: min(100%, calc(var(--wg-basis) * 8)); aspect-ratio: 1; }
+.wg-analog svg { width: 100%; height: 100%; }
+.wg-ziffernblatt { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.wg-strich { stroke: currentColor; stroke-width: 1.5; }
+.wg-zeiger { stroke: currentColor; stroke-linecap: butt; }
+.wg-stunde { stroke-width: 4; }
+.wg-minute { stroke-width: 2.5; }
+.wg-sekunde { stroke: var(--wg-akzent); stroke-width: 1; }
+.wg-nabe { fill: currentColor; }
+
+/* Text-Folie */
+.wg-text .wg-h1 { font-size: calc(var(--wg-basis) * 1.8); font-weight: 700; color: var(--wg-akzent); margin-bottom: calc(var(--wg-basis) * 0.5); }
+.wg-text .wg-fliess { font-size: var(--wg-basis); white-space: normal; }
+.wg-text .wg-fuss { font-size: calc(var(--wg-basis) * 0.6); opacity: 0.7; margin-top: calc(var(--wg-basis) * 0.8); }
+.wg-text .wg-pfeil { font-size: calc(var(--wg-basis) * 4); line-height: 1; color: var(--wg-akzent); }
+.wg-karte { border-collapse: collapse; width: 100%; font-size: var(--wg-basis); }
+.wg-karte td { padding: calc(var(--wg-basis) * 0.2) calc(var(--wg-basis) * 0.4); border-bottom: 1px solid rgba(225, 236, 239, 0.25); }
+.wg-karte .wg-preis { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wg-mitte .wg-karte { width: auto; min-width: 60%; }
+
+/* Laufschrift */
+.wg-ticker { justify-content: center; padding: 0; }
+.wg-band { display: inline-flex; white-space: nowrap; will-change: transform; font-size: var(--wg-basis); }
+.wg-band-teil { display: inline-block; padding-right: calc(var(--wg-basis) * 0.5); }
+
+/* Wetter */
+.wg-wetter-jetzt { display: flex; align-items: center; gap: calc(var(--wg-basis) * 0.5); }
+.wg-wetter-symbol { font-size: calc(var(--wg-basis) * 2.4); line-height: 1; }
+.wg-wetter-temp { font-size: calc(var(--wg-basis) * 2.4); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wg-wetter-text { font-size: calc(var(--wg-basis) * 0.8); opacity: 0.85; margin-top: calc(var(--wg-basis) * 0.2); }
+.wg-wetter-tage { display: flex; gap: calc(var(--wg-basis) * 1); margin-top: calc(var(--wg-basis) * 0.8); font-size: calc(var(--wg-basis) * 0.7); }
+.wg-wetter-tag { text-align: center; }
+.wg-wetter-symbol-klein { font-size: calc(var(--wg-basis) * 1.2); line-height: 1.3; }
+
+/* RSS */
+.wg-rss { justify-content: flex-start; }
+.wg-rss-eintrag { padding: calc(var(--wg-basis) * 0.3) 0; border-bottom: 1px solid rgba(225, 236, 239, 0.2); }
+.wg-rss-eintrag:last-child { border-bottom: 0; }
+.wg-rss-titel { font-size: calc(var(--wg-basis) * 0.85); font-weight: 600; }
+.wg-rss-text { font-size: calc(var(--wg-basis) * 0.6); opacity: 0.8; margin-top: calc(var(--wg-basis) * 0.1); }
+.wg-rss-meta { font-size: calc(var(--wg-basis) * 0.5); opacity: 0.6; margin-top: calc(var(--wg-basis) * 0.1); }
+.wg-rss-einzeln .wg-rss-titel { font-size: calc(var(--wg-basis) * 1.3); }
+.wg-rss-einzeln .wg-rss-eintrag { border: 0; }
+
+/* Kalender */
+.wg-kalender { justify-content: flex-start; }
+.wg-kal-kopf { font-size: calc(var(--wg-basis) * 0.7); text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; margin-bottom: calc(var(--wg-basis) * 0.4); }
+.wg-kal-termin { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--wg-basis) * 0.5); padding: calc(var(--wg-basis) * 0.25) 0; border-bottom: 1px solid rgba(225, 236, 239, 0.2); font-size: calc(var(--wg-basis) * 0.8); }
+.wg-kal-termin:last-child { border-bottom: 0; }
+.wg-kal-zeit { white-space: nowrap; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.wg-kal-jetzt { border-left: 4px solid var(--wg-akzent); padding-left: calc(var(--wg-basis) * 0.4); }
+.wg-kal-label { font-size: calc(var(--wg-basis) * 0.6); text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.6; margin-top: calc(var(--wg-basis) * 0.6); }
+.wg-kal-gross { font-size: calc(var(--wg-basis) * 1.6); font-weight: 600; }
+.wg-kal-frei { color: #2F7D5C; }
+
+/* QR */
+.wg-qr-code { width: min(100%, 100cqmin, calc(var(--wg-basis) * 9)); aspect-ratio: 1; }
+.wg-qr-code svg { width: 100%; height: 100%; display: block; }
+.wg-qr-text { font-size: calc(var(--wg-basis) * 0.8); margin-top: calc(var(--wg-basis) * 0.4); }
+
+/* Webseite / eigenes HTML */
+.wg-web, .wg-html { padding: 0; }
+.wg-web-rahmen { border: 0; transform-origin: 0 0; width: 100%; height: 100%; background: transparent; }
+.wg-web .wg-dezent, .wg-html .wg-dezent { position: absolute; left: 0; right: 0; bottom: 0; padding: calc(var(--wg-basis) * 0.3); background: rgba(0, 0, 0, 0.6); text-align: center; margin: 0; }
+
+/* Zaehler */
+.wg-zaehler-label { font-size: calc(var(--wg-basis) * 0.9); opacity: 0.8; }
+.wg-zaehler-zahl { display: flex; flex-wrap: wrap; gap: calc(var(--wg-basis) * 0.5); justify-content: center; margin: calc(var(--wg-basis) * 0.3) 0; max-width: 100%; }
+.wg-zaehler-block { display: inline-flex; flex-direction: column; align-items: center; }
+/* Vier Bloecke (Tage Std. Min. Sek.) muessen nebeneinander in die Region passen:
+   die Ziffernbreite richtet sich deshalb auch nach der Breite der Region. */
+.wg-zaehler-block b { font-size: min(calc(var(--wg-basis) * 1.9), calc(var(--wg-breite) / 9)); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.wg-zaehler-block small { font-size: calc(var(--wg-basis) * 0.55); opacity: 0.7; margin-top: calc(var(--wg-basis) * 0.15); }
+.wg-zaehler-fertig { font-size: calc(var(--wg-basis) * 1.8); font-weight: 600; color: var(--wg-akzent); }
+.wg-zaehler-bis { font-size: calc(var(--wg-basis) * 0.6); }

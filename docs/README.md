@@ -16,6 +16,7 @@ den Überblick; hier steht das Wie und — wichtiger — das **Warum**.
 | [Monitoring](monitoring.md) | Puls der Anzeigeseiten („was läuft gerade"), Screenshot auf Abruf, Systemwerte, **Proof-of-Play** (SQLite, CSV), **Benachrichtigung** per ntfy oder Webhook bei Störung, verlorener Anzeige, Beginn der Öffnungszeit |
 | [Zugang](zugang.md) | Optionale PIN vor der Verwaltung: Anmeldeseite, Kopf `X-LZ-Pin` für den Manager, freie Meldewege der Anzeige, Ablage außerhalb der Konfiguration |
 | [Architektur 3.0](architektur-v3.md) | Layouts und Regionen mit gemischten Playlists, Gültigkeit je Eintrag, Ereignisse (SSE) statt Polling, Befehle an die Anzeige, Vorschau, Erweiterungspunkte für Welle 2 |
+| [Widgets](widgets.md) | Uhr, Text-Folie mit Vorlagen, Laufschrift, Wetter, Nachrichten (RSS), Kalender (ICS), QR-Code, Webseite, Zähler und eigene HTML-Widgets; Proxys mit Zwischenspeicher, Verhalten ohne Netz |
 
 ## Zwei Dinge, die überall gelten
 
