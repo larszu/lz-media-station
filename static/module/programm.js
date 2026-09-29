@@ -291,14 +291,6 @@
         if (e) zeigeForm(e);
     }
 
-    function kennung(name, vergeben) {
-        var g = (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36) || 'eintrag';
-        if (!/^[a-z0-9]/.test(g)) g = 'e-' + g;
-        var k = g, n = 2;
-        while (vergeben.indexOf(k) >= 0) k = g + '-' + (n++);
-        return k;
-    }
-
     window.progNeuerEintrag = function (vorgaben) {
         zeigeForm(vorgaben && vorgaben.tage ? vorgaben : {});
     };
@@ -315,7 +307,8 @@
         var liste = (programm.eintraege || []).slice();
         var ids = liste.map(function (x) { return x.id; });
         var e = {
-            id: bearbeitet || kennung(name, ids),
+            // Ohne Kennung: der Server leitet sie aus dem Namen ab (programm.kennung_aus_name).
+            id: bearbeitet || '',
             name: name,
             layout_id: el('prog-layout').value,
             zonen: gewaehlte(el('prog-zonen')),
@@ -327,7 +320,7 @@
             gueltig_bis: el('prog-gueltig-bis').value || null,
             aktiv: el('prog-aktiv').checked
         };
-        var i = ids.indexOf(e.id);
+        var i = e.id ? ids.indexOf(e.id) : -1;
         if (i >= 0) liste[i] = e; else liste.push(e);
         speichere({ eintraege: liste, ausnahmen: programm.ausnahmen || [] }).then(function (ok) {
             if (ok) progFormSchliessen();
@@ -480,9 +473,7 @@
             el(id).addEventListener('input', meldungVorschau);
         });
         // Jemand anderes hat geschrieben (Manager, zweites Handy): neu holen.
-        if (window.EventSource) {
-            var q = new EventSource('/api/events');
-            q.addEventListener('config', function () { if (el('prog-form').hidden) lade(); meldungStatus(); });
-        }
+        // app.js haelt die eine Verbindung und reicht `config` als `lz-config` weiter.
+        document.addEventListener('lz-config', function () { if (el('prog-form').hidden) lade(); meldungStatus(); });
     });
 })();

@@ -257,5 +257,33 @@ class UeberDieApi(unittest.TestCase):
             self.assertEqual(k.get("/api/programm/vorschau?zone=oben").status_code, 400)
 
 
+class ReviewFunde(unittest.TestCase):
+    """Funde aus dem Code-Review von PR #27, je einer als Waechter."""
+
+    def test_der_schreibweg_leitet_fehlende_kennungen_aus_dem_namen_ab(self):
+        # Die Kennung entsteht auf dem Server — vorher gab es die Regel dreimal
+        # (programm.py, programm.js, ausloeser.js), und drei Fassungen laufen
+        # auseinander.
+        p = P.pruefe_programm({"eintraege": [
+            {"name": "Speisekarte mittags", "layout_id": "zone-far"},
+            {"name": "Speisekarte mittags", "layout_id": "zone-far"},
+            {"id": "", "name": "Ärger & Öl", "layout_id": "zone-far"},
+        ]})
+        self.assertEqual([e["id"] for e in p["eintraege"]],
+                         ["speisekarte-mittags", "speisekarte-mittags-2", "rger-l"])
+
+    def test_die_module_halten_keine_eigene_sse_verbindung(self):
+        # app.js haelt EINE Verbindung und reicht `config` als `lz-config`
+        # weiter; drei EventSource je Tab erschoepften das Verbindungslimit.
+        app_js = (WURZEL / "static/app.js").read_text(encoding="utf-8")
+        self.assertIn("'lz-config'", app_js)
+        self.assertIn("'lz-status'", app_js)
+        for modul in ("programm", "ausloeser"):
+            js = (WURZEL / "static/module" / f"{modul}.js").read_text(encoding="utf-8")
+            self.assertNotIn("new EventSource", js, modul)
+            self.assertIn("'lz-config'", js, modul)
+            self.assertNotIn("function kennung(", js, f"{modul}: Kennung kommt vom Server")
+
+
 if __name__ == "__main__":
     unittest.main()

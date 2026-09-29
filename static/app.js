@@ -64,6 +64,7 @@ function verbindeEreignisse() {
             var d = JSON.parse(e.data);
             config = d.config;
             updateStatusUI(d);
+            melde('lz-status', d);
         } catch (err) { /* naechstes Ereignis */ }
     });
     quelle.addEventListener('config', function () {
@@ -71,7 +72,17 @@ function verbindeEreignisse() {
         // und Layouts neu holen, damit hier nichts Veraltetes steht.
         loadAllMedia();
         ladeLayouts();
+        melde('lz-config', null);
     });
+}
+
+// Die Module unter static/module/*.js bekommen die Ereignisse von HIER —
+// als CustomEvent am document, nicht ueber eigene EventSource-Verbindungen.
+// Drei offene Verbindungen je Verwaltungs-Tab (App, Programm, Ausloeser)
+// erschoepften mit zwei Tabs das Verbindungslimit des Browsers und die
+// Faeden des Servers; danach blieben Anfragen haengen.
+function melde(typ, daten) {
+    try { document.dispatchEvent(new CustomEvent(typ, { detail: daten })); } catch (e) { /* alt */ }
 }
 
 async function fetchStatus() {

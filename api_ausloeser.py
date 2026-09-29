@@ -33,8 +33,13 @@ def erzeuge_blueprint(controller):
             raise RuntimeError("Sofortmeldung nicht verfuegbar (api_programm fehlt)")
         fn(dict(aktion, aktiv=True))
 
-    maschine = A.Ausloeser(controller, meldung_setzen=meldung_setzen)
-    controller.ausloeser = maschine
+    # EINE Maschine je Controller: `create_app` kann mehrfach laufen (Tests,
+    # ein zweiter Aufbau der App) — ein zweiter Faden feuerte jeden Zeit- und
+    # Zonen-Ausloeser doppelt, und ein zweites gpiozero am selben Pin scheitert.
+    maschine = getattr(controller, "ausloeser", None)
+    if maschine is None:
+        maschine = A.Ausloeser(controller, meldung_setzen=meldung_setzen)
+        controller.ausloeser = maschine
     if hasattr(controller, "szene_zusatz"):
         def zusatz(jetzt):
             return {"schwarz": maschine.schwarz,
@@ -42,18 +47,25 @@ def erzeuge_blueprint(controller):
         zusatz.__name__ = "ausloeser"
         if not any(getattr(z, "__name__", "") == "ausloeser" for z in controller.szene_zusatz):
             controller.szene_zusatz.append(zusatz)
-    # Im Test (Flask-Testclient) laeuft kein Faden — `tick()` wird dort direkt
-    # gerufen. Auf der Station startet `main()` die App und damit den Faden.
-    if getattr(controller, "ausloeser_faden", True):
+    # Taster folgen JEDER Konfigurationsaenderung, nicht nur der eigenen
+    # PUT-Route: `/api/restore` tauscht die Liste aus, ohne hier vorbeizukommen.
+    beobachter = getattr(controller, "config_beobachter", None)
+    if beobachter is not None and maschine.synchronisiere_taster not in beobachter:
+        beobachter.append(maschine.synchronisiere_taster)
+    # Der Faden laeuft nur, wenn `main()` ihn bestellt (`ausloeser_faden`).
+    # Im Test (Flask-Testclient) wird `tick()` direkt gerufen — ein Faden je
+    # Testmodul liefe sonst bis zum Ende des Laufs weiter.
+    if getattr(controller, "ausloeser_faden", False):
         maschine.start()
 
     def schreibe(aenderung):
         with controller.lock:
             ergebnis = aenderung()
             controller.save_config()
-        maschine.synchronisiere_taster()
         if hasattr(controller, "melde_config"):
-            controller.melde_config()
+            controller.melde_config()   # ruft ueber `config_beobachter` auch die Taster-Synchronisation
+        else:
+            maschine.synchronisiere_taster()
         return ergebnis
 
     def mit_status(liste):

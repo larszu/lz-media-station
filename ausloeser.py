@@ -36,19 +36,20 @@ from collections import deque
 from datetime import datetime
 
 import tv_cec
-from layouts import KENNUNG, FARBE
+from layouts import KENNUNG, ZONEN
+# Text-, Farb- und Dauer-Grenzen teilt sich der Ausloeser mit der
+# Sofortmeldung — eine `meldung`-Aktion IST eine Sofortmeldung.
+from programm import (MELDUNG_FARBE, MELDUNG_TEXTFARBE, TEXT_MAX, UNTERTEXT_MAX,
+                      _dauer, _farbe, _text, kennung_aus_name)
 from zeitplan import TAGE, minuten
 
 MAX_AUSLOESER = 60
 NAME_MAX = 64
 TOKEN_MAX = 128
-TEXT_MAX = 200
-UNTERTEXT_MAX = 400
 PROTOKOLL_MAX = 200
 #: BCM-Nummern, die am 40-poligen Pi-Header als GPIO nutzbar sind.
 NUTZBARE_BCM = tuple(range(2, 28))
 
-ZONEN = ("near", "mid", "far")
 QUELLEN = ("webhook", "taster", "zeit", "video_ende", "zone")
 AKTIONEN = ("zeige_layout", "meldung", "display_an", "display_aus", "start", "stop", "zurueck")
 
@@ -66,37 +67,6 @@ def standard_ausloeser():
 
 
 # ── Schema ───────────────────────────────────────────────────────────────────
-
-def _text(roh, feld, maximal, pflicht=True):
-    if roh is None:
-        roh = ""
-    if not isinstance(roh, str):
-        raise ValueError(f"{feld}: muss Text sein")
-    roh = roh.strip()
-    if pflicht and not roh:
-        raise ValueError(f"{feld}: darf nicht leer sein")
-    if len(roh) > maximal:
-        raise ValueError(f"{feld}: hoechstens {maximal} Zeichen")
-    return roh
-
-
-def _farbe(roh, feld, vorgabe):
-    if roh is None or roh == "":
-        return vorgabe
-    if not isinstance(roh, str) or not FARBE.match(roh):
-        raise ValueError(f"{feld}: Farbe als #rrggbb")
-    return roh
-
-
-def _dauer(roh, feld):
-    if roh is None or roh == "":
-        return None
-    if isinstance(roh, bool) or not isinstance(roh, (int, float)):
-        raise ValueError(f"{feld}: Sekunden > 0 oder leer")
-    if not (0 < float(roh) <= 86400):
-        raise ValueError(f"{feld}: 1..86400 s oder leer")
-    return float(roh)
-
 
 def pruefe_quelle(roh, stelle):
     if not isinstance(roh, dict):
@@ -121,10 +91,12 @@ def pruefe_quelle(roh, stelle):
             raise ValueError(f"{stelle}.tage: mindestens ein Tag aus {list(TAGE)}")
         q["tage"] = [t for t in TAGE if t in tage]
         try:
-            minuten(roh.get("zeit"), ende=False)
+            m = minuten(roh.get("zeit"), ende=False)
         except ValueError as e:
             raise ValueError(f"{stelle}.zeit: {e}") from None
-        q["zeit"] = roh.get("zeit").strip()
+        # Auf HH:MM normiert: `9:00` waere gueltig, aber `tick()` vergleicht
+        # Minuten — als Text verglichen haette „9:00" nie gefeuert.
+        q["zeit"] = f"{m // 60:02d}:{m % 60:02d}"
     elif typ == "video_ende":
         q["datei"] = _text(roh.get("datei"), f"{stelle}.datei", 255, pflicht=False)
         q["region"] = _text(roh.get("region"), f"{stelle}.region", 40, pflicht=False)
@@ -151,8 +123,8 @@ def pruefe_aktion(roh, stelle):
     elif typ == "meldung":
         a["text"] = _text(roh.get("text"), f"{stelle}.text", TEXT_MAX)
         a["untertext"] = _text(roh.get("untertext"), f"{stelle}.untertext", UNTERTEXT_MAX, pflicht=False)
-        a["farbe"] = _farbe(roh.get("farbe"), f"{stelle}.farbe", "#B04A3F")
-        a["textfarbe"] = _farbe(roh.get("textfarbe"), f"{stelle}.textfarbe", "#FFFFFF")
+        a["farbe"] = _farbe(roh.get("farbe"), f"{stelle}.farbe", MELDUNG_FARBE)
+        a["textfarbe"] = _farbe(roh.get("textfarbe"), f"{stelle}.textfarbe", MELDUNG_TEXTFARBE)
         a["dauer_s"] = _dauer(roh.get("dauer_s"), f"{stelle}.dauer_s")
         ton = roh.get("ton", False)
         if not isinstance(ton, bool):
@@ -206,6 +178,8 @@ def pruefe_ausloeser(roh, config=None):
         raise ValueError(f"ausloeser: hoechstens {MAX_AUSLOESER}")
     heraus, ids, pins = [], set(), dict(belegte_pins(config or {}))
     for i, e in enumerate(roh):
+        if isinstance(e, dict) and not e.get("id"):
+            e = dict(e, id=kennung_aus_name(e.get("name", ""), ids, vorgabe="ausloeser"))
         sauber = pruefe_ausloeser_eintrag(e, f"ausloeser[{i}]")
         if sauber["id"] in ids:
             raise ValueError(f"ausloeser[{i}].id: {sauber['id']!r} gibt es schon")
@@ -315,6 +289,7 @@ class Ausloeser:
     def tick(self, jetzt):
         """Zeit-Quellen und Zonenwechsel pruefen. Wird auch im Test gerufen."""
         minute = jetzt.strftime("%Y-%m-%d %H:%M")
+        jetzt_m = jetzt.hour * 60 + jetzt.minute
         tag = TAGE[jetzt.weekday()]
         zone = getattr(self.controller, "zone", None)
         if zone != self._letzte_zone:
@@ -328,7 +303,12 @@ class Ausloeser:
             q = e.get("quelle") or {}
             if not e.get("aktiv", True) or q.get("typ") != "zeit":
                 continue
-            if tag not in (q.get("tage") or []) or q.get("zeit") != jetzt.strftime("%H:%M"):
+            if tag not in (q.get("tage") or []):
+                continue
+            try:
+                if minuten(q.get("zeit"), ende=False) != jetzt_m:
+                    continue
+            except ValueError:
                 continue
             if self._letzte_minute.get(e["id"]) == minute:
                 continue
@@ -462,9 +442,9 @@ class Ausloeser:
                 cec = " · " + cec
             if hasattr(self.controller, "melde_config"):
                 # Die Szene traegt `schwarz` — eine Anzeige, die spaeter laedt,
-                # soll denselben Stand sehen.
-                self.controller._gemeldete_szene = None
-                self.controller.melde_szene()
+                # soll denselben Stand sehen. `melde_config` setzt die Kennung
+                # zurueck und schickt die Szene; das ist sein Zweck.
+                self.controller.melde_config()
             return ("Schirm an" if an else "Schirm schwarz") + cec
         if typ == "start":
             self.controller.start()

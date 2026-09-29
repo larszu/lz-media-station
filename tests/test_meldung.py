@@ -137,5 +137,35 @@ class DieAnzeigeVersteht(unittest.TestCase):
             self.assertIn(typ, js)
 
 
+class ReviewFunde(unittest.TestCase):
+    """Funde aus dem Code-Review von PR #27, je einer als Waechter."""
+
+    def test_ein_zeitpunkt_mit_zeitzone_wird_ortszeit_und_stuerzt_nicht(self):
+        # Vorher: `bis` mit `+02:00` kam durch die Pruefung, und der Vergleich
+        # mit `datetime.now()` warf TypeError — nach dem Speichern, bei jedem
+        # Laden. Die Station kam nicht mehr hoch.
+        from datetime import timezone
+        jetzt = datetime(2026, 9, 29, 12, 0)
+        bis_utc = datetime(2026, 9, 29, 10, 0, tzinfo=timezone.utc)
+        m = P.pruefe_meldung({"text": "x", "bis": bis_utc.isoformat()}, jetzt)
+        self.assertNotIn("+", m["bis"], "als Ortszeit ohne Zone abgelegt")
+        self.assertEqual(m["bis"], bis_utc.astimezone().replace(tzinfo=None).isoformat(timespec="seconds"))
+        self.assertIsInstance(P.meldung_gilt(m, jetzt), bool)
+        # Ein alter Stand mit Zone in der Datei: heilen statt sterben.
+        alt = dict(P.standard_meldung(), aktiv=True, text="x", bis="2026-09-29T10:00:00+02:00")
+        self.assertIsInstance(P.heile_meldung(alt, jetzt)["aktiv"], bool)
+        self.assertIsInstance(P.meldung_gilt(alt, jetzt), bool)
+
+    def test_post_ohne_objekt_ist_400_nicht_500(self):
+        c = main.Controller(frische_config())
+        c.save_config = lambda: None
+        c.ausloeser_faden = False
+        with create_app(c).test_client() as k:
+            for kaputt in ([], "text", 5):
+                r = k.post("/api/meldung", json=kaputt)
+                self.assertEqual(r.status_code, 400, kaputt)
+                self.assertIn("Objekt", r.get_json()["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

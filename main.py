@@ -125,6 +125,9 @@ class Controller:
         # wird. So bekommt die Anzeige alles mit EINER Antwort, und der Kern
         # muss die Erweiterung nicht kennen.
         self.szene_zusatz = []
+        # Wer nach jeder Konfigurationsaenderung gerufen werden will (Welle 2:
+        # Taster-Ausloeser oeffnen/schliessen). Aufrufe ohne Argument.
+        self.config_beobachter = []
         self._gemeldete_szene = None
 
     @property
@@ -289,6 +292,11 @@ class Controller:
         """Nach jedem Schreibzugriff: Konfiguration UND Szene — die Anzeige
         braucht die Szene, die Verwaltung die Konfiguration."""
         self._gemeldete_szene = None
+        for beobachter in list(self.config_beobachter):
+            try:
+                beobachter()
+            except Exception as e:  # ein Beobachter darf die Meldung nicht verhindern
+                print(f"[Config] Beobachter {getattr(beobachter, '__name__', beobachter)}: {e}")
         self.bus.senden("config", self.config)
         self.melde_szene()
 
@@ -553,6 +561,7 @@ def main():
         os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
 
     controller = Controller(config)
+    controller.ausloeser_faden = True   # der Ausloeser-Faden (api_ausloeser) laeuft nur auf der Station
     # Ein Follower wertet den eigenen Sensor nicht aus — dann ist auch kein
     # Grund, GPIO oder eine Kamera zu belegen. Auf einem Rechner, der nur
     # einen zweiten Schirm bespielt, ist oft gar keine Hardware angeschlossen.

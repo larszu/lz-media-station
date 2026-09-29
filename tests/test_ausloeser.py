@@ -258,5 +258,110 @@ class UeberDieApi(unittest.TestCase):
         self.assertIn("vorschau", js, "nie aus der Vorschau")
 
 
+class ReviewFunde(unittest.TestCase):
+    """Funde aus dem Code-Review von PR #27, je einer als Waechter."""
+
+    def setUp(self):
+        self.c = main.Controller(frische_config())
+        self.c.save_config = lambda: None
+        self.c.ausloeser_faden = False
+
+    def test_eine_uhrzeit_ohne_fuehrende_null_feuert_trotzdem(self):
+        # `9:00` kam durch die Pruefung, aber `tick()` verglich Text mit
+        # `strftime("%H:%M")` = "09:00" — der Ausloeser feuerte nie.
+        liste = A.pruefe_ausloeser([ausloeser(quelle={"typ": "zeit", "tage": ["mo"], "zeit": "9:00"},
+                                              aktion={"typ": "stop"})], frische_config())
+        self.assertEqual(liste[0]["quelle"]["zeit"], "09:00", "beim Speichern normiert")
+        self.c.config["ausloeser"] = [ausloeser(quelle={"typ": "zeit", "tage": ["mo"], "zeit": "9:00"},
+                                                aktion={"typ": "stop"})]
+        m = A.Ausloeser(self.c, gpio=lambda pin, wp: None)
+        self.c.active = True
+        m.tick(datetime(2026, 9, 14, 9, 0, 5))
+        self.assertEqual(len(m.protokoll()), 1, "auch ein alter Stand `9:00` in der Datei feuert")
+
+    def test_der_sensor_darf_nicht_auf_den_pin_eines_tasters_ziehen(self):
+        # Vorher nur eine Richtung: der Taster pruefte gegen den Sensor, aber
+        # `/api/config` durfte den Sensor auf den Taster-Pin legen — beim
+        # naechsten Start verlor der Taster still.
+        self.c.config["ausloeser"] = [ausloeser(id="t", quelle={"typ": "taster", "pin": 27},
+                                                aktion={"typ": "display_aus"})]
+        with create_app(self.c).test_client() as k:
+            r = k.post("/api/config", json={"gpio_echo": 27})
+            self.assertEqual(r.status_code, 400, r.get_json())
+            self.assertIn("'t'", r.get_json()["error"])
+            self.assertEqual(k.post("/api/config", json={"gpio_echo": 26}).status_code, 200)
+            # Sensortyp „Taster" reserviert button_pin (17) — auch das kollidiert.
+            self.c.config["ausloeser"][0]["quelle"]["pin"] = 17
+            r = k.post("/api/config", json={"sensor_type": "button"})
+            self.assertEqual(r.status_code, 400)
+
+    def test_ein_restore_synchronisiert_die_taster(self):
+        # `/api/restore` tauscht die Liste aus, ohne die PUT-Route zu beruehren;
+        # der neue Taster wurde vorher erst nach einem Neustart geoeffnet.
+        knoepfe = {}
+
+        class Knopf:
+            def __init__(self, pin):
+                self.pin = pin
+
+            def close(self):
+                knoepfe.pop(self.pin, None)
+
+        def fabrik(pin, when_pressed):
+            knoepfe[pin] = when_pressed
+            return Knopf(pin)
+        m = A.Ausloeser(self.c, gpio=fabrik)
+        self.c.ausloeser = m
+        app = create_app(self.c)
+        self.assertIn(m.synchronisiere_taster, self.c.config_beobachter)
+        with app.test_client() as k:
+            sicherung = json.loads(json.dumps(self.c.config))
+            sicherung["ausloeser"] = [ausloeser(id="t", quelle={"typ": "taster", "pin": 27},
+                                                aktion={"typ": "display_aus"})]
+            self.assertEqual(k.post("/api/restore", json=sicherung).status_code, 200)
+            self.assertIn(27, knoepfe, "Taster nach dem Restore offen")
+            sicherung["ausloeser"] = []
+            k.post("/api/restore", json=sicherung)
+            self.assertNotIn(27, knoepfe, "und nach dem naechsten Restore wieder zu")
+
+    def test_eine_maschine_je_controller_und_kein_faden_ohne_bestellung(self):
+        # Zwei `create_app` = zwei Maschinen = jeder Zeit-Ausloeser doppelt.
+        create_app(self.c)
+        erste = self.c.ausloeser
+        create_app(self.c)
+        self.assertIs(self.c.ausloeser, erste)
+        self.assertFalse(erste._laeuft, "ohne `ausloeser_faden` laeuft kein Faden")
+        self.assertEqual(len([z for z in self.c.szene_zusatz if z.__name__ == "ausloeser"]), 1)
+        # main() bestellt den Faden ausdruecklich.
+        quelle = (WURZEL / "main.py").read_text(encoding="utf-8")
+        self.assertIn("controller.ausloeser_faden = True", quelle)
+
+    def test_schirm_schwarz_geht_ueber_melde_config(self):
+        # Vorher griff die Aktion in `controller._gemeldete_szene` und baute
+        # `melde_config` zur Haelfte nach.
+        aufrufe = []
+        self.c.melde_config = lambda: aufrufe.append(1)
+        m = A.Ausloeser(self.c, gpio=lambda pin, wp: None)
+        m.fuehre_aus({"typ": "display_aus"})
+        self.assertEqual(aufrufe, [1])
+        quelle = (WURZEL / "ausloeser.py").read_text(encoding="utf-8")
+        self.assertNotIn("_gemeldete_szene", quelle)
+
+    def test_die_grenzen_gibt_es_nur_einmal(self):
+        quelle = (WURZEL / "ausloeser.py").read_text(encoding="utf-8")
+        for doppelt in ("def _text(", "def _farbe(", "def _dauer(", "TEXT_MAX = ", 'ZONEN = ('):
+            self.assertNotIn(doppelt, quelle, f"{doppelt} gehoert nach programm.py/layouts.py")
+        self.assertEqual(A.pruefe_ausloeser([ausloeser(name="Empfang Knopf", id="",
+                                                       quelle={"typ": "webhook", "token": ""})],
+                                            frische_config())[0]["id"], "empfang-knopf")
+
+    def test_die_webhook_adresse_kommt_von_der_seite(self):
+        # `http://` + display_ip: hinter einem Reverse-Proxy oder unter einem
+        # Hostnamen stand da eine Adresse, die niemand beantwortet.
+        js = (WURZEL / "static/module/ausloeser.js").read_text(encoding="utf-8")
+        self.assertIn("location.protocol + '//' + location.host", js)
+        self.assertNotIn("'http://' + host", js)
+
+
 if __name__ == "__main__":
     unittest.main()

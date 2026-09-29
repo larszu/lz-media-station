@@ -198,6 +198,7 @@ werden.
 | Englische Texte | `static/i18n/<name>.en.js` | `(window.LZ_I18N_EN_EXTRA = window.LZ_I18N_EN_EXTRA \|\| []).push(/*JSON*/{ "texte": {}, "muster": [], "html": {} }/*JSON*/);` — `tests/test_i18n.py` prüft sie mit denselben Regeln wie den Kern |
 | Layout-Regel | `controller.layout_regeln.append(regel)` | `regel(zone, jetzt, config) -> layout_id \| None`; die erste Antwort gewinnt, eine unbekannte Kennung zählt nicht. So hängt sich das [Wochenprogramm](programm.md) ein (`api_programm.py`) |
 | Szenen-Zusatz | `controller.szene_zusatz.append(zusatz)` | `zusatz(jetzt) -> dict`, wird in jede Szene gemischt. So kommen `meldung` (Sofortmeldung), `schwarz` und `ausloeser_video_ende` zur Anzeige |
+| Config-Beobachter | `controller.config_beobachter.append(fn)` | `fn()` ohne Argumente, gerufen aus `melde_config` nach JEDEM Schreibzugriff (auch `/api/restore`). So folgen die GPIO-Taster der Ausloeser jeder Konfigurationsaenderung, nicht nur ihrer eigenen Route |
 | Ereignisse auf der Anzeige | `document.addEventListener('lz-szene' \| 'lz-befehl' \| 'lz-eintrag', …)` | display.js meldet jede Szene, jeden Befehl (auch unbekannte Typen) und jeden gestarteten Eintrag; `window.LZ_ANZEIGE.regionen()` nennt den Stand. So legen `static/anzeige/meldung.js` und `ausloeser.js` ihre Ebenen darüber |
 | Widgets | `window.LZ_WIDGETS.render(el, widget, ctx)` | `el` ist die Regionsfläche, `widget` das Objekt aus der Region, `ctx` = `{ zeit: Date, jetzt(): Date, sprache, region, layout, stationsname, vorschau }`. Rückgabe optional `{ stop() }` — wird beim Abbau der Region gerufen. In der Vorschau ist `zeit` die gewählte Zeit, nicht die Uhr |
 
@@ -219,3 +220,7 @@ Bestehende Karten des Admins liegen als Includes unter `templates/admin/`
   (Schreibweg), `layouts.heile_*` repariert und sagt es im Log (Ladeweg).
 - **Eine Version:** die Datei `VERSION`. `/api/identity`, `/api/status` und
   `python3 main.py --version` lesen sie.
+
+### Ereignisse in der Verwaltung
+
+`static/app.js` haelt die EINE SSE-Verbindung je Tab und reicht die Ereignisse als `CustomEvent` am `document` weiter: `lz-status` (mit `detail` = Status), `lz-config` und `lz-layouts`. Module unter `static/module/*.js` hoeren darauf und oeffnen KEINE eigene `EventSource` — drei Verbindungen je Tab erschoepften mit zwei Tabs das Verbindungslimit des Browsers.

@@ -128,9 +128,7 @@
         // Die Adresse, unter der DIESE Seite laeuft — nicht `web_port` aus der
         // Konfiguration: `--port` kann ihn uebersteuern, und dann zeigte die
         // Karte eine Adresse, unter der niemand antwortet.
-        var host = (config && config.display_ip) || location.hostname;
-        var port = location.port || (location.protocol === 'https:' ? 443 : 80);
-        var url = 'http://' + host + ':' + port + '/api/trigger/' + id;
+        var url = location.protocol + '//' + location.host + '/api/trigger/' + id;
         var token = (el('aus-token').value || '').trim();
         var curl = 'curl -X POST ' + (token ? '-H "X-LZ-Token: ' + token + '" ' : '') + url;
         el('aus-webhook-info').innerHTML =
@@ -174,14 +172,6 @@
         el('aus-name').focus();
     }
 
-    function kennung(name, vergeben) {
-        var g = (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36) || 'ausloeser';
-        if (!/^[a-z0-9]/.test(g)) g = 'a-' + g;
-        var k = g, n = 2;
-        while (vergeben.indexOf(k) >= 0) k = g + '-' + (n++);
-        return k;
-    }
-
     window.ausNeu = function () { zeigeForm({}); };
     window.ausBearbeiten = function (id) {
         var e = (stand.ausloeser || []).filter(function (x) { return x.id === id; })[0];
@@ -194,7 +184,8 @@
         if (!name) { rueck(tr_('Bitte einen Namen eingeben.'), true); el('aus-name').focus(); return; }
         var liste = (stand.ausloeser || []).map(function (x) { var k = {}; Object.keys(x).forEach(function (f) { if (f !== 'status') k[f] = x[f]; }); return k; });
         var ids = liste.map(function (x) { return x.id; });
-        var id = bearbeitet || (el('aus-id').value || '').trim() || kennung(name, ids);
+        // Ohne Kennung: der Server leitet sie aus dem Namen ab (programm.kennung_aus_name).
+        var id = bearbeitet || (el('aus-id').value || '').trim();
         var qt = el('aus-quelle-typ').value;
         var quelle = { typ: qt };
         if (qt === 'webhook') quelle.token = (el('aus-token').value || '').trim();
@@ -214,7 +205,7 @@
             aktion.dauer_s = dauer ? Number(dauer) : null;
         }
         var e = { id: id, name: name, aktiv: el('aus-aktiv').checked, quelle: quelle, aktion: aktion };
-        var i = ids.indexOf(id);
+        var i = id ? ids.indexOf(id) : -1;
         if (i >= 0) liste[i] = e; else liste.push(e);
         speichere(liste).then(function (ok) { if (ok) ausFormSchliessen(); });
     };
@@ -261,9 +252,7 @@
         lade();
         setInterval(ladeProtokoll, 5000);
         ['aus-id', 'aus-token'].forEach(function (id) { el(id).addEventListener('input', function () { if (el('aus-quelle-typ').value === 'webhook') webhookInfo(); }); });
-        if (window.EventSource) {
-            var q = new EventSource('/api/events');
-            q.addEventListener('config', function () { if (el('aus-form').hidden) lade(); });
-        }
+        // app.js haelt die eine SSE-Verbindung und reicht `config` als `lz-config` weiter.
+        document.addEventListener('lz-config', function () { if (el('aus-form').hidden) lade(); });
     });
 })();

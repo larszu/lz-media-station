@@ -145,7 +145,9 @@ def erzeuge_blueprint(controller):
 
     @bp.route("/api/meldung", methods=["POST"])
     def api_meldung_setzen():
-        daten = request.get_json(silent=True) or {}
+        daten = request.get_json(silent=True)
+        if not isinstance(daten, dict):
+            return jsonify({"error": "meldung: muss ein Objekt sein"}), 400
         daten.setdefault("aktiv", True)
         try:
             neu = meldung_setzen(daten)

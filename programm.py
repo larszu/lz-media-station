@@ -33,7 +33,7 @@ ZWEI POLITIKEN wie ueberall: `pruefe_programm` lehnt ab und nennt das Feld
 import re
 from datetime import date, datetime, timedelta
 
-from layouts import KENNUNG
+from layouts import FARBE, KENNUNG, ZONEN
 from zeitplan import TAGE, TAG_NAMEN, minuten
 
 #: Grenzen. Grosszuegig, aber endlich — eine Oberflaeche, die 10.000
@@ -45,7 +45,6 @@ PRIORITAET_MIN = 1
 PRIORITAET_MAX = 9
 PRIORITAET_STANDARD = 5
 
-ZONEN = ("near", "mid", "far")
 _DATUM = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 #: Raster der Kalender-Vorschau in Minuten.
@@ -96,11 +95,26 @@ def _text(roh, feld, maximal, pflicht=True):
     return roh
 
 
-def kennung_aus_name(name, vergeben=()):
-    """`Speisekarte mittags` -> `speisekarte-mittags`, eindeutig gemacht."""
-    grund = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:36] or "eintrag"
+def _dauer(roh, feld):
+    """Sekunden > 0 (bis ein Tag) oder None. Eine Stelle fuer Meldung UND
+    Ausloeser — zwei Kopien dieser Grenze waren schon einmal auseinander."""
+    if roh is None or roh == "":
+        return None
+    if isinstance(roh, bool) or not isinstance(roh, (int, float)):
+        raise ValueError(f"{feld}: Sekunden > 0 oder leer")
+    if not (0 < float(roh) <= 86400):
+        raise ValueError(f"{feld}: 1..86400 s oder leer")
+    return float(roh)
+
+
+def kennung_aus_name(name, vergeben=(), vorgabe="eintrag"):
+    """`Speisekarte mittags` -> `speisekarte-mittags`, eindeutig gemacht.
+
+    Die Kennung entsteht HIER, nicht im Browser: eine zweite Fassung dieser
+    Regel in JavaScript wuerde beim naechsten Sonderfall auseinanderlaufen."""
+    grund = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:36] or vorgabe
     if grund[0] not in "abcdefghijklmnopqrstuvwxyz0123456789":
-        grund = "e-" + grund
+        grund = vorgabe[0] + "-" + grund
     kandidat, n = grund, 2
     while kandidat in vergeben:
         kandidat = f"{grund}-{n}"
@@ -185,6 +199,8 @@ def pruefe_programm(roh):
         raise ValueError(f"programm.ausnahmen: hoechstens {MAX_AUSNAHMEN}")
     heraus, ids = [], set()
     for i, e in enumerate(eintraege):
+        if isinstance(e, dict) and not e.get("id"):
+            e = dict(e, id=kennung_aus_name(e.get("name", ""), ids))
         sauber = pruefe_eintrag(e, f"programm.eintraege[{i}]")
         if sauber["id"] in ids:
             raise ValueError(f"programm.eintraege[{i}].id: {sauber['id']!r} gibt es schon")
@@ -395,8 +411,6 @@ def beschreibe_eintrag(eintrag):
 # Konfiguration, damit eine Anzeige, die neu laedt, sie wieder zeigt; `bis`
 # begrenzt sie, und der Ladeweg raeumt eine abgelaufene Meldung weg.
 
-from layouts import FARBE  # noqa: E402
-
 TEXT_MAX = 200
 UNTERTEXT_MAX = 400
 MELDUNG_FARBE = "#B04A3F"
@@ -422,10 +436,16 @@ def _zeitpunkt(roh, feld):
     if not isinstance(roh, str):
         raise ValueError(f"{feld}: Zeitpunkt als ISO-Text erwartet")
     try:
-        datetime.fromisoformat(roh)
+        t = datetime.fromisoformat(roh)
     except ValueError:
         raise ValueError(f"{feld}: {roh!r} ist kein Zeitpunkt") from None
-    return roh
+    # Immer als ORTSZEIT ohne Zone ablegen. `bis` wird spaeter mit
+    # `datetime.now()` verglichen, und Python vergleicht zonenbehaftet mit
+    # zonenlos nicht — der Vergleich wuerfe TypeError, und zwar erst nach
+    # dem Speichern, bei jedem Laden.
+    if t.tzinfo is not None:
+        t = t.astimezone().replace(tzinfo=None)
+    return t.isoformat(timespec="seconds")
 
 
 def pruefe_meldung(roh, jetzt=None):
@@ -447,12 +467,10 @@ def pruefe_meldung(roh, jetzt=None):
     if not isinstance(ton, bool):
         raise ValueError("meldung.ton: muss true oder false sein")
     m["ton"] = ton
-    dauer = roh.get("dauer_s")
-    if dauer is not None and dauer != "":
-        if isinstance(dauer, bool) or not isinstance(dauer, (int, float)) or not (0 < float(dauer) <= 86400):
-            raise ValueError("meldung.dauer_s: 1..86400 s oder leer")
-        m["dauer_s"] = float(dauer)
-        m["bis"] = (jetzt + timedelta(seconds=float(dauer))).isoformat(timespec="seconds")
+    dauer = _dauer(roh.get("dauer_s"), "meldung.dauer_s")
+    if dauer is not None:
+        m["dauer_s"] = dauer
+        m["bis"] = (jetzt + timedelta(seconds=dauer)).isoformat(timespec="seconds")
     else:
         m["bis"] = _zeitpunkt(roh.get("bis"), "meldung.bis")
     return m
@@ -466,7 +484,7 @@ def heile_meldung(roh, jetzt=None):
         return standard_meldung()
     try:
         m = pruefe_meldung(dict(roh, dauer_s=None), jetzt)
-    except ValueError as e:
+    except (ValueError, TypeError) as e:
         print(f"[Meldung] {e} — Meldung aus")
         return standard_meldung()
     if not meldung_gilt(m, jetzt):
@@ -482,8 +500,11 @@ def meldung_gilt(m, jetzt):
     if not bis:
         return True
     try:
-        return datetime.fromisoformat(bis) > jetzt
-    except ValueError:
+        t = datetime.fromisoformat(bis)
+        if t.tzinfo is not None:
+            t = t.astimezone().replace(tzinfo=None)
+        return t > jetzt
+    except (ValueError, TypeError):
         return False
 
 

@@ -340,6 +340,19 @@ def pruefe_pins(config, patch):
         raise ValueError(
             f"gpio_trigger und gpio_echo sind beide BCM {trig} — "
             "derselbe Pin kann nicht senden und empfangen")
+    # Und in die andere Richtung: ein Sensor-Pin darf nicht auf einen Pin
+    # wandern, an dem schon ein Taster-Ausloeser haengt. Die Ausloeser-Seite
+    # prueft das beim Anlegen des Tasters — hier wird es beim Verschieben des
+    # Sensors geprueft, sonst verliert der Taster beim naechsten Start still.
+    zusammen = dict(config or {})
+    zusammen.update(patch or {})
+    belegt = ausloeser_modul.belegte_pins(zusammen)
+    for e in zusammen.get("ausloeser") or []:
+        q = (e.get("quelle") or {}) if isinstance(e, dict) else {}
+        if q.get("typ") == "taster" and q.get("pin") in belegt:
+            raise ValueError(
+                f"{belegt[q['pin']]}: BCM {q['pin']} gehoert schon dem "
+                f"Taster-Ausloeser {e.get('id')!r}")
 
 
 def pruefe_schwellen(config, patch):
