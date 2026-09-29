@@ -49,7 +49,7 @@ class DerKern(unittest.TestCase):
         self.assertFalse(self.z.stimmt("4321"))
         with open(self.z.pfad) as f:
             d = json.load(f)
-        self.assertNotIn("1234", json.dumps(d))
+        self.assertNotIn('"1234"', json.dumps(d), "die PIN steht nirgends im Klartext")
         self.assertEqual(len(d["salz"]), 32)
         self.assertEqual(oct(os.stat(self.z.pfad).st_mode & 0o777), "0o600")
         # Neu geladen gilt dieselbe PIN.
@@ -80,7 +80,8 @@ class DerKern(unittest.TestCase):
 
     def test_entscheide_mit_pin(self):
         self.z.setzen("1234")
-        e = lambda m, p, adr="10.0.0.5", sitz=None, kopf=None: Z.entscheide(self.z, m, p, adr, sitz, kopf, 1000.0)
+        e = lambda m, p, adr="10.0.0.5", sitz=None, kopf=None: Z.entscheide(
+            self.z, m, p, adr, sitz, kopf, 1000.0, sitzung_gen=self.z.generation)
         self.assertEqual(e("GET", "/admin"), "anmelden")
         self.assertIsNone(e("GET", "/admin", sitz=2000.0))
         self.assertEqual(e("GET", "/admin", sitz=500.0), "anmelden", "abgelaufene Sitzung")
@@ -226,6 +227,134 @@ class UeberDieApi(unittest.TestCase):
         r = lokal.post("/api/zugang", json={"pin": "9999"}, environ_base={"REMOTE_ADDR": "127.0.0.1"})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(self.controller.zugang.stimmt("9999"))
+
+
+class ReviewFunde(unittest.TestCase):
+    """Was der Review zu PR #25 gefunden hat — jeder Fund ein Waechter.
+
+    WARUM. Vier davon betreffen die Sicherheit (offene Weiterleitung, Sitzungen
+    ueberleben den PIN-Wechsel, eine halb gesetzte PIN, ein CPU-Loch durch
+    PBKDF2 je Anfrage). Keiner faellt im Alltag auf, jeder faellt auf, wenn
+    ihn jemand ausnutzt.
+    """
+
+    def setUp(self):
+        self.ordner = tempfile.TemporaryDirectory()
+        self.z = Z.Zugang(os.path.join(self.ordner.name, "zugang.json"))
+
+    def tearDown(self):
+        self.ordner.cleanup()
+
+    def test_ungueltige_sitzungsdauer_laesst_die_alte_pin_stehen(self):
+        # Vorher: Hash und Salz waren schon getauscht, wenn die Dauer abgelehnt
+        # wurde — die NEUE PIN galt bis zum Neustart, die Datei hatte die alte.
+        self.z.setzen("1234")
+        with self.assertRaises(ValueError):
+            self.z.setzen("9999", sitzungsdauer_h=5000)
+        self.assertTrue(self.z.stimmt("1234"), "die alte PIN gilt weiter")
+        self.assertFalse(self.z.stimmt("9999"))
+        self.assertTrue(Z.Zugang(self.z.pfad).stimmt("1234"), "Datei und Speicher stimmen ueberein")
+
+    def test_pin_wechsel_macht_alte_sitzungen_ungueltig(self):
+        self.z.setzen("1234")
+        gen_alt = self.z.generation
+        self.assertIsNone(Z.entscheide(self.z, "POST", "/api/config", "10.0.0.5", 2000.0, None, 1000.0,
+                                       sitzung_gen=gen_alt))
+        self.z.setzen("4321")
+        self.assertEqual(Z.entscheide(self.z, "POST", "/api/config", "10.0.0.5", 2000.0, None, 1000.0,
+                                      sitzung_gen=gen_alt), "pin", "Cookie von vor dem Wechsel")
+        self.assertEqual(Z.entscheide(self.z, "GET", "/admin", "10.0.0.5", 2000.0, None, 1000.0,
+                                      sitzung_gen=gen_alt), "anmelden")
+        # Aufheben + neu setzen ebenso — und die Generation ueberlebt den Neustart.
+        self.z.aufheben(); self.z.setzen("1234")
+        self.assertNotEqual(Z.Zugang(self.z.pfad).generation, gen_alt)
+
+    def test_ohne_generation_im_cookie_gilt_keine_sitzung(self):
+        self.z.setzen("1234")
+        self.assertEqual(Z.entscheide(self.z, "POST", "/api/config", "10.0.0.5", 2000.0, None, 1000.0), "pin")
+
+    def test_der_kopf_wird_nur_einmal_teuer_geprueft(self):
+        self.z.setzen("1234")
+        from unittest.mock import patch
+        with patch.object(Z, "hash_pin", wraps=Z.hash_pin) as h:
+            for _ in range(5):
+                self.assertIsNone(Z.entscheide(self.z, "POST", "/api/config", "10.0.0.5", None, "1234", 0))
+            self.assertEqual(h.call_count, 1, "PBKDF2 nur beim ersten richtigen Kopf")
+            # Ein falscher Kopf wird nie gemerkt: er kostet jedes Mal — und zaehlt.
+            self.assertEqual(Z.entscheide(self.z, "POST", "/api/config", "10.0.0.5", None, "0000", 0), "falsche_pin")
+            self.assertEqual(Z.entscheide(self.z, "POST", "/api/config", "10.0.0.5", None, "0000", 0), "falsche_pin")
+            self.assertEqual(h.call_count, 3)
+        # Nach einem Wechsel gilt der gemerkte Wert nicht mehr.
+        self.z.setzen("4321")
+        self.assertEqual(Z.entscheide(self.z, "POST", "/api/config", "10.0.0.9", None, "1234", 0), "falsche_pin")
+
+    def test_weiter_ist_nur_ein_pfad_dieser_station(self):
+        for boese in ("https://fremd.example/admin", "//fremd.example", "/\\fremd.example",
+                      "/admin\r\nSet-Cookie: x", "admin", "", None, 7):
+            self.assertEqual(Z.sicherer_weiter(boese), "/admin", repr(boese))
+        self.assertEqual(Z.sicherer_weiter("/admin?tab=zonen"), "/admin?tab=zonen")
+        self.assertEqual(Z.sicherer_weiter("/display"), "/display")
+
+    def test_login_seite_leitet_nie_nach_aussen(self):
+        # Ueber die App: ohne PIN geht /login sofort weiter — aber nur intern.
+        ordner = tempfile.TemporaryDirectory()
+        alt = (api_zugang.ZUGANG_PFAD, api_zugang.GEHEIM_PFAD, api_wiedergabe.DB_PFAD)
+        api_zugang.ZUGANG_PFAD = os.path.join(ordner.name, "zugang.json")
+        api_zugang.GEHEIM_PFAD = os.path.join(ordner.name, "geheim.key")
+        api_wiedergabe.DB_PFAD = os.path.join(ordner.name, "w.sqlite")
+        try:
+            controller = main.Controller(json.loads(json.dumps(main.DEFAULT_CONFIG)))
+            controller.save_config = lambda: None
+            app = create_app(controller)
+            with app.test_client() as c:
+                r = c.get("/login?weiter=https://fremd.example/")
+                self.assertEqual(r.status_code, 302)
+                self.assertEqual(r.headers["Location"], "/admin")
+                r = c.get("/login?weiter=//fremd.example")
+                self.assertEqual(r.headers["Location"], "/admin")
+                # Mit PIN: das Formular bekommt nur den bereinigten Pfad.
+                c.post("/api/zugang", json={"pin": "1234"}, environ_base={"REMOTE_ADDR": "10.0.0.5"})
+                c.post("/api/zugang/logout")
+                seite = c.get("/login?weiter=//fremd.example", environ_base={"REMOTE_ADDR": "10.0.0.5"})
+                self.assertEqual(seite.status_code, 200)
+                self.assertIn('window.LZ_WEITER = "/admin";', seite.get_data(as_text=True))
+            wl = getattr(controller, "wiedergabe", None)
+            if wl:
+                wl.schliessen()
+        finally:
+            api_zugang.ZUGANG_PFAD, api_zugang.GEHEIM_PFAD, api_wiedergabe.DB_PFAD = alt
+            ordner.cleanup()
+
+    def test_auch_die_anmeldeseite_prueft_den_pfad_wie_der_kern(self):
+        # Der Client-Test in login.html muss `//` und Backslash ebenso abweisen.
+        quelle = (WURZEL / "templates" / "login.html").read_text(encoding="utf-8")
+        self.assertNotIn("indexOf('/') === 0", quelle, "der alte Test liess //fremd durch")
+        self.assertRegex(quelle, r"\(\?!\[\\/\\\\\]\)", "Lookahead gegen // und /\\ fehlt")
+
+    def test_sitzung_ueber_die_api_stirbt_mit_dem_pin_wechsel(self):
+        ordner = tempfile.TemporaryDirectory()
+        alt = (api_zugang.ZUGANG_PFAD, api_zugang.GEHEIM_PFAD, api_wiedergabe.DB_PFAD)
+        api_zugang.ZUGANG_PFAD = os.path.join(ordner.name, "zugang.json")
+        api_zugang.GEHEIM_PFAD = os.path.join(ordner.name, "geheim.key")
+        api_wiedergabe.DB_PFAD = os.path.join(ordner.name, "w.sqlite")
+        try:
+            controller = main.Controller(json.loads(json.dumps(main.DEFAULT_CONFIG)))
+            controller.save_config = lambda: None
+            app = create_app(controller)
+            env = {"REMOTE_ADDR": "10.0.0.5"}
+            tablet = app.test_client()
+            tablet.post("/api/zugang", json={"pin": "1234"}, environ_base=env)   # setzt und meldet an
+            self.assertEqual(tablet.post("/api/config", json={"system_name": "T"}, environ_base=env).status_code, 200)
+            # Jemand anderes aendert die PIN vom Pi aus.
+            app.test_client().post("/api/zugang", json={"pin": "4321"}, environ_base={"REMOTE_ADDR": "127.0.0.1"})
+            self.assertEqual(tablet.post("/api/config", json={"system_name": "T"}, environ_base=env).status_code, 401)
+            self.assertEqual(tablet.get("/admin", environ_base=env).status_code, 302)
+            wl = getattr(controller, "wiedergabe", None)
+            if wl:
+                wl.schliessen()
+        finally:
+            api_zugang.ZUGANG_PFAD, api_zugang.GEHEIM_PFAD, api_wiedergabe.DB_PFAD = alt
+            ordner.cleanup()
 
 
 if __name__ == "__main__":

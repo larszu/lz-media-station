@@ -53,7 +53,11 @@
                 });
                 var d = await r.json();
                 if (r.ok) {
-                    var ziel = (window.LZ_WEITER && String(window.LZ_WEITER).indexOf('/') === 0) ? window.LZ_WEITER : '/admin';
+                    // Nur ein Pfad dieser Station: `//fremd.example` liest der
+                    // Browser als Adresse mit Schema — das waere eine offene
+                    // Weiterleitung. Der Kern prueft dasselbe (zugang.sicherer_weiter).
+                    var w = String(window.LZ_WEITER || '');
+                    var ziel = (/^\/(?![\/\\])[^\\\r\n]*$/.test(w)) ? w : '/admin';
                     window.location.href = ziel;
                     return;
                 }

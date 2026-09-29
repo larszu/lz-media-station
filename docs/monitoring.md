@@ -19,6 +19,7 @@ Jede Anzeigeseite (`/display`) meldet sich alle **10 s** mit `POST
 Browser-Tab, Layout, Zone, was in **jeder Region** läuft, dazu die letzten
 JavaScript-Fehler der Seite.
 
+- `GET /api/anzeige/system` liefert die Systemwerte (Temperatur, Last, RAM, Platte).
 - `GET /api/anzeige` listet alle Anzeigen mit `online` (Puls jünger als 30 s),
   `alter_s`, `seit`, den Regionen und dem Zeitpunkt des letzten Screenshots;
   dazu die **Systemwerte** des Kerns (unten).

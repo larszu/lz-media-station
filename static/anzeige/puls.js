@@ -37,7 +37,7 @@
         }
     })();
 
-    var seit = new Date().toISOString().slice(0, 19);
+    var seit = jetztIso();
     var szene = null;
     var fehler = [];
     var puffer = [];
@@ -50,12 +50,23 @@
     function anzeige() { return window.LZ_ANZEIGE || null; }
     function inVorschau() { var a = anzeige(); return !!(a && a.vorschau && a.vorschau()); }
 
-    function post(url, daten) {
+    // `keepalive` nur fuer den letzten Puffer beim Verlassen der Seite: der
+    // Browser deckelt keepalive-Koerper bei 64 KiB und wirft groessere
+    // Anfragen weg, bevor sie das Netz sehen — ein Screenshot (bis 2 MB)
+    // oder ein voller Puffer kaeme so nie an.
+    var KEEPALIVE_MAX_B = 60 * 1024;
+    function post(url, daten, keepalive) {
+        var body = JSON.stringify(daten);
         return fetch(url, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(daten), keepalive: true
+            body: body, keepalive: !!keepalive && body.length <= KEEPALIVE_MAX_B
         });
     }
+
+    // Zeitstempel voll nach ISO mit `Z`: der Kern rechnet sie in seine Ortszeit
+    // um. Ohne das Z gilt eine UTC-Uhrzeit dort als Ortszeit — um den
+    // Zeitzonenversatz falsch.
+    function jetztIso() { return new Date().toISOString(); }
 
     document.addEventListener('lz-szene', function (e) { szene = e.detail || null; });
 
@@ -63,7 +74,7 @@
         if (inVorschau() || !e.detail || !e.detail.item) return;
         var item = e.detail.item;
         puffer.push({
-            zeit: new Date().toISOString().slice(0, 19),
+            zeit: jetztIso(),
             region: e.detail.region,
             typ: item.typ,
             name: item.name || item.url || '',
@@ -86,11 +97,14 @@
         }).catch(function () { /* Station nicht erreichbar — naechster Puls */ });
     }
 
-    function logSenden() {
+    function logSenden(beimVerlassen) {
         if (!puffer.length) return;
-        var eintraege = puffer.slice();
-        post('/api/wiedergabe', { kennung: kennung, eintraege: eintraege })
-            .then(function (r) { if (r.ok) puffer.splice(0, eintraege.length); })
+        // Beim Verlassen nur, was in eine keepalive-Anfrage passt — die
+        // juengsten Eintraege; der Rest ist in dieser Sitzung verloren.
+        var eintraege = beimVerlassen ? puffer.slice(-40) : puffer.slice();
+        var anzahl = eintraege.length;
+        post('/api/wiedergabe', { kennung: kennung, eintraege: eintraege }, !!beimVerlassen)
+            .then(function (r) { if (r.ok) puffer.splice(puffer.length - anzahl, anzahl); })
             .catch(function () { /* bleibt im Puffer */ });
     }
 
@@ -166,6 +180,6 @@
     // deshalb einen Augenblick, damit er schon Regionen nennen kann.
     setTimeout(puls, 1500);
     setInterval(puls, PULS_S * 1000);
-    setInterval(logSenden, LOG_S * 1000);
-    window.addEventListener('pagehide', logSenden);
+    setInterval(function () { logSenden(false); }, LOG_S * 1000);
+    window.addEventListener('pagehide', function () { logSenden(true); });
 })();

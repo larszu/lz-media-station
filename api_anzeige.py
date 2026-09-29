@@ -42,6 +42,30 @@ SCREENSHOT_MAX_B = 2 * 1024 * 1024
 WARTE_S = 4.0
 #: Mehr Puls-Fehlermeldungen je Anzeige gibt es nicht.
 FEHLER_MAX = 5
+#: Mehr Bilder haelt der Kern nicht — je Anzeige eines, und nur so viele
+#: Anzeigen. Der Screenshot-Weg ist unangemeldet (die Anzeige im Foyer kennt
+#: keine PIN); ohne Deckel koennte jeder im Gastnetz mit erfundenen Kennungen
+#: den Speicher des Pi mit 2-MB-Bildern fuellen.
+BILDER_MAX = 12
+#: Ein Bild, das so alt ist, wird beim naechsten Ablegen weggeraeumt — auch
+#: wenn zu seiner Kennung kein Puls mehr kommt.
+BILD_ALTER_S = 3600.0
+#: Kennung des echten Bildschirms (grim/scrot) — die einzige ohne Puls.
+SYSTEM_KENNUNG = "system"
+
+
+def _ortszeit(iso):
+    """Ein ISO-Zeitstempel der Anzeige (mit `Z` oder Versatz) als Ortszeit
+    des Kerns, ohne Zone — oder None, wenn er nichts taugt."""
+    if not isinstance(iso, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone().replace(tzinfo=None)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _kennung_ok(k):
@@ -92,7 +116,7 @@ class Anzeigenregister:
                 "vorschau": bool(daten.get("vorschau")),
                 "regionen": sauber,
                 "fehler": fehler,
-                "seit": alt.get("seit") or (daten.get("seit") if isinstance(daten.get("seit"), str) else None)
+                "seit": alt.get("seit") or _ortszeit(daten.get("seit"))
                         or datetime.fromtimestamp(jetzt).strftime("%Y-%m-%dT%H:%M:%S"),
                 "zuletzt_ts": jetzt,
             }
@@ -102,6 +126,19 @@ class Anzeigenregister:
         for k in [k for k, p in self._pulse.items() if jetzt - p["zuletzt_ts"] > VERGESSEN_S]:
             self._pulse.pop(k, None)
             self._bilder.pop(k, None)
+        self._bilder_begrenzen(jetzt)
+
+    def _bilder_begrenzen(self, jetzt):
+        """Alte Bilder weg, und nie mehr als BILDER_MAX — unabhaengig vom Puls."""
+        for k in [k for k, (_, t) in self._bilder.items() if jetzt - t > BILD_ALTER_S]:
+            self._bilder.pop(k, None)
+        while len(self._bilder) > BILDER_MAX:
+            aeltester = min(self._bilder, key=lambda k: self._bilder[k][1])
+            self._bilder.pop(aeltester, None)
+
+    def kennt(self, kennung):
+        with self._lock:
+            return kennung in self._pulse
 
     def liste(self):
         jetzt = self.uhr()
@@ -138,10 +175,20 @@ class Anzeigenregister:
         return None if not z["anzahl"] else z["online"] > 0
 
     def bild_ablegen(self, kennung, daten):
+        """Ein Bild zu einer Kennung, die sich schon per Puls gemeldet hat.
+
+        Ohne vorherigen Puls wird abgelehnt (ausser fuer den echten Bildschirm):
+        eine Kennung, die nie gepulst hat, ist keine Anzeige — und nur so
+        bleibt der Speicher an die Zahl echter Anzeigen gebunden.
+        """
         if not _kennung_ok(kennung):
-            raise ValueError("kennung")
+            raise ValueError("kennung: 1..64 Zeichen aus Buchstaben, Ziffern, '-' und '_'")
+        jetzt = self.uhr()
         with self._bedingung:
-            self._bilder[kennung] = (daten, self.uhr())
+            if kennung != SYSTEM_KENNUNG and kennung not in self._pulse:
+                raise ValueError("kennung: diese Anzeige hat sich noch nicht gemeldet (erst ein Puls)")
+            self._bilder[kennung] = (daten, jetzt)
+            self._bilder_begrenzen(jetzt)
             self._bedingung.notify_all()
 
     def bild(self, kennung=None):
@@ -153,13 +200,20 @@ class Anzeigenregister:
             return max(self._bilder.values(), key=lambda b: b[1])
 
     def warte_auf_bild(self, ab_zeit, timeout_s):
-        """Blockiert, bis ein Bild juenger als `ab_zeit` da ist — oder gibt None."""
+        """Blockiert, bis ein Bild juenger als `ab_zeit` da ist — oder gibt None.
+
+        Liefert `(kennung, (daten, zeit))`: die Kennung kommt von HIER, unter
+        dem Lock. Sie nachtraeglich im Woerterbuch zu suchen, waehrend andere
+        Anzeigen gerade ihre Bilder ablegen, hiesse ueber ein Woerterbuch zu
+        laufen, das sich dabei aendert — RuntimeError genau dann, wenn mehrere
+        Schirme antworten.
+        """
         ende = time.monotonic() + timeout_s
         with self._bedingung:
             while True:
-                neu = [b for b in self._bilder.values() if b[1] >= ab_zeit]
+                neu = [(k, b) for k, b in self._bilder.items() if b[1] >= ab_zeit]
                 if neu:
-                    return max(neu, key=lambda b: b[1])
+                    return max(neu, key=lambda kb: kb[1][1])
                 rest = ende - time.monotonic()
                 if rest <= 0:
                     return None
@@ -216,10 +270,16 @@ def erzeuge_blueprint(controller):
 
     @bp.route("/api/anzeige")
     def api_anzeige_liste():
-        """Alle Anzeigen mit letztem Puls — dazu die Systemwerte des Kerns
-        (Temperatur, Last, Speicher, Platte; None, wo es sie nicht gibt)."""
-        return jsonify({"anzeigen": register.liste(), **register.zusammenfassung(),
-                        "system": gesundheit.systemwerte(platz_pfad=os.path.dirname(os.path.abspath(__file__)))})
+        """Alle Anzeigen mit letztem Puls. Die Systemwerte stehen getrennt
+        unter `/api/anzeige/system` — die Liste wird alle 5 s geholt, und dafuer
+        muss der Kern nicht jedes Mal /sys und /proc lesen."""
+        return jsonify({"anzeigen": register.liste(), **register.zusammenfassung()})
+
+    @bp.route("/api/anzeige/system")
+    def api_anzeige_system():
+        """Die Systemwerte des Kerns: Temperatur, Last, Speicher, Platte —
+        None, wo es sie nicht gibt."""
+        return jsonify({"system": gesundheit.systemwerte(platz_pfad=os.path.dirname(os.path.abspath(__file__)))})
 
     @bp.route("/api/anzeige/puls", methods=["POST"])
     def api_anzeige_puls():
@@ -258,9 +318,9 @@ def erzeuge_blueprint(controller):
         `GET /api/anzeige/screenshot?kennung=…`."""
         echt = bildschirm_aufnehmen()
         if echt:
-            register.bild_ablegen("system", echt)
-            return jsonify({"ok": True, "kennung": "system", "quelle": "bildschirm",
-                            "url": "/api/anzeige/screenshot?kennung=system"})
+            register.bild_ablegen(SYSTEM_KENNUNG, echt)
+            return jsonify({"ok": True, "kennung": SYSTEM_KENNUNG, "quelle": "bildschirm",
+                            "url": f"/api/anzeige/screenshot?kennung={SYSTEM_KENNUNG}"})
         ab = register.uhr()
         controller.bus.senden("befehl", {"typ": "screenshot"})
         if not controller.bus.anzahl:
@@ -268,10 +328,10 @@ def erzeuge_blueprint(controller):
         daten = request.get_json(silent=True) or {}
         timeout = daten.get("timeout_s", WARTE_S)
         timeout = timeout if isinstance(timeout, (int, float)) and 0 < timeout <= 15 else WARTE_S
-        bild = register.warte_auf_bild(ab, timeout)
-        if not bild:
+        treffer = register.warte_auf_bild(ab, timeout)
+        if not treffer:
             return jsonify({"error": "Keine Anzeige hat innerhalb der Wartezeit ein Bild geliefert"}), 504
-        kennung = next((k for k, b in register._bilder.items() if b is bild), None)
+        kennung = treffer[0]
         return jsonify({"ok": True, "kennung": kennung, "quelle": "anzeigeseite",
                         "url": f"/api/anzeige/screenshot?kennung={kennung}"})
 
@@ -306,6 +366,8 @@ def erzeuge_blueprint(controller):
         """Eine Probenachricht — mit dem, was gerade eingestellt ist (oder
         dem Koerper der Anfrage, damit man vor dem Speichern pruefen kann)."""
         roh = request.get_json(silent=True)
+        if roh is not None and not isinstance(roh, dict):
+            return jsonify({"error": "Der Koerper muss ein Objekt sein"}), 400
         try:
             z = bn.pruefe({**ziel(), **(roh or {}), "aktiv": True})
         except ValueError as e:

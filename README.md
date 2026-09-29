@@ -518,7 +518,8 @@ All endpoints under `http://<pi-ip>:5000`.
 | Method | Path | Description |
 |---|---|---|
 | POST | `/api/anzeige/puls` | A display page reports in (every 10 s): id, layout, zone, what plays per region, last JS errors |
-| GET | `/api/anzeige` | All displays with `online`, `alter_s`, regions, last screenshot — plus the system values (temperature, load, RAM, disk) |
+| GET | `/api/anzeige` | All displays with `online`, `alter_s`, regions, last screenshot |
+| GET | `/api/anzeige/system` | System values of the core (temperature, load, RAM, disk; `null` where unavailable) |
 | POST | `/api/anzeige/screenshot/anfordern` | Request a screenshot: real screen (`grim`/`scrot`) or command to the display pages, waits up to 4 s |
 | POST | `/api/anzeige/screenshot` | A display page delivers its picture (`{kennung, bild: dataURL}`, max. 2 MB) |
 | GET | `/api/anzeige/screenshot` | The latest picture (`?kennung=`), header `X-LZ-Zeit` |

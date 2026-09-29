@@ -17,6 +17,7 @@ import json
 import sys
 import threading
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 WURZEL = Path(__file__).resolve().parent.parent
@@ -92,6 +93,7 @@ class DasRegister(unittest.TestCase):
         self.assertEqual([a["kennung"] for a in self.reg.liste()], ["a2"])
 
     def test_screenshot_wird_abgelegt_und_der_juengste_geliefert(self):
+        self.reg.puls("a1", puls()); self.reg.puls("a2", puls())
         self.reg.bild_ablegen("a1", (b"alt", "image/jpeg"))
         self.uhr.t += 5
         self.reg.bild_ablegen("a2", (b"neu", "image/jpeg"))
@@ -104,12 +106,15 @@ class DasRegister(unittest.TestCase):
 
     def test_warte_auf_bild_weckt_auf_wenn_eins_kommt(self):
         ab = self.uhr.t
+        self.reg.puls("a1", puls())
         def spaeter():
             self.uhr.t += 1
             self.reg.bild_ablegen("a1", (b"jpg", "image/jpeg"))
         threading.Timer(0.05, spaeter).start()
-        bild = self.reg.warte_auf_bild(ab, 2.0)
-        self.assertIsNotNone(bild)
+        treffer = self.reg.warte_auf_bild(ab, 2.0)
+        self.assertIsNotNone(treffer)
+        kennung, bild = treffer
+        self.assertEqual(kennung, "a1")
         self.assertEqual(bild[0][0], b"jpg")
 
 
@@ -204,7 +209,8 @@ class UeberDieApi(unittest.TestCase):
             self.assertEqual(c.post("/api/anzeige/puls", json=puls()).status_code, 200)
             liste = c.get("/api/anzeige").get_json()
             self.assertEqual(liste["online"], 1)
-            self.assertIn("system", liste)
+            self.assertNotIn("system", liste, "Systemwerte haengen nicht an der 5-s-Liste")
+            self.assertIn("system", c.get("/api/anzeige/system").get_json())
             self.assertEqual(c.get("/api/status").get_json()["anzeige"]["anzahl"], 1)
 
     def test_ohne_puls_meldet_der_zustand_die_fehlende_anzeige(self):
@@ -220,6 +226,7 @@ class UeberDieApi(unittest.TestCase):
     def test_screenshot_ablegen_und_holen(self):
         with self.app.test_client() as c:
             self.assertEqual(c.get("/api/anzeige/screenshot").status_code, 404)
+            c.post("/api/anzeige/puls", json=dict(puls(), kennung="a1"))
             r = c.post("/api/anzeige/screenshot", json={"kennung": "a1", "bild": PIXEL})
             self.assertEqual(r.status_code, 200)
             bild = c.get("/api/anzeige/screenshot?kennung=a1")
@@ -243,12 +250,105 @@ class UeberDieApi(unittest.TestCase):
         self.controller.bus.abonnieren()
         def liefere():
             with self.app.test_client() as c2:
+                c2.post("/api/anzeige/puls", json=dict(puls(), kennung="a9"))
                 c2.post("/api/anzeige/screenshot", json={"kennung": "a9", "bild": PIXEL})
         threading.Timer(0.05, liefere).start()
         with self.app.test_client() as c:
             r = c.post("/api/anzeige/screenshot/anfordern", json={"timeout_s": 2})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.get_json()["kennung"], "a9")
+
+
+class ReviewFunde(unittest.TestCase):
+    """Was der Review zu PR #25 am Register und am Puls-Skript gefunden hat.
+
+    WARUM. Der Screenshot-Weg ist unangemeldet und lag ohne Deckel im
+    Speicher; der Long-Poll lief ohne Lock ueber das Woerterbuch; das Skript
+    schickte Zeiten ohne Zone und alles mit `keepalive` — das der Browser bei
+    64 KiB abschneidet, also genau beim Screenshot.
+    """
+
+    def setUp(self):
+        self.uhr = Uhr()
+        self.reg = A.Anzeigenregister(uhr=self.uhr)
+
+    def test_ein_bild_braucht_einen_vorherigen_puls(self):
+        with self.assertRaises(ValueError):
+            self.reg.bild_ablegen("nie-gemeldet", (b"x", "image/jpeg"))
+        self.reg.bild_ablegen(A.SYSTEM_KENNUNG, (b"x", "image/jpeg"))   # der echte Schirm darf
+        self.reg.puls("a1", puls())
+        self.reg.bild_ablegen("a1", (b"x", "image/jpeg"))
+
+    def test_bilder_sind_gedeckelt_und_altern_unabhaengig_vom_puls(self):
+        for i in range(A.BILDER_MAX + 5):
+            k = f"a{i}"
+            self.reg.puls(k, puls(k))
+            self.reg.bild_ablegen(k, (b"x", "image/jpeg"))
+            self.uhr.t += 1
+        self.assertLessEqual(len(self.reg._bilder), A.BILDER_MAX)
+        self.assertIsNone(self.reg.bild("a0"), "das aelteste ist weg")
+        # Alter: ein Bild ohne weiteren Puls faellt nach BILD_ALTER_S heraus,
+        # obwohl sein Puls (VERGESSEN_S = 24 h) noch da ist.
+        self.uhr.t += A.BILD_ALTER_S + 1
+        self.reg.puls("frisch", puls("frisch"))
+        self.reg.bild_ablegen("frisch", (b"y", "image/jpeg"))
+        self.assertEqual(list(self.reg._bilder), ["frisch"])
+
+    def test_warte_auf_bild_nennt_die_kennung_selbst(self):
+        # Vorher suchte die Route die Kennung danach im Woerterbuch — ohne
+        # Lock, waehrend andere Anzeigen ablegten: RuntimeError bei 2+ Schirmen.
+        self.reg.puls("a1", puls("a1")); self.reg.puls("a2", puls("a2"))
+        ab = self.uhr.t
+        self.uhr.t += 1
+        self.reg.bild_ablegen("a1", (b"1", "image/jpeg"))
+        self.uhr.t += 1
+        self.reg.bild_ablegen("a2", (b"2", "image/jpeg"))
+        kennung, bild = self.reg.warte_auf_bild(ab, 0.1)
+        self.assertEqual(kennung, "a2")
+        self.assertEqual(bild[0][0], b"2")
+        quelle = (WURZEL / "api_anzeige.py").read_text(encoding="utf-8")
+        self.assertNotIn("register._bilder.items()", quelle, "keine Suche ausserhalb des Locks")
+
+    def test_seit_mit_z_wird_zur_ortszeit(self):
+        self.assertEqual(A._ortszeit("2026-06-14T13:02:00Z"),
+                         datetime(2026, 6, 14, 13, 2, tzinfo=timezone.utc).astimezone().strftime("%Y-%m-%dT%H:%M:%S"))
+        self.assertIsNone(A._ortszeit("gestern"))
+        self.assertIsNone(A._ortszeit(12))
+
+    def test_puls_skript_schickt_volle_iso_zeiten_und_keepalive_nur_beim_verlassen(self):
+        js = (WURZEL / "static" / "anzeige" / "puls.js").read_text(encoding="utf-8")
+        self.assertNotIn("toISOString().slice(0, 19)", js, "UTC-Zeit ohne Z galt im Kern als Ortszeit")
+        self.assertIn("function jetztIso() { return new Date().toISOString(); }", js)
+        self.assertEqual(js.count("keepalive:"), 1, "keepalive nur im post()-Helfer, nicht je Aufruf")
+        self.assertNotIn("keepalive: true", js)
+        self.assertIn("keepalive: !!keepalive && body.length <= KEEPALIVE_MAX_B", js)
+        self.assertIn("logSenden(true)", js, "nur der pagehide-Flush nutzt keepalive")
+        self.assertRegex(js, r"post\('/api/anzeige/screenshot', \{ kennung: kennung, bild: bild \}\)",
+                         "der Screenshot geht ohne keepalive")
+
+
+class ReviewFundeApi(unittest.TestCase):
+    def setUp(self):
+        self.controller = main.Controller(json.loads(json.dumps(main.DEFAULT_CONFIG)))
+        self.controller.save_config = lambda: None
+        self.app = create_app(self.controller)
+
+    def test_screenshot_ohne_puls_ist_400(self):
+        with self.app.test_client() as c:
+            r = c.post("/api/anzeige/screenshot", json={"kennung": "fremd", "bild": PIXEL})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("Puls", r.get_json()["error"])
+
+    def test_benachrichtigung_test_mit_liste_ist_400_nicht_500(self):
+        with self.app.test_client() as c:
+            self.assertEqual(c.post("/api/benachrichtigung/test", json=[]).status_code, 400)
+            self.assertEqual(c.post("/api/benachrichtigung/test", json="x").status_code, 400)
+
+    def test_monitor_holt_systemwerte_getrennt_und_seltener(self):
+        js = (WURZEL / "static" / "module" / "monitor.js").read_text(encoding="utf-8")
+        self.assertIn("fetch('/api/anzeige/system')", js)
+        self.assertEqual(js.count("fetch('/api/anzeige')"), 1, "die 5-s-Liste ohne Systemwerte")
+        self.assertIn("setInterval(ladeSystem, 15000)", js)
 
 
 if __name__ == "__main__":

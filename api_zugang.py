@@ -30,7 +30,12 @@ def _zugang(controller):
 
 def _anmelden(z):
     session["zugang_bis"] = time.time() + z.sitzungsdauer_h * 3600
+    session["zugang_gen"] = z.generation
     session.permanent = True
+
+
+def _angemeldet(z):
+    return Z.sitzung_gilt(z, session.get("zugang_bis"), session.get("zugang_gen"), time.time())
 
 
 def erzeuge_blueprint(controller):
@@ -39,17 +44,17 @@ def erzeuge_blueprint(controller):
 
     @bp.route("/login")
     def login_seite():
-        if not z.gesetzt or session.get("zugang_bis", 0) > time.time():
-            return redirect(request.args.get("weiter") or "/admin")
+        weiter = Z.sicherer_weiter(request.args.get("weiter"))
+        if not z.gesetzt or _angemeldet(z):
+            return redirect(weiter)
         from web_ui import erweiterungen  # spaet: web_ui laedt dieses Modul
-        return render_template("login.html", weiter=request.args.get("weiter") or "/admin",
-                               **erweiterungen())
+        return render_template("login.html", weiter=weiter, **erweiterungen())
 
     @bp.route("/api/zugang")
     def api_zugang():
         return jsonify({
             "gesetzt": z.gesetzt,
-            "angemeldet": bool(session.get("zugang_bis", 0) > time.time()),
+            "angemeldet": _angemeldet(z),
             "lokal": Z.ist_lokal(request.remote_addr or ""),
             "sitzungsdauer_h": z.sitzungsdauer_h,
         })
@@ -61,7 +66,7 @@ def erzeuge_blueprint(controller):
         dass sie vergessen wurde: dann per SSH `curl` an localhost."""
         daten = request.get_json(silent=True) or {}
         adresse = request.remote_addr or ""
-        if z.gesetzt and not Z.ist_lokal(adresse) and session.get("zugang_bis", 0) <= time.time():
+        if z.gesetzt and not Z.ist_lokal(adresse) and not _angemeldet(z):
             if z.gesperrt(adresse):
                 return jsonify({"error": "Zu viele Fehlversuche — eine Minute warten"}), 429
             if not z.stimmt(daten.get("alt")):
@@ -89,6 +94,7 @@ def erzeuge_blueprint(controller):
         except OSError as e:
             return jsonify({"error": f"zugang.json nicht schreibbar: {e}"}), 500
         session.pop("zugang_bis", None)
+        session.pop("zugang_gen", None)
         return jsonify({"ok": True, "gesetzt": False})
 
     @bp.route("/api/zugang/login", methods=["POST"])
@@ -109,6 +115,7 @@ def erzeuge_blueprint(controller):
     @bp.route("/api/zugang/logout", methods=["POST"])
     def api_zugang_logout():
         session.pop("zugang_bis", None)
+        session.pop("zugang_gen", None)
         return jsonify({"ok": True})
 
     return bp
@@ -127,7 +134,8 @@ def init(app, controller):
     def tuersteher():
         grund = Z.entscheide(
             z, request.method, request.path, request.remote_addr or "",
-            session.get("zugang_bis"), request.headers.get("X-LZ-Pin"), time.time())
+            session.get("zugang_bis"), request.headers.get("X-LZ-Pin"), time.time(),
+            sitzung_gen=session.get("zugang_gen"))
         if grund is None:
             return None
         if grund == "anmelden":

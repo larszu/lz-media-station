@@ -28,6 +28,10 @@ anzufordern ist Sache der Verwaltung.
 - **PIN setzen** in der Karte: 4–12 Zeichen, keine Leerzeichen, zweimal
   eingeben. Wer sie setzt, ist danach angemeldet.
 - **Ändern** braucht die bisherige PIN (`alt`) — oder eine gültige Sitzung.
+- **Jeder Wechsel** (setzen, ändern, aufheben) beendet alle bestehenden
+  Sitzungen — wer die PIN ändert, will genau das: das Tablet im Foyer ist
+  danach abgemeldet. Der Manager schickt seine PIN je Aufruf und merkt
+  nichts davon, solange er die neue kennt.
 - **Aufheben** braucht Sitzung oder Kopf; danach ist die Verwaltung wieder
   offen, und die Karte sagt es.
 - **Vergessen?** Per SSH auf dem Pi:
@@ -43,7 +47,7 @@ Stattdessen:
 
 | Datei | Inhalt | Rechte |
 |---|---|---|
-| `zugang.json` | PBKDF2-HMAC-SHA256-Hash (200 000 Runden), 16 Byte Salz, Sitzungsdauer | 0600 |
+| `zugang.json` | PBKDF2-HMAC-SHA256-Hash (200 000 Runden), 16 Byte Salz, Sitzungsdauer, Generation (zählt jeden Wechsel) | 0600 |
 | `geheim.key` | Sitzungs-Schlüssel, entsteht mit der ersten PIN | 0600 |
 
 Beide liegen neben `config.json` und bleiben beim Klonen zurück: eine geklonte
@@ -67,7 +71,7 @@ keine PIN.
 | DELETE | `/api/zugang` | aufheben |
 | POST | `/api/zugang/login` | `{pin}` → Sitzung |
 | POST | `/api/zugang/logout` | Sitzung beenden |
-| GET | `/login` | die Anmeldeseite (`?weiter=/admin`) |
+| GET | `/login` | die Anmeldeseite (`?weiter=/admin` — nur Pfade dieser Station, alles andere wird zu `/admin`) |
 
 Die Entscheidung selbst steht in `zugang.entscheide(...)` — rein, ohne Flask —
 und ist in `tests/test_zugang.py` durchgespielt.

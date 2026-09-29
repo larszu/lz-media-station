@@ -74,7 +74,16 @@ class Zugang:
         self.pin_hash = ""
         self.salz = ""
         self.sitzungsdauer_h = SITZUNG_H
+        #: Zaehlt jedes Setzen und Aufheben. Eine Sitzung traegt die Generation,
+        #: unter der sie entstand — nach einem PIN-Wechsel passt sie nicht mehr
+        #: und gilt nicht. Sonst bliebe das Tablet im Foyer angemeldet, dem
+        #: gerade die PIN entzogen wurde.
+        self.generation = 0
         self._versuche = {}   # adresse -> [zeitpunkte]
+        #: Der zuletzt als richtig erkannte Kopfwert `X-LZ-Pin`, an den Hash
+        #: gebunden, unter dem er stimmte. Spart die 200 000 PBKDF2-Runden
+        #: je Manager-Aufruf; ein neuer Hash macht ihn wertlos.
+        self._kopf_ok = None   # (pin_hash, pin) oder None
         self._laden()
 
     # --- Ablage -----------------------------------------------------------
@@ -87,6 +96,8 @@ class Zugang:
             self.salz = d.get("salz") or ""
             h = d.get("sitzungsdauer_h", SITZUNG_H)
             self.sitzungsdauer_h = h if isinstance(h, (int, float)) and 1 <= h <= 24 * 30 else SITZUNG_H
+            g = d.get("generation", 0)
+            self.generation = g if isinstance(g, int) and not isinstance(g, bool) and g >= 0 else 0
         except (OSError, ValueError):
             pass
         if self.pin_hash and not self.salz:
@@ -97,7 +108,8 @@ class Zugang:
         tmp = self.pfad + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump({"pin_hash": self.pin_hash, "salz": self.salz,
-                       "sitzungsdauer_h": self.sitzungsdauer_h}, f)
+                       "sitzungsdauer_h": self.sitzungsdauer_h,
+                       "generation": self.generation}, f)
         os.chmod(tmp, 0o600)
         os.replace(tmp, self.pfad)
 
@@ -108,22 +120,37 @@ class Zugang:
         return bool(self.pin_hash)
 
     def setzen(self, pin, sitzungsdauer_h=None):
+        # ERST alles pruefen, DANN aendern: eine abgelehnte Sitzungsdauer darf
+        # nicht schon die neue PIN im Speicher hinterlassen, waehrend in der
+        # Datei die alte steht — bis zum Neustart gaelte dann eine PIN, die
+        # laut Antwort abgelehnt wurde.
         pruefe_pin_form(pin)
+        if sitzungsdauer_h is not None:
+            if not isinstance(sitzungsdauer_h, (int, float)) or isinstance(sitzungsdauer_h, bool) \
+                    or not 1 <= sitzungsdauer_h <= 24 * 30:
+                raise ValueError("sitzungsdauer_h: 1..720 Stunden")
+        salz = secrets.token_bytes(16)
+        neuer_hash = hash_pin(pin, salz)
         with self._lock:
-            salz = secrets.token_bytes(16)
+            alt = (self.pin_hash, self.salz, self.sitzungsdauer_h, self.generation)
             self.salz = salz.hex()
-            self.pin_hash = hash_pin(pin, salz)
+            self.pin_hash = neuer_hash
             if sitzungsdauer_h is not None:
-                if not isinstance(sitzungsdauer_h, (int, float)) or isinstance(sitzungsdauer_h, bool) \
-                        or not 1 <= sitzungsdauer_h <= 24 * 30:
-                    raise ValueError("sitzungsdauer_h: 1..720 Stunden")
                 self.sitzungsdauer_h = sitzungsdauer_h
-            self._speichern()
+            self.generation += 1
+            self._kopf_ok = None
+            try:
+                self._speichern()
+            except OSError:
+                self.pin_hash, self.salz, self.sitzungsdauer_h, self.generation = alt
+                raise
 
     def aufheben(self):
         with self._lock:
             self.pin_hash = ""
             self.salz = ""
+            self.generation += 1
+            self._kopf_ok = None
             self._speichern()
 
     def stimmt(self, pin):
@@ -135,6 +162,27 @@ class Zugang:
         except ValueError:
             return False
         return hmac.compare_digest(erwartet, ist)
+
+    def stimmt_kopf(self, pin):
+        """Wie `stimmt`, aber mit Gedaechtnis fuer den letzten richtigen Wert.
+
+        Der Manager schickt die PIN mit JEDEM Aufruf; jede Pruefung kostet
+        ~0,5 s Rechenzeit auf einem Pi. Stimmt der Wert mit dem zuletzt als
+        richtig erkannten ueberein (unter demselben Hash), ist er richtig —
+        in konstanter Zeit verglichen. Falsche Werte werden nie gemerkt, ein
+        Wechsel der PIN loescht das Gedaechtnis.
+        """
+        if not self.gesetzt or not isinstance(pin, str):
+            return False
+        with self._lock:
+            merk = self._kopf_ok
+        if merk is not None and merk[0] == self.pin_hash and hmac.compare_digest(merk[1], pin):
+            return True
+        if not self.stimmt(pin):
+            return False
+        with self._lock:
+            self._kopf_ok = (self.pin_hash, pin)
+        return True
 
     # --- Fehlversuche -----------------------------------------------------
 
@@ -203,15 +251,40 @@ def ist_lokal(adresse):
     return adresse in LOKAL
 
 
-def entscheide(zugang, methode, pfad, adresse, sitzung_bis, pin_kopf, jetzt):
+def sicherer_weiter(pfad, vorgabe="/admin"):
+    """Wohin es nach dem Anmelden geht — nur ein Pfad DIESER Station.
+
+    `?weiter=https://fremd.example` oder `//fremd.example` (der Browser liest
+    das als Adresse mit Schema) wuerde die Anmeldung zu einer Weiterleitung
+    auf eine fremde Seite machen. Erlaubt ist genau ein einzelner Schraegstrich
+    am Anfang, kein zweiter, kein Backslash, kein Zeilenumbruch.
+    """
+    if not isinstance(pfad, str) or not pfad.startswith("/") or len(pfad) > 512:
+        return vorgabe
+    if pfad.startswith("//") or pfad.startswith("/\\") or "\\" in pfad \
+            or any(c in pfad for c in "\r\n\x00"):
+        return vorgabe
+    return pfad
+
+
+def sitzung_gilt(zugang, sitzung_bis, sitzung_gen, jetzt):
+    """Eine Sitzung gilt, wenn sie nicht abgelaufen ist UND aus der aktuellen
+    PIN-Generation stammt. Ein Cookie aus der Zeit vor einem PIN-Wechsel
+    oder Aufheben+Setzen ist wertlos — genau dafuer wechselt man die PIN."""
+    return (isinstance(sitzung_bis, (int, float)) and sitzung_bis > jetzt
+            and sitzung_gen == zugang.generation)
+
+
+def entscheide(zugang, methode, pfad, adresse, sitzung_bis, pin_kopf, jetzt, sitzung_gen=None):
     """Reine Entscheidung: `None` = durchlassen, sonst ein Grund fuer 401/429/303.
 
-    `sitzung_bis` ist der Zeitstempel aus dem Cookie (oder None), `pin_kopf`
-    der Wert von `X-LZ-Pin` (oder None), `jetzt` die Unix-Zeit.
+    `sitzung_bis` ist der Zeitstempel aus dem Cookie (oder None), `sitzung_gen`
+    die PIN-Generation aus dem Cookie, `pin_kopf` der Wert von `X-LZ-Pin`
+    (oder None), `jetzt` die Unix-Zeit.
     """
     if not zugang.gesetzt:
         return None
-    angemeldet = isinstance(sitzung_bis, (int, float)) and sitzung_bis > jetzt
+    angemeldet = sitzung_gilt(zugang, sitzung_bis, sitzung_gen, jetzt)
     if pfad == "/admin":
         return None if angemeldet else "anmelden"
     if methode in ("GET", "HEAD", "OPTIONS"):
@@ -221,7 +294,7 @@ def entscheide(zugang, methode, pfad, adresse, sitzung_bis, pin_kopf, jetzt):
     if pin_kopf is not None:
         if zugang.gesperrt(adresse):
             return "gesperrt"
-        if zugang.stimmt(pin_kopf):
+        if zugang.stimmt_kopf(pin_kopf):
             zugang.erfolg(adresse)
             return None
         zugang.fehlversuch(adresse)

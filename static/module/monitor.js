@@ -91,7 +91,7 @@
 
     async function ladeSystem() {
         try {
-            var r = await fetch('/api/anzeige');
+            var r = await fetch('/api/anzeige/system');
             var d = await r.json();
             var sys = d.system || null;
             var ziel = el('monitor-system');

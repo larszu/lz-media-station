@@ -524,7 +524,8 @@ Alle Endpoints unter `http://<pi-ip>:5000`.
 | Method | Path | Beschreibung |
 |---|---|---|
 | POST | `/api/anzeige/puls` | Eine Anzeigeseite meldet sich (alle 10 s): Kennung, Layout, Zone, was je Region läuft, letzte JS-Fehler |
-| GET | `/api/anzeige` | Alle Anzeigen mit `online`, `alter_s`, Regionen, letztem Screenshot — dazu die Systemwerte (Temperatur, Last, RAM, Platte) |
+| GET | `/api/anzeige` | Alle Anzeigen mit `online`, `alter_s`, Regionen, letztem Screenshot |
+| GET | `/api/anzeige/system` | Systemwerte des Kerns (Temperatur, Last, RAM, Platte; `null`, wo es sie nicht gibt) |
 | POST | `/api/anzeige/screenshot/anfordern` | Screenshot anfordern: echter Bildschirm (`grim`/`scrot`) oder Befehl an die Anzeigeseiten, wartet bis 4 s |
 | POST | `/api/anzeige/screenshot` | Eine Anzeigeseite liefert ihr Bild (`{kennung, bild: dataURL}`, max. 2 MB) |
 | GET | `/api/anzeige/screenshot` | Das jüngste Bild (`?kennung=`), Kopf `X-LZ-Zeit` |
