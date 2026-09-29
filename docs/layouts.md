@@ -16,7 +16,7 @@ Playlist.
 **Region.** Ein Rechteck im Layout, angegeben in Prozent des Schirms. Eine
 Region ist entweder eine **Medien-Region** mit eigener Playlist oder eine
 **Widget-Region**, die ihre Fläche einem Widget überlässt (Uhr, Text,
-Wetter — die Widgets kommen als eigene Erweiterung). Regionen dürfen sich
+Wetter und weitere, siehe [Widgets](widgets.md)). Regionen dürfen sich
 überlappen; die **Ebene** (▲ ▼ im Panel) entscheidet, was oben liegt.
 
 **Eintrag.** Ein Element der Playlist: Video, Bild, Audio oder Webseite. Ein

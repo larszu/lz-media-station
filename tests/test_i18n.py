@@ -196,6 +196,18 @@ class Vollstaendig(unittest.TestCase):
                 self.assertIn("LZ_I18N_EN_EXTRA", datei(pfad))
                 wb = woerterbuch(pfad)
                 self.assertEqual(set(wb) <= {"texte", "muster", "html"}, True, pfad)
+                # `muster` ist eine LISTE von Paaren [Regex, Ersatz]. Ein Objekt
+                # `{}` sieht harmlos aus, legt aber im Browser (`concat`) ein
+                # Nicht-Paar in die Liste: `new RegExp(undefined)` passt auf
+                # jeden Text, der Ersatz fehlt, und die Uebersetzung der ganzen
+                # Verwaltung bricht mit einem TypeError ab. So geschehen am
+                # 2026-09-29 mit einem neuen Zusatzwoerterbuch.
+                m = wb.get("muster", [])
+                self.assertIsInstance(m, list, f"{pfad}: muster muss eine Liste sein")
+                for paar in m:
+                    self.assertTrue(isinstance(paar, list) and len(paar) == 2
+                                    and all(isinstance(x, str) for x in paar),
+                                    f"{pfad}: Muster {paar!r} ist kein Paar [Regex, Ersatz]")
 
 
 class ServerMeldungen(unittest.TestCase):

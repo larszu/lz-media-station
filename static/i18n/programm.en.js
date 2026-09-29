@@ -3,6 +3,13 @@
    ihn gegen templates/admin/zusatz/20-programm.html. */
 (window.LZ_I18N_EN_EXTRA = window.LZ_I18N_EN_EXTRA || []).push(/*JSON*/{
  "texte": {
+  "Mo": "Mon",
+  "Di": "Tue",
+  "Mi": "Wed",
+  "Do": "Thu",
+  "Fr": "Fri",
+  "Sa": "Sat",
+  "So": "Sun",
   "Wochenprogramm": "Weekly programme",
   "Zone wählen": "Choose zone",
   "Was läuft jetzt?": "What is playing now?",

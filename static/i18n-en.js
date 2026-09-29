@@ -186,6 +186,10 @@ window.LZ_I18N_EN = /*JSON*/{
   "Konfiguration": "Configuration",
   "Medien, Sensor & Zonen einrichten": "Set up media, sensor & zones",
   "Andere Geräte": "Other devices",
+  "Mit dem Handy einrichten": "Set up with your phone",
+  "Mit dem Handy scannen, um die Station einzurichten. Handy und Station müssen im selben Netz sein.": "Scan with your phone to set up the station. Phone and station must be on the same network.",
+  "Die Verwaltung ist mit einer PIN geschützt.": "The admin area is protected by a PIN.",
+  "QR-Code zur Verwaltung": "QR code to the admin area",
   "Im selben Netz, Anzeige:": "Same network, display:",
   "Konfiguration:": "Configuration:",
   "Adresse:": "Address:",
@@ -362,7 +366,7 @@ window.LZ_I18N_EN = /*JSON*/{
  ],
  "html": {
   "untertitel-hinweis": "Language codes separated by commas (e.g. <code>de, en</code>). From two languages on, buttons appear on the display. Empty = no switching. Subtitles must be <strong>WebVTT (.vtt)</strong> — that is all a browser plays.",
-  "sicherung-hinweis": "Saves all settings (zones, schedule, sensor, volumes) as a file — to clone a station or to restore after an SD card failure. <strong>Media files are not included.</strong>",
+  "sicherung-hinweis": "Saves all settings (zones, layouts, weekly programme, triggers, schedule, sensor, volumes) as a file — to clone a station or to restore after an SD card failure. <strong>Media files are not included.</strong>",
   "statistik-hinweis": "What is counted is <strong>when</strong> and <strong>how long</strong> someone stood in the near zone — nothing about individual people.",
   "zeitplan-mitternacht": "End <strong>00:00</strong> means midnight (end of day). An end <em>before</em> the start runs past midnight — e.g. 20:00 to 02:00.",
   "cec-label": "Switch the TV off outside the hours via HDMI-CEC (needs <code>cec-client</code>)"

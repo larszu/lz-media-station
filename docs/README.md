@@ -5,6 +5,8 @@ den Überblick; hier steht das Wie und — wichtiger — das **Warum**.
 
 | Dokument | Worum es geht |
 |---|---|
+| [Handbuch](handbuch.md) | **Für den Betrieb, ohne Technik**: einrichten per Handy, erster Inhalt, Layouts und Vorschau, Wochenprogramm, Sofortmeldung, Auslöser, Überwachung, PIN, Sicherung, Probleme lösen |
+| [Änderungen in 3.0](aenderungen-3.0.md) | Alles Neue in 3.0 und wie eine bestehende Station übernommen wird |
 | [Abstandsquellen](sensoren.md) | Ultraschall, Kamera und Taster einrichten; Kalibrierung der Kamera; **Vergleichsmatrix** aller gängigen Sensortypen mit Empfehlung je Anwendungsfall |
 | [Zonen und Wiedergabe](zonen.md) | Zwei oder drei Stufen (Nah/Mitte/Fern); Shuffle, „einmal abspielen", Reihenfolge, Standzeit je Bild |
 | [Zeitsteuerung](zeitsteuerung.md) | Wochenplan mit Öffnungszeiten (auch über Mitternacht), Fernseher per HDMI-CEC mitabschalten |
@@ -17,7 +19,7 @@ den Überblick; hier steht das Wie und — wichtiger — das **Warum**.
 | [Zugang](zugang.md) | Optionale PIN vor der Verwaltung: Anmeldeseite, Kopf `X-LZ-Pin` für den Manager, freie Meldewege der Anzeige, Ablage außerhalb der Konfiguration |
 | [Wochenprogramm und Sofortmeldung](programm.md) | Welches Layout eine Zone wann spielt: Wochenkalender mit Prioritäten, Ausnahmetage; eine Meldung über allem, sofort auf jedem Schirm |
 | [Auslöser](ausloeser.md) | Wenn … dann …: Webhook (Home Assistant, Node-RED), Taster, Uhrzeit, Video zu Ende, Zonenwechsel → Layout einblenden, Meldung, Schirm schwarz |
-| [Architektur 3.0](architektur-v3.md) | Layouts und Regionen mit gemischten Playlists, Gültigkeit je Eintrag, Ereignisse (SSE) statt Polling, Befehle an die Anzeige, Vorschau, Erweiterungspunkte für Welle 2 |
+| [Architektur 3.0](architektur-v3.md) | Layouts und Regionen mit gemischten Playlists, Gültigkeit je Eintrag, Ereignisse (SSE) statt Polling, Befehle an die Anzeige, Vorschau, Erweiterungspunkte |
 | [Widgets](widgets.md) | Uhr, Text-Folie mit Vorlagen, Laufschrift, Wetter, Nachrichten (RSS), Kalender (ICS), QR-Code, Webseite, Zähler und eigene HTML-Widgets; Proxys mit Zwischenspeicher, Verhalten ohne Netz |
 
 ## Zwei Dinge, die überall gelten

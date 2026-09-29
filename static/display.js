@@ -135,9 +135,17 @@
         waechter();
     }
 
-    setInterval(hole, 5000);
+    // Eingebettet in die Verwaltung (Vorschau, „Was läuft gerade?") KEINE
+    // eigene Ereignis-Verbindung: der Browser erlaubt je Station nur sechs
+    // offene HTTP/1.1-Verbindungen, und jede EventSource belegt eine davon
+    // dauerhaft. Eine Verwaltung mit Vorschau hielte sonst zwei, drei offene
+    // Tabs legten alle weiteren Anfragen still (am 2026-09-29 im Gesamtlauf
+    // so passiert: Seiten luden nicht mehr). Die Vorschau fragt stattdessen
+    // alle 2 s; der Editor laedt sie nach dem Speichern ohnehin neu.
+    var eingebettet = (vorschau || zuschauen) && window.top !== window;
+    setInterval(hole, eingebettet ? 2000 : 5000);
     hole();
-    verbinde();
+    if (!eingebettet) verbinde();
 
     /* ---- Befehle von /api/befehl ---- */
 
