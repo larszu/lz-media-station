@@ -10,7 +10,9 @@ Kreis.
 """
 import re
 
+import ausloeser as ausloeser_modul
 import layouts as layouts_modul
+import programm as programm_modul
 from zeitplan import heile_zeitplan, standard_zeitplan
 
 #: ALLE moeglichen Zonen, von nah nach fern. "mid" ist optional und wird nur
@@ -190,6 +192,12 @@ DEFAULT_CONFIG = {
     # und docs/architektur-v3.md. Eine frische Station hat je Zone ein leeres
     # Vollbild-Layout — und verhaelt sich damit exakt wie vor 3.0.
     "layouts": layouts_modul.standard_layouts(),
+    # Wochenprogramm, Sofortmeldung und Ausloeser (Welle 2). Alle drei sind in
+    # der Vorgabe leer bzw. aus — eine Station von vor 3.0 verhaelt sich
+    # exakt wie vorher. Schema: programm.py, ausloeser.py.
+    "programm": programm_modul.standard_programm(),
+    "meldung": programm_modul.standard_meldung(),
+    "ausloeser": ausloeser_modul.standard_ausloeser(),
 }
 
 
@@ -332,6 +340,19 @@ def pruefe_pins(config, patch):
         raise ValueError(
             f"gpio_trigger und gpio_echo sind beide BCM {trig} — "
             "derselbe Pin kann nicht senden und empfangen")
+    # Und in die andere Richtung: ein Sensor-Pin darf nicht auf einen Pin
+    # wandern, an dem schon ein Taster-Ausloeser haengt. Die Ausloeser-Seite
+    # prueft das beim Anlegen des Tasters — hier wird es beim Verschieben des
+    # Sensors geprueft, sonst verliert der Taster beim naechsten Start still.
+    zusammen = dict(config or {})
+    zusammen.update(patch or {})
+    belegt = ausloeser_modul.belegte_pins(zusammen)
+    for e in zusammen.get("ausloeser") or []:
+        q = (e.get("quelle") or {}) if isinstance(e, dict) else {}
+        if q.get("typ") == "taster" and q.get("pin") in belegt:
+            raise ValueError(
+                f"{belegt[q['pin']]}: BCM {q['pin']} gehoert schon dem "
+                f"Taster-Ausloeser {e.get('id')!r}")
 
 
 def pruefe_schwellen(config, patch):
@@ -399,6 +420,10 @@ def heile_config(cfg):
     # alter Zonenlisten ins Zonen-Layout. Danach stimmen Layout und Spiegel
     # ueberein.
     layouts_modul.heile_layouts_und_zonen(cfg, heile_zone)
+    # Wochenprogramm, Sofortmeldung, Ausloeser: eintragsweise heilen (Welle 2).
+    cfg["programm"] = programm_modul.heile_programm(cfg.get("programm"))
+    cfg["meldung"] = programm_modul.heile_meldung(cfg.get("meldung"))
+    cfg["ausloeser"] = ausloeser_modul.heile_ausloeser(cfg.get("ausloeser"), cfg)
     return cfg
 
 
