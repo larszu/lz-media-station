@@ -192,6 +192,9 @@ werden.
 | Was | Wo | Wie |
 |---|---|---|
 | API-Routen | `api_<name>.py` im Wurzelverzeichnis | `def erzeuge_blueprint(controller)` gibt einen Flask-Blueprint zurück; `create_app` registriert jedes `api_*.py`. Vorbild: `api_layouts.py`. Schreibzugriffe: unter `controller.lock`, danach `controller.save_config()` und `controller.melde_config()` |
+| Hooks an der App, Hintergrundfäden | optional `def init(app, controller)` im selben `api_*.py` | wird nach dem Registrieren einmal gerufen. `api_zugang.init` hängt den Türsteher (`before_request`) an, `api_anzeige.init` startet den Wächter der Benachrichtigung (nur wenn eingeschaltet). Ein Fehler darin verhindert den Start nicht — das Modul wird genannt und übersprungen |
+| Ereignisse der Anzeige | `document.addEventListener('lz-<typ>', …)` in `static/anzeige/*.js` | `lz-szene` (Szene angewandt, `detail` = Szene), `lz-eintrag` (`{region, item, idx}` bei jedem Start eines Eintrags), `lz-befehl` (jeder Befehl von `/api/befehl`, auch die, die display.js nicht kennt). Dazu `window.LZ_ANZEIGE` mit `regionen()`, `buehne()`, `vorschau()`, `melde(typ, daten)`. Die Skripte laufen **vor** display.js und hören deshalb am `document` |
+| Layout-Regeln | `controller.layout_regeln.append(fn)` | `fn(zone, jetzt, config)` liefert eine Layout-Kennung oder None; die erste Antwort gewinnt (Wochenprogramm, Auslöser). Eine Kennung, die es nicht gibt, zählt nicht; eine werfende Regel wird geloggt |
 | Karten im Admin | `templates/admin/zusatz/<name>.html` | wird alphabetisch vor der Karte „Über" eingebunden (Jinja `include`) |
 | Skripte im Admin | `static/module/<name>.js` | läuft nach `app.js`; `el()`, `esc()`, `tr()`, `config`, `sendeZone()` stehen bereit |
 | Skripte auf der Anzeige | `static/anzeige/<name>.js` | läuft vor `display.js` — hier gehört `widgets.js` hin |

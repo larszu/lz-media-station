@@ -92,3 +92,9 @@ models/*.onnx
 # Die gebaute Projektseite (scripts/build-site.py). Sie entsteht in CI neu;
 # eine eingecheckte Kopie waere ein zweiter Stand derselben Doku.
 _site/
+
+# Proof-of-Play, Zugangsschutz (Betriebsdaten der einzelnen Station)
+wiedergabe.sqlite
+wiedergabe.sqlite-*
+zugang.json
+geheim.key

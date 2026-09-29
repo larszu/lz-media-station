@@ -44,6 +44,7 @@ function render() {
                 <button data-act="start">▶ Start</button>
                 <button data-act="stop">■ Stop</button>
                 <button data-act="open">🌐 Admin</button>
+                <button data-act="pin" title="PIN der Station">🔑</button>
                 <button data-act="reboot" class="danger">⟲</button>
                 <button data-act="remove" style="margin-left:auto">🗑</button>
             </div>`;
@@ -68,13 +69,63 @@ function esc(s) {
     return String(s).replace(/[<>&"']/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+/* ---- Zugangsschutz (3.0): PIN je Station ----
+   Antwortet eine Station mit 401 und `zugang`, verlangt sie eine PIN. Der
+   Dialog fragt sie ab, der Hauptprozess merkt sie sich und schickt sie ab
+   dann als X-LZ-Pin mit; der Aufruf wird einmal wiederholt. */
+let pinAufloesung = null;
+let pinStation = null;
+
+function fragePin(s, hinweis) {
+    return new Promise((resolve) => {
+        pinAufloesung = resolve;
+        pinStation = s;
+        el('pin-station').textContent = `${s.name || s.host} (${s.host}:${s.port})` + (hinweis ? ' — ' + tr(hinweis) : '');
+        el('pin-wert').value = '';
+        el('pin-feedback').textContent = '';
+        el('pin-dialog').classList.remove('hidden');
+        el('pin-wert').focus();
+    });
+}
+function schliessePin(ergebnis) {
+    el('pin-dialog').classList.add('hidden');
+    if (pinAufloesung) { const r = pinAufloesung; pinAufloesung = null; r(ergebnis); }
+}
+el('pin-ok').onclick = async () => {
+    const pin = el('pin-wert').value.trim();
+    if (!pin) { el('pin-feedback').textContent = tr('PIN eingeben'); el('pin-feedback').className = 'error'; return; }
+    if (pinStation) await window.station.setPin(pinStation.id, pin);
+    schliessePin(true);
+};
+el('pin-loeschen').onclick = async () => {
+    if (pinStation) await window.station.setPin(pinStation.id, null);
+    schliessePin(false);
+};
+el('pin-cancel').onclick = () => schliessePin(false);
+el('pin-wert').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('pin-ok').click(); });
+
+// Ein API-Aufruf, der bei 401 die PIN erfragt und es einmal noch versucht.
+async function apiMitPin(s, action, method, body) {
+    let r = await window.station.api(s.id, action, method, body);
+    if (r && r.needsPin) {
+        const ok = await fragePin(s, 'Die Station verlangt eine PIN');
+        if (ok) r = await window.station.api(s.id, action, method, body);
+    }
+    return r;
+}
+
 async function handleAction(s, action) {
-    if (action === 'start') await window.station.api(s.id, 'start', 'POST');
-    else if (action === 'stop') await window.station.api(s.id, 'stop', 'POST');
+    if (action === 'start') await apiMitPin(s, 'start', 'POST');
+    else if (action === 'stop') await apiMitPin(s, 'stop', 'POST');
     else if (action === 'open') await window.station.openAdmin(s.id);
+    else if (action === 'pin') {
+        const info = await window.station.accessInfo(s.id);
+        await fragePin(s, info.gesetzt ? (info.gespeichert ? 'PIN gespeichert' : 'Die Station verlangt eine PIN')
+                                       : 'Diese Station hat keine PIN');
+    }
     else if (action === 'reboot') {
         if (confirm(tr(`Station "${s.name}" neu starten?`)))
-            await window.station.api(s.id, 'system/reboot', 'POST');
+            await apiMitPin(s, 'system/reboot', 'POST');
     }
     else if (action === 'remove') {
         if (confirm(tr(`Station "${s.name}" aus der Liste entfernen?`)))
@@ -116,21 +167,32 @@ el('add-ok').onclick = async () => {
     }
 };
 
+function stationById(id) { return stations.find(x => x.id === id) || { id, name: id, host: '?', port: '' }; }
+
+async function bulk(action, method) {
+    let fehler = 0;
+    for (const id of selected) {
+        const r = await apiMitPin(stationById(id), action, method);
+        if (!r || !r.ok) fehler++;
+    }
+    return fehler;
+}
+
 el('bulk-start').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
-    for (const id of selected) await window.station.api(id, 'start', 'POST');
-    setFeedback(`✓ ${selected.size} gestartet`, 'success');
+    const fehler = await bulk('start', 'POST');
+    setFeedback(fehler ? `✗ ${fehler} Fehler von ${selected.size}` : `✓ ${selected.size} gestartet`, fehler ? 'error' : 'success');
 };
 el('bulk-stop').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
-    for (const id of selected) await window.station.api(id, 'stop', 'POST');
-    setFeedback(`✓ ${selected.size} gestoppt`, 'success');
+    const fehler = await bulk('stop', 'POST');
+    setFeedback(fehler ? `✗ ${fehler} Fehler von ${selected.size}` : `✓ ${selected.size} gestoppt`, fehler ? 'error' : 'success');
 };
 el('bulk-reboot').onclick = async () => {
     if (!selected.size) return setFeedback('Keine Auswahl', 'error');
     if (!confirm(tr(`${selected.size} Stationen neu starten?`))) return;
-    for (const id of selected) await window.station.api(id, 'system/reboot', 'POST');
-    setFeedback(`✓ Reboot an ${selected.size}`, 'success');
+    const fehler = await bulk('system/reboot', 'POST');
+    setFeedback(fehler ? `✗ ${fehler} Fehler von ${selected.size}` : `✓ Reboot an ${selected.size}`, fehler ? 'error' : 'success');
 };
 
 document.querySelectorAll('[data-upload]').forEach(btn => {
@@ -142,6 +204,7 @@ document.querySelectorAll('[data-upload]').forEach(btn => {
         setFeedback(`Lade ${files.length} ${type} an ${selected.size} hoch...`);
         const r = await window.station.uploadTo(Array.from(selected), type, files);
         const fails = r.filter(x => !x.ok);
+        if (fails.some(x => x.needsPin)) return setFeedback('✗ Eine Station verlangt eine PIN — 🔑 an der Karte', 'error');
         setFeedback(fails.length
             ? `✗ ${fails.length} Fehler von ${r.length}`
             : `✓ Alle ${r.length} Uploads ok`,
@@ -161,6 +224,7 @@ el('bulk-push-config').onclick = async () => {
     if (!Object.keys(cfg).length) return setFeedback('Keine Felder gesetzt', 'error');
     const r = await window.station.pushConfig(Array.from(selected), cfg);
     const fails = r.filter(x => !x.ok);
+    if (fails.some(x => x.needsPin)) return setFeedback('✗ Eine Station verlangt eine PIN — 🔑 an der Karte', 'error');
     setFeedback(fails.length ? `✗ ${fails.length} Fehler` : `✓ Config an ${r.length} gepusht`,
         fails.length ? 'error' : 'success');
 };

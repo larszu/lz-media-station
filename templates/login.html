@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LZ Media Station – Anmeldung</title>
+    <link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav>
+        <div class="nav-brand">
+            <a href="/" class="logo-link"><img class="signet" src="/static/brand/lzm_signet_offwhite_tally.svg" alt="Startseite" height="32"></a>
+            <h1>LZ Media Station – Anmeldung</h1>
+        </div>
+        <div class="nav-right">
+            <button type="button" class="lang-switch" id="lang-switch">EN</button>
+        </div>
+    </nav>
+    <main>
+        <section class="card" style="max-width:420px; margin:40px auto">
+            <h2>PIN</h2>
+            <p class="karten-hinweis">Diese Station ist mit einer PIN gesch&uuml;tzt. Die Anzeige l&auml;uft ohne Anmeldung weiter.</p>
+            <form id="login-form" autocomplete="off">
+                <div class="form-group">
+                    <label for="login-pin">PIN</label>
+                    <input type="password" id="login-pin" autocomplete="current-password" autofocus placeholder="PIN eingeben">
+                </div>
+                <button class="btn btn-save" type="submit">Anmelden</button>
+            </form>
+            <div id="login-feedback" class="feedback"></div>
+        </section>
+    </main>
+    <script>
+        window.LZ_WEITER = {{ weiter | tojson }};
+    </script>
+    <script src="/static/i18n-en.js"></script>
+    {% for s in i18n_extra %}<script src="{{ s }}"></script>
+    {% endfor %}<script src="/static/i18n.js"></script>
+    <script>
+    (function () {
+        var form = document.getElementById('login-form');
+        var fb = document.getElementById('login-feedback');
+        function tr(t) { return (window.LZ && window.LZ.t) ? window.LZ.t(t) : t; }
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            fb.textContent = '';
+            fb.className = 'feedback';
+            try {
+                var r = await fetch('/api/zugang/login', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pin: document.getElementById('login-pin').value })
+                });
+                var d = await r.json();
+                if (r.ok) {
+                    // Nur ein Pfad dieser Station: `//fremd.example` liest der
+                    // Browser als Adresse mit Schema — das waere eine offene
+                    // Weiterleitung. Der Kern prueft dasselbe (zugang.sicherer_weiter).
+                    var w = String(window.LZ_WEITER || '');
+                    var ziel = (/^\/(?![\/\\])[^\\\r\n]*$/.test(w)) ? w : '/admin';
+                    window.location.href = ziel;
+                    return;
+                }
+                fb.textContent = '✗ ' + tr(d.error || 'PIN stimmt nicht');
+                fb.className = 'feedback error';
+            } catch (err) {
+                fb.textContent = '✗ ' + tr('Station nicht erreichbar');
+                fb.className = 'feedback error';
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

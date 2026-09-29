@@ -1,0 +1,36 @@
+<!-- Zugang (3.0): eine PIN vor der Verwaltung. Skript: static/module/zugang.js -->
+<section class="card" id="card-zugang">
+    <h2>Zugang</h2>
+    <p class="karten-hinweis" data-i18n="zugang-hinweis">
+        Ohne PIN ist die Verwaltung f&uuml;r jeden im Netz offen &mdash; wie bisher. Mit PIN verlangt
+        <code>/admin</code> eine Anmeldung, und jede &Auml;nderung &uuml;ber die Schnittstelle braucht die
+        PIN im Kopf <code>X-LZ-Pin</code> (so schickt sie der Station Manager). Die Anzeigeseite
+        und der Kiosk auf dem Pi selbst bleiben frei. Die PIN steht <strong>nicht</strong> in der
+        Konfiguration und wandert nicht mit einer Sicherung.
+    </p>
+    <div id="zugang-stand" class="stat-name" style="margin-bottom:8px"></div>
+    <div class="settings-grid">
+        <div class="form-group" id="zugang-alt-gruppe" hidden>
+            <label for="zugang-alt">Bisherige PIN</label>
+            <input type="password" id="zugang-alt" autocomplete="current-password" placeholder="nur beim &Auml;ndern">
+        </div>
+        <div class="form-group">
+            <label for="zugang-pin">Neue PIN (4&ndash;12 Zeichen)</label>
+            <input type="password" id="zugang-pin" autocomplete="new-password" placeholder="mindestens 4 Zeichen">
+        </div>
+        <div class="form-group">
+            <label for="zugang-pin2">Neue PIN wiederholen</label>
+            <input type="password" id="zugang-pin2" autocomplete="new-password" placeholder="noch einmal">
+        </div>
+        <div class="form-group">
+            <label for="zugang-dauer">Angemeldet bleiben (Stunden)</label>
+            <input type="number" id="zugang-dauer" min="1" max="720" step="1" value="24">
+        </div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px">
+        <button class="btn btn-save" style="width:auto; margin-top:0" onclick="setzePin()">PIN setzen</button>
+        <button class="btn btn-stop" id="zugang-aufheben" hidden onclick="hebePinAuf()">PIN aufheben</button>
+        <button class="btn btn-stop" id="zugang-abmelden" hidden onclick="abmelden()">Abmelden</button>
+    </div>
+    <div id="zugang-feedback" class="feedback"></div>
+</section>

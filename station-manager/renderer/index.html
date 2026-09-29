@@ -61,6 +61,21 @@
         <webview id="detail-frame" src="about:blank"></webview>
     </div>
 
+    <!-- PIN dialog (Zugangsschutz 3.0): erscheint, wenn eine Station 401 antwortet -->
+    <div id="pin-dialog" class="hidden">
+        <div class="modal">
+            <h3>PIN der Station</h3>
+            <p class="modal-hinweis" id="pin-station"></p>
+            <label>PIN<input id="pin-wert" type="password" autocomplete="off" placeholder="PIN eingeben"></label>
+            <div class="btn-row">
+                <button id="pin-ok" class="primary">Speichern</button>
+                <button id="pin-loeschen">Vergessen</button>
+                <button id="pin-cancel">Abbrechen</button>
+            </div>
+            <div id="pin-feedback"></div>
+        </div>
+    </div>
+
     <!-- Add dialog -->
     <div id="add-dialog" class="hidden">
         <div class="modal">

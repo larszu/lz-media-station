@@ -58,6 +58,17 @@
   derselben Seite, die auf dem Schirm läuft — ohne Sensor, ohne Auto-Start
 - **Die Anzeige leitet nie mehr zum Admin um**: ein Schirm im Foyer bleibt
   schwarz und sagt in einer dezenten Zeile, was fehlt
+- **Monitoring**: jede Anzeigeseite meldet alle 10 s, was sie je Region
+  spielt; die Verwaltung zeigt verbundene Anzeigen, einen **Screenshot auf
+  Abruf** (echter Bildschirm per `grim`/`scrot` auf dem Pi, sonst von der
+  Seite gezeichnet), CPU-Temperatur, Last, RAM — siehe [`docs/monitoring.md`](docs/monitoring.md)
+- **Proof-of-Play**: jeder Start eines Eintrags landet in einer SQLite-Datei;
+  Auswertung je Datei/Tag/Stunde/Layout und CSV-Export, Aufbewahrung einstellbar
+- **Benachrichtigung**: ntfy (Push aufs Handy) oder Webhook bei einem
+  **Wechsel** — Störung, Anzeige verloren oder zurück, Beginn der Öffnungszeit
+- **Zugangsschutz**: optionale PIN vor der Verwaltung; Schreibzugriffe brauchen
+  die Sitzung oder den Kopf `X-LZ-Pin` (der Station Manager schickt ihn), die
+  Anzeige und der Kiosk selbst bleiben frei — siehe [`docs/zugang.md`](docs/zugang.md)
 - **Erweiterungspunkte**: `api_*.py`-Blueprints, `templates/admin/zusatz/`,
   `static/module/`, `static/anzeige/`, `static/i18n/` — Welle 2 (Layout-Editor,
   Widgets, Zeitplanung) legt nur Dateien hin
@@ -457,6 +468,12 @@ keinen Player-Prozess.)
 | `widgets.py` | Widget-Kern (3.0): Abruf mit Zwischenspeicher, RSS/Atom- und ICS-Parser (nur Standardbibliothek), Open-Meteo, Einbettungs-Prüfung, eigene Widget-Ordner |
 | `api_widgets.py` | Blueprint für die Widget-Proxys (`/api/widgets/*`) und die Dateien eigener Widgets (`/widgets/<name>/<path>`) |
 | `ereignisse.py` | Ereignisbus für Server-Sent Events (rein, ohne Flask) |
+| `api_anzeige.py` | Puls der Anzeigeseiten, Screenshot auf Abruf, Einstellungen der Benachrichtigung (`/api/anzeige/*`, `/api/benachrichtigung/*`) |
+| `wiedergabe_log.py` | Proof-of-Play: SQLite-Protokoll jedes gestarteten Eintrags, Deduplizierung, Aufbewahrung, CSV |
+| `api_wiedergabe.py` | Blueprint für die Proof-of-Play-Routen (`/api/wiedergabe/*`) |
+| `benachrichtigung.py` | Melder: meldet **Übergänge** (Störung, Anzeige weg/zurück, Öffnungszeit) per ntfy oder Webhook; reine Entscheidung, Versand getrennt |
+| `zugang.py` | Zugangsschutz: PIN-Hash (PBKDF2), Fehlversuche, die reine Entscheidung `entscheide()` — die PIN liegt in `zugang.json`, nicht in der Konfiguration |
+| `api_zugang.py` | Anmeldeseite, `/api/zugang/*`, der Türsteher (`before_request`) |
 | `programm.py` | Wochenprogramm (welches Layout wann, Prioritäten, Ausnahmetage) und Sofortmeldung — rein, die Zeit wird hereingereicht |
 | `api_programm.py` | Blueprint: `/api/programm`, `/api/meldung`; hängt die Programm-Regel in den Controller |
 | `ausloeser.py` | Auslöser: Quellen (Webhook, Taster, Uhrzeit, Video zu Ende, Zone) und Aktionen; eigener Faden, GPIO-Taster, Protokoll |
@@ -559,6 +576,24 @@ Abruf, kommt der letzte Stand als `veraltet: true`, Fehler als `{fehler}` mit
 | DELETE | `/api/media/<type>/<name>` | Aus allen Zonen entfernen (Datei bleibt liegen) |
 | GET | `/media/<type>/<name>` | Datei ausliefern |
 
+### Monitoring, Proof-of-Play, Zugang (3.0)
+
+| Method | Path | Beschreibung |
+|---|---|---|
+| POST | `/api/anzeige/puls` | Eine Anzeigeseite meldet sich (alle 10 s): Kennung, Layout, Zone, was je Region läuft, letzte JS-Fehler |
+| GET | `/api/anzeige` | Alle Anzeigen mit `online`, `alter_s`, Regionen, letztem Screenshot |
+| GET | `/api/anzeige/system` | Systemwerte des Kerns (Temperatur, Last, RAM, Platte; `null`, wo es sie nicht gibt) |
+| POST | `/api/anzeige/screenshot/anfordern` | Screenshot anfordern: echter Bildschirm (`grim`/`scrot`) oder Befehl an die Anzeigeseiten, wartet bis 4 s |
+| POST | `/api/anzeige/screenshot` | Eine Anzeigeseite liefert ihr Bild (`{kennung, bild: dataURL}`, max. 2 MB) |
+| GET | `/api/anzeige/screenshot` | Das jüngste Bild (`?kennung=`), Kopf `X-LZ-Zeit` |
+| POST | `/api/wiedergabe` | Proof-of-Play: `{kennung, eintraege: [{zeit, region, typ, name\|url, layout_id, zone}]}` — dedupliziert |
+| GET | `/api/wiedergabe/zusammenfassung` | Starts je `gruppe=datei\|tag\|stunde\|layout\|zone`, `?von=&bis=` (Kalendertage) |
+| GET | `/api/wiedergabe.csv` | Jeder Start eine Zeile (`;`-getrennt), `?von=&bis=` |
+| GET/PUT | `/api/benachrichtigung` | Einstellungen `{aktiv, ziel_typ: ntfy\|webhook, url, topic, ereignisse}` |
+| POST | `/api/benachrichtigung/test` | Probenachricht mit dem übergebenen (oder gespeicherten) Ziel |
+| GET/POST/DELETE | `/api/zugang` | PIN gesetzt? / setzen oder ändern (`{pin, alt?, sitzungsdauer_h?}`) / aufheben |
+| POST | `/api/zugang/login` · `/api/zugang/logout` | Sitzung für `/admin` (die Seite ist `/login`) |
+
 ### Statistik
 
 | Method | Path | Beschreibung |
@@ -595,6 +630,8 @@ stehen in [`docs/`](docs/README.md) — dort steht das Wie und, wichtiger, das
 | [Gleichtakt](docs/gleichtakt.md) | Eine Station folgt der Zone einer anderen |
 | [Betrieb](docs/betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung |
 | [Layouts](docs/layouts.md) | Regionen mit gemischten Playlists, Vorlagen, der Editor (ziehen und skalieren mit Maus und Finger, Gültigkeit je Eintrag), Live-Vorschau mit Zeitpunkt, „Was läuft gerade?" |
+| [Monitoring](docs/monitoring.md) | Puls der Anzeigeseiten, Screenshot auf Abruf, Systemwerte, Proof-of-Play, Benachrichtigung |
+| [Zugang](docs/zugang.md) | Optionale PIN: Anmeldeseite, `X-LZ-Pin` für den Manager, freie Meldewege der Anzeige, Ablage außerhalb der Konfiguration |
 | [Wochenprogramm und Sofortmeldung](docs/programm.md) | Welches Layout eine Zone wann spielt: Kalender mit Prioritäten, Ausnahmetage; eine Meldung über allem |
 | [Auslöser](docs/ausloeser.md) | Wenn … dann …: Webhook, Taster, Uhrzeit, Video zu Ende, Zonenwechsel → Layout, Meldung, Schirm aus |
 | [Architektur 3.0](docs/architektur-v3.md) | Layouts und Regionen, Gültigkeit je Eintrag, SSE statt Polling, Befehle, Vorschau, Erweiterungspunkte |

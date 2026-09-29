@@ -13,4 +13,8 @@ contextBridge.exposeInMainWorld('station', {
     pickFiles: (type) => ipcRenderer.invoke('media:pickFiles', type),
     uploadTo: (ids, type, files) => ipcRenderer.invoke('media:uploadToStations', ids, type, files),
     pushConfig: (ids, cfg) => ipcRenderer.invoke('config:pushToStations', ids, cfg),
+    // Zugangsschutz (3.0): PIN je Station merken; sie geht als X-LZ-Pin mit.
+    setPin: (id, pin) => ipcRenderer.invoke('station:setPin', id, pin),
+    hasPin: (id) => ipcRenderer.invoke('station:hasPin', id),
+    accessInfo: (id) => ipcRenderer.invoke('station:accessInfo', id),
 });

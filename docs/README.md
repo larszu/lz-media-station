@@ -13,6 +13,8 @@ den Überblick; hier steht das Wie und — wichtiger — das **Warum**.
 | [Gleichtakt](gleichtakt.md) | Mehrere Stationen im Takt: eine folgt der Zone einer anderen |
 | [Betrieb](betrieb.md) | Medien-Check beim Upload, Sicherung und Wiederherstellung der Konfiguration |
 | [Layouts](layouts.md) | Regionen mit gemischten Playlists, Vorlagen, der Editor (ziehen und skalieren mit Maus und Finger, Gültigkeit je Eintrag), Live-Vorschau mit Zeitpunkt, „Was läuft gerade?" |
+| [Monitoring](monitoring.md) | Puls der Anzeigeseiten („was läuft gerade"), Screenshot auf Abruf, Systemwerte, **Proof-of-Play** (SQLite, CSV), **Benachrichtigung** per ntfy oder Webhook bei Störung, verlorener Anzeige, Beginn der Öffnungszeit |
+| [Zugang](zugang.md) | Optionale PIN vor der Verwaltung: Anmeldeseite, Kopf `X-LZ-Pin` für den Manager, freie Meldewege der Anzeige, Ablage außerhalb der Konfiguration |
 | [Wochenprogramm und Sofortmeldung](programm.md) | Welches Layout eine Zone wann spielt: Wochenkalender mit Prioritäten, Ausnahmetage; eine Meldung über allem, sofort auf jedem Schirm |
 | [Auslöser](ausloeser.md) | Wenn … dann …: Webhook (Home Assistant, Node-RED), Taster, Uhrzeit, Video zu Ende, Zonenwechsel → Layout einblenden, Meldung, Schirm schwarz |
 | [Architektur 3.0](architektur-v3.md) | Layouts und Regionen mit gemischten Playlists, Gültigkeit je Eintrag, Ereignisse (SSE) statt Polling, Befehle an die Anzeige, Vorschau, Erweiterungspunkte für Welle 2 |

@@ -147,7 +147,7 @@ main {
     width: 32px; height: 32px; border-radius: 0;
     font-size: 1.2rem; line-height: 1; cursor: pointer;
 }
-#add-dialog {
+#add-dialog, #pin-dialog {
     position: fixed; inset: 0;
     background: var(--overlay);
     display: flex; align-items: center; justify-content: center;
@@ -162,7 +162,8 @@ main {
 .modal h3 { margin-bottom: 12px; }
 .modal label { display: block; font-size: 0.8rem; margin-bottom: 8px; color: var(--muted); }
 .modal label input { margin-top: 4px; }
-#add-feedback { font-size: 0.75rem; margin-top: 8px; min-height: 1em; }
+#add-feedback, #pin-feedback { font-size: 0.75rem; margin-top: 8px; min-height: 1em; }
+.modal-hinweis { font-size: 0.8rem; color: var(--muted); margin-bottom: 10px; }
 .success { color: var(--green); }
 .about { margin-top: 24px; }
 .about .about-logo { display: block; width: 160px; height: auto; margin: 8px 0 12px; }

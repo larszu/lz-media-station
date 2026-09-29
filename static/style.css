@@ -432,3 +432,10 @@ select:focus-visible, textarea:focus-visible {
 /* --- Layout-Auswahl je Zone (seit 3.0) ------------------------------------ */
 .zone-layout-wahl { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.85rem; color: var(--text-dim); }
 .zone-layout-wahl select { flex: 1; min-width: 0; }
+
+/* --- Monitor (3.0, static/module/monitor.js) ------------------------------ */
+.monitor-screenshot { margin-top: 10px; }
+.monitor-screenshot img { display: block; max-width: 100%; border: 1px solid var(--line-steel); }
+.monitor-region { font-size: 0.8rem; color: var(--text-dim); padding: 2px 0 2px 18px; }
+.monitor-anzeige.offline .media-name { color: var(--text-dim); }
+.monitor-anzeige .health-befund { margin-top: 6px; }
