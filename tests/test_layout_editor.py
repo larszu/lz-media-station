@@ -152,8 +152,7 @@ class ReviewFunde(unittest.TestCase):
 
     def test_kein_neuzeichnen_waehrend_zug_oder_eingabe(self):
         u = re.search(r"function uebernimm\(\) \{(.*?)\n    \}", MODUL, re.S).group(1)
-        self.assertIn("if (zug) { nachholen = true; return; }", u)
-        self.assertIn("if (eingabeLaeuft())", u)
+        self.assertIn("if (zug || eingabeLaeuft()) { nachholen = true; return; }", u)
         self.assertIn("if (nachholen) { nachholen = false; uebernimm(); return; }", MODUL)
 
     def test_playlist_zug_wird_bei_dragend_geloescht_und_dateien_haben_vorrang(self):
@@ -171,10 +170,12 @@ class ReviewFunde(unittest.TestCase):
         self.assertIn("if (document.activeElement !== sel && html !== wahlHtml) { wahlHtml = html; sel.innerHTML = html; }", MODUL)
 
     def test_dynamische_texte_haben_ein_muster(self):
-        muster = [m for m, _ in self.I18N["muster"]]
+        # Die Muster stehen EINMAL — in layouts.en.js. Eine zweite Kopie im
+        # Editor-Woerterbuch hat die erste frueher still verdeckt.
+        layouts = json.loads((WURZEL / "static/i18n/layouts.en.js").read_text(encoding="utf-8").split("/*JSON*/")[1])
+        muster = [m for m, _ in layouts["muster"]]
         for text in ("Zonen: Nah, Fern", 'Layout "Foyer" löschen? Die Medien bleiben erhalten.'):
             self.assertTrue(any(re.match(m, text) for m in muster), text)
-        self.assertIn("Steuerung ist aus", self.I18N["texte"])
 
     def test_heute_kommt_aus_der_ortszeit(self):
         # Der Kern filtert mit datetime.now().date(); toISOString() waere UTC
@@ -188,6 +189,45 @@ class ReviewFunde(unittest.TestCase):
         self.assertNotIn("ZONEN_TEXT", MODUL)
         self.assertIn("window.ZONEN_NAMEN", MODUL)
 
+
+
+class ReviewFundeZweiteRunde(unittest.TestCase):
+    """Sieben Funde aus dem Review von PR #26 (2026-09-29)."""
+
+    U = re.search(r"function uebernimm\(\) \{(.*?)\n    \}", MODUL, re.S).group(1)
+
+    def test_der_schutz_steht_vor_dem_zustandstausch(self):
+        # Sonst liefe eine laufende Eingabe ins neue Modell oder ins Leere.
+        self.assertLess(self.U.index("if (zug || eingabeLaeuft())"), self.U.index("stand = window.layoutsStand"))
+
+    def test_nach_der_eingabe_wird_nachgeholt(self):
+        self.assertIn("document.addEventListener('focusout'", MODUL)
+        f = MODUL[MODUL.index("document.addEventListener('focusout'"):]
+        self.assertIn("nachholen = false; uebernimm();", f[:600])
+
+    def test_die_offene_layoutwahl_zaehlt_als_eingabe(self):
+        e = re.search(r"function eingabeLaeuft\(\) \{(.*?)\n    \}", MODUL, re.S).group(1)
+        self.assertIn("a.id === 'le-wahl'", e)
+
+    def test_ein_festhaengender_zug_sperrt_nicht_ewig(self):
+        self.assertIn("addEventListener('lostpointercapture', zugEnde)", MODUL)
+        self.assertIn("document.addEventListener('pointerup'", MODUL)
+        self.assertIn("if (zugHaengt()) zugEnde();", self.U)
+
+    def test_kein_muster_doppelt_im_editor_woerterbuch(self):
+        editor = json.loads((WURZEL / "static/i18n/layout-editor.en.js").read_text(encoding="utf-8").split("/*JSON*/")[1])
+        layouts = json.loads((WURZEL / "static/i18n/layouts.en.js").read_text(encoding="utf-8").split("/*JSON*/")[1])
+        doppelt = {m for m, _ in editor["muster"]} & {m for m, _ in layouts["muster"]}
+        self.assertEqual(doppelt, set())
+
+    def test_zonennamen_im_badge_werden_einzeln_uebersetzt(self):
+        n = re.search(r"function nutzerVon\(id\) \{(.*?)\n    \}", MODUL, re.S).group(1)
+        self.assertIn("n.push(tr(", n)
+
+    def test_anzeigetext_steht_im_woerterbuch_der_anzeige(self):
+        editor = json.loads((WURZEL / "static/i18n/layout-editor.en.js").read_text(encoding="utf-8").split("/*JSON*/")[1])
+        self.assertNotIn("Steuerung ist aus", editor["texte"])
+        self.assertIn('"Steuerung ist aus": "Control is off"', (WURZEL / "static/i18n-en.js").read_text(encoding="utf-8"))
 
 class Woerterbuch(unittest.TestCase):
     def test_die_karte_hat_ein_eigenes_woerterbuch(self):
