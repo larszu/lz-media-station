@@ -1,11 +1,12 @@
 // LZ Station Manager – Electron main process
 // Handles: window, mDNS discovery (_lzstation._tcp), HTTP calls to stations, multi-upload.
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { Bonjour } = require('bonjour-service');
+const alarme = require('./alarme');
 
 let mainWindow;
 let bonjour;
@@ -34,9 +35,46 @@ function persistPins() {
 function pinFor(s) { return s ? (pins[`${s.host}:${s.port}`] || null) : null; }
 function pinHeaders(s) { const p = pinFor(s); return p ? { 'X-LZ-Pin': p } : {}; }
 
+// Gruppen, Tags und Stummschaltung (3.0) — nur im Manager, die Station weiss
+// davon nichts. Schluessel wie bei den PINs host:port, damit die Zuordnung
+// eine neue Stations-Kennung ueberlebt.
+const gruppenPath = path.join(app.getPath('userData'), 'gruppen.json');
+let ordnung = { gruppe: {}, tags: {}, stumm: {} };
+try { ordnung = { ...ordnung, ...JSON.parse(fs.readFileSync(gruppenPath, 'utf8')) }; } catch { /* neu */ }
+function persistOrdnung() {
+    try { fs.writeFileSync(gruppenPath, JSON.stringify(ordnung, null, 2)); } catch { /* ignore */ }
+}
+function schluessel(s) { return `${s.host}:${s.port}`; }
+function ordnungFuer(s) {
+    const k = schluessel(s);
+    return { gruppe: ordnung.gruppe[k] || '', tags: ordnung.tags[k] || [], stumm: !!ordnung.stumm[k] };
+}
+
+// Alarme (3.0): neueste zuerst, gedeckelt; Stand je Station fuer den Vergleich.
+let alarmListe = [];
+const letzterStand = new Map();
+
+function emitAlarme() {
+    if (mainWindow) mainWindow.webContents.send('alarme:update', alarmListe);
+}
+
+function melde(s, eintraege) {
+    if (!eintraege.length) return;
+    const zeit = new Date().toISOString();
+    const stumm = ordnungFuer(s).stumm;
+    const neu = eintraege.map(a => ({ ...a, zeit, station: s.id, name: s.name || s.host, stumm }));
+    alarmListe = alarme.haengeAn(alarmListe, neu);
+    emitAlarme();
+    if (stumm || !Notification.isSupported()) return;
+    for (const a of neu) {
+        if (a.stufe === 'ok') continue;  // Entwarnung steht in der Liste, ohne Benachrichtigung
+        try { new Notification({ title: `${a.name}`, body: a.text, silent: false }).show(); } catch { /* ignore */ }
+    }
+}
+
 function emitStations() {
     if (!mainWindow) return;
-    mainWindow.webContents.send('stations:update', Array.from(stations.values()));
+    mainWindow.webContents.send('stations:update', Array.from(stations.values()).map(s => ({ ...s, ...ordnungFuer(s) })));
 }
 
 function upsertStation(s) {
@@ -69,6 +107,27 @@ function httpJson(url, opts = {}, body = null) {
     });
 }
 
+// Binaerer GET (Screenshots) — Puffer, Inhaltstyp, Aufnahmezeit.
+function httpRaw(url, opts = {}) {
+    return new Promise((resolve, reject) => {
+        const u = new URL(url);
+        const req = http.request({
+            hostname: u.hostname, port: u.port || 80, path: u.pathname + u.search,
+            method: 'GET', timeout: opts.timeout || 4000,
+        }, (res) => {
+            const teile = [];
+            res.on('data', d => teile.push(d));
+            res.on('end', () => resolve({
+                status: res.statusCode, daten: Buffer.concat(teile),
+                typ: res.headers['content-type'], zeit: res.headers['x-lz-zeit'],
+            }));
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(new Error('timeout')); });
+        req.end();
+    });
+}
+
 async function probeHost(host, port = 5000) {
     try {
         const r = await httpJson(`http://${host}:${port}/api/identity`, { timeout: 3500 });
@@ -87,28 +146,58 @@ async function probeHost(host, port = 5000) {
     return false;
 }
 
-async function pollAll() {
-    // Re-probe all known stations to update online state
-    const promises = [];
-    for (const s of stations.values()) {
-        promises.push((async () => {
-            try {
-                const r = await httpJson(`http://${s.host}:${s.port}/api/status`, { timeout: 3000 });
-                if (r.status === 200) {
-                    s.online = true;
-                    s.lastSeen = Date.now();
-                    s.distance = r.body.distance;
-                    s.state = r.body.state;
-                    s.active = r.body.active;
-                } else {
-                    s.online = false;
-                }
-            } catch {
-                s.online = false;
-            }
-        })());
+function standVon(s) {
+    return { online: !!s.online, health: s.health || null,
+             anzeigenOnline: s.anzeige ? s.anzeige.online : null,
+             anzeigenAnzahl: s.anzeige ? s.anzeige.anzahl : null };
+}
+
+// Alle 10 s: Status, Szene und Identitaet je Station. Drei kleine GETs statt
+// eines neuen Sammel-Endpunkts, damit der Manager auch mit Stationen der
+// Version 2 spricht (die kennen /api/scene und /api/identity schon).
+async function pollStation(s) {
+    const basis = `http://${s.host}:${s.port}`;
+    try {
+        const r = await httpJson(`${basis}/api/status`, { timeout: 3000 });
+        if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+        s.online = true;
+        s.lastSeen = Date.now();
+        s.distance = r.body.distance;
+        s.state = r.body.state;
+        s.active = r.body.active;
+        s.geschlossen = !!r.body.geschlossen;
+        s.anzeige = r.body.anzeige || null;
+    } catch {
+        s.online = false;
+        return;
     }
-    await Promise.allSettled(promises);
+    try {
+        const r = await httpJson(`${basis}/api/scene`, { timeout: 3000 });
+        if (r.status === 200 && r.body) {
+            s.zone = r.body.zone || null;
+            s.layoutId = r.body.layout_id || null;
+            s.layoutName = (r.body.layout && r.body.layout.name) || null;
+        }
+    } catch { /* bleibt beim letzten Stand */ }
+    try {
+        const r = await httpJson(`${basis}/api/identity`, { timeout: 3000 });
+        if (r.status === 200 && r.body) {
+            s.health = r.body.health || null;
+            s.healthAnzahl = r.body.health_anzahl || 0;
+            s.version = r.body.version || s.version;
+            s.name = r.body.name || s.name;
+        }
+    } catch { /* bleibt beim letzten Stand */ }
+}
+
+async function pollAll() {
+    await Promise.allSettled(Array.from(stations.values()).map(pollStation));
+    for (const s of stations.values()) {
+        const neu = standVon(s);
+        melde(s, alarme.uebergaenge(letzterStand.get(s.id), neu));
+        letzterStand.set(s.id, neu);
+        s.rot = alarme.istRot(neu);
+    }
     emitStations();
 }
 
@@ -203,6 +292,65 @@ ipcMain.handle('station:accessInfo', async (_e, id) => {
         return { ok: r.status === 200, gesetzt: !!(r.body && r.body.gesetzt), gespeichert: !!pinFor(s) };
     } catch (e) { return { error: e.message, gespeichert: !!pinFor(s) }; }
 });
+ipcMain.handle('ordnung:setzen', (_e, ids, aenderung) => {
+    // {gruppe?: string, tagDazu?: string, tagWeg?: string}
+    for (const id of ids) {
+        const s = stations.get(id);
+        if (!s) continue;
+        const k = schluessel(s);
+        if (typeof aenderung.gruppe === 'string') {
+            const g = aenderung.gruppe.trim().slice(0, 40);
+            if (g) ordnung.gruppe[k] = g; else delete ordnung.gruppe[k];
+        }
+        const tags = new Set(ordnung.tags[k] || []);
+        if (aenderung.tagDazu) tags.add(String(aenderung.tagDazu).trim().slice(0, 30));
+        if (aenderung.tagWeg) tags.delete(aenderung.tagWeg);
+        tags.delete('');
+        if (tags.size) ordnung.tags[k] = Array.from(tags).sort(); else delete ordnung.tags[k];
+    }
+    persistOrdnung();
+    emitStations();
+    return true;
+});
+ipcMain.handle('station:setStumm', (_e, id, stumm) => {
+    const s = stations.get(id);
+    if (!s) return false;
+    if (stumm) ordnung.stumm[schluessel(s)] = true; else delete ordnung.stumm[schluessel(s)];
+    persistOrdnung();
+    emitStations();
+    return true;
+});
+ipcMain.handle('alarme:list', () => alarmListe);
+ipcMain.handle('alarme:clear', () => { alarmListe = []; emitAlarme(); return true; });
+// Letzter Screenshot einer Station als data:-URL. `anfordern` bittet die
+// Station erst um ein frisches Bild (bis zu ~5 s).
+ipcMain.handle('station:screenshot', async (_e, id, anfordern) => {
+    const s = stations.get(id);
+    if (!s) return { error: 'unknown station' };
+    const basis = `http://${s.host}:${s.port}`;
+    let pfad = '/api/anzeige/screenshot';
+    let hinweis = null;
+    try {
+        if (anfordern) {
+            const r = await httpJson(`${basis}/api/anzeige/screenshot/anfordern`,
+                                     { method: 'POST', headers: pinHeaders(s), timeout: 8000 }, {});
+            if (r.status === 401) return { needsPin: true };
+            // Kein frisches Bild in der Wartezeit (z. B. Anzeige gedrosselt):
+            // das letzte vorhandene zeigen und den Grund dazu sagen, statt
+            // eine leere Kachel zu lassen.
+            if (r.status === 200) pfad = r.body.url || pfad;
+            else hinweis = (r.body && r.body.error) || `HTTP ${r.status}`;
+        }
+        const b = await httpRaw(`${basis}${pfad}`, { timeout: 5000 });
+        if (b.status !== 200) return hinweis ? { error: hinweis } : { fehlt: true };
+        return { ok: true, bild: `data:${b.typ || 'image/jpeg'};base64,${b.daten.toString('base64')}`,
+                 zeit: b.zeit || null, hinweis };
+    } catch (e) { return { error: e.message }; }
+});
+ipcMain.handle('station:adminUrl', (_e, id) => {
+    const s = stations.get(id);
+    return s ? `http://${s.host}:${s.port}/admin` : null;
+});
 ipcMain.handle('station:openAdmin', (_e, id) => {
     const s = stations.get(id);
     if (s) shell.openExternal(`http://${s.host}:${s.port}/admin`);
@@ -293,7 +441,8 @@ app.whenReady().then(() => {
     startDiscovery();
     // probe persisted manual entries
     manual.forEach(m => probeHost(m.host, m.port));
-    setInterval(pollAll, 4000);
+    setInterval(pollAll, 10000);
+    setTimeout(pollAll, 1500);
 });
 
 app.on('window-all-closed', () => {

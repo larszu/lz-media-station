@@ -146,11 +146,14 @@ The detailed documentation in [`docs/`](docs/README.md) is written in German.
 - Manages **several Pi stations** centrally
 - **Auto-discovery** via mDNS (`_lzstation._tcp` over Avahi)
 - **Add manually** by IP/hostname
-- Live polling: online state, distance, zone
-- **Bulk actions**: start / stop / reboot
+- **Tiles or list** per station: zone, active layout, health, displays online, last screenshot as preview (click = request a fresh one), version
+- **Search, groups and tags**: groups and tags live in the Manager only; filter by group or tag
+- **Bulk actions on the selection**, with a result per station: assign a layout to a zone, copy a layout to other stations (with a list of missing media), copy the weekly schedule (missing layouts are reported first), instant message on/off, start / stop / reboot
 - **Bulk upload**: the same file to N stations at once
 - **Config push**: station name, threshold, delay
-- Jump straight into each station's web admin
+- **Alerts**: polled every 10 s; a station going offline, health turning to *error* or a display dropping out raises a system notification and an entry in the alert list — mutable per station
+- **Admin embedded**: each station's `/admin` opens inside the Manager; "Open in browser" stays available
+- **PIN**: stations with an admin PIN are asked for it once; the Manager sends it as `X-LZ-Pin`
 - Builds for **Windows (NSIS + portable)**, **macOS (Intel + Apple Silicon)**, **Linux (AppImage)**
 
 ---
@@ -422,11 +425,13 @@ Artifacts end up in `station-manager/dist/`.
 
 1. **Discovery**: every Pi on the LAN with the Avahi service appears automatically
 2. **Add manually**: by IP when mDNS does not get through (e.g. via Tailscale)
-3. **Select**: click cards → bulk actions become active
-4. **Bulk**: start / stop / reboot, media upload, config push
-5. **Open admin**: each card opens `/admin` in the system browser
+3. **Organise**: give stations a group and tags (sidebar, "Group and tags"); filter at the top
+4. **Select**: click tiles, or "All visible" for everything the filter shows
+5. **Act**: assign or copy a layout, copy the weekly schedule, send an instant message, start / stop / reboot, upload, push config — the result list shows each station's outcome
+6. **Watch**: red tiles and the alert counter show what needs attention; the bell on a tile mutes that station
+7. **Admin**: "Admin" on a tile opens `/admin` inside the Manager
 
-The app's persistent data: `%APPDATA%\station-manager\stations.json` (Windows) or `~/Library/Application Support/station-manager/` (Mac).
+The app's persistent data (`stations.json`, `pins.json`, `gruppen.json`): `%APPDATA%\station-manager\` (Windows) or `~/Library/Application Support/station-manager/` (Mac).
 
 ---
 

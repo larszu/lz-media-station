@@ -145,11 +145,14 @@
 - Verwaltet **mehrere Pi-Stationen** zentral
 - **Auto-Discovery** via mDNS (`_lzstation._tcp` über Avahi)
 - **Manuelles Hinzufügen** per IP/Hostname
-- Live-Polling: Online-Status, Distanz, Zone
-- **Bulk-Aktionen**: Start / Stop / Reboot
+- **Kacheln oder Liste** je Station: Zone, aktives Layout, Gesundheit, Anzeigen online, letzter Screenshot als Vorschau (Klick = frisches Bild anfordern), Version
+- **Suche, Gruppen und Tags**: Gruppen und Tags liegen nur im Manager; Filter nach Gruppe oder Tag
+- **Massenaktionen auf die Auswahl**, mit Ergebnis je Station: Layout einer Zone zuweisen, Layout auf andere Stationen kopieren (mit Liste fehlender Medien), Wochenprogramm kopieren (fehlende Layouts werden vorher gemeldet), Sofortmeldung ein/aus, Start / Stop / Reboot
 - **Bulk-Upload**: dieselbe Datei an N Stationen gleichzeitig
 - **Config-Push**: Stationsname, Schwelle, Verzögerung
-- Direktsprung in die Web-Admin-UI jeder Station
+- **Alarme**: Abfrage alle 10 s; geht eine Station offline, kippt die Gesundheit auf *Fehler* oder fällt eine Anzeige weg, gibt es eine Systembenachrichtigung und einen Eintrag in der Alarmliste — je Station stummschaltbar
+- **Verwaltung eingebettet**: `/admin` jeder Station öffnet sich im Manager; „Im Browser öffnen" bleibt
+- **PIN**: Stationen mit Admin-PIN fragen einmal danach; der Manager schickt sie als `X-LZ-Pin` mit
 - Builds für **Windows (NSIS + Portable)**, **macOS (Intel + Apple Silicon)**, **Linux (AppImage)**
 
 ---
@@ -428,12 +431,14 @@ Artefakte in `station-manager/dist/`.
 ### Workflow
 
 1. **Discovery**: alle Pis im LAN mit Avahi-Service erscheinen automatisch
-2. **Manuell adden**: per IP wenn mDNS nicht durchkommt (z. B. via Tailscale)
-3. **Auswahl**: Karten anklicken → Bulk-Aktionen aktiv
-4. **Bulk**: Start / Stop / Reboot, Media-Upload, Config-Push
-5. **Admin öffnen**: pro Karte öffnet `/admin` im System-Browser
+2. **Manuell hinzufügen**: per IP, wenn mDNS nicht durchkommt (z. B. via Tailscale)
+3. **Ordnen**: Stationen bekommen eine Gruppe und Tags (Seitenleiste, „Gruppe und Tags"); oben filtern
+4. **Auswählen**: Kacheln anklicken, oder „Alle sichtbaren" für alles, was der Filter zeigt
+5. **Handeln**: Layout zuweisen oder kopieren, Wochenprogramm kopieren, Sofortmeldung, Start / Stop / Reboot, Upload, Config-Push — die Ergebnisliste zeigt jede Station einzeln
+6. **Beobachten**: rote Kacheln und der Alarmzähler zeigen, was Aufmerksamkeit braucht; die Glocke an einer Kachel schaltet die Station stumm
+7. **Verwaltung**: „Verwaltung" an einer Kachel öffnet `/admin` im Manager
 
-Persistente Daten der App: `%APPDATA%\station-manager\stations.json` (Win) bzw. `~/Library/Application Support/station-manager/` (Mac).
+Persistente Daten der App (`stations.json`, `pins.json`, `gruppen.json`): `%APPDATA%\station-manager\` (Win) bzw. `~/Library/Application Support/station-manager/` (Mac).
 
 ---
 

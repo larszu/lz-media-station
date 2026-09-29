@@ -17,4 +17,12 @@ contextBridge.exposeInMainWorld('station', {
     setPin: (id, pin) => ipcRenderer.invoke('station:setPin', id, pin),
     hasPin: (id) => ipcRenderer.invoke('station:hasPin', id),
     accessInfo: (id) => ipcRenderer.invoke('station:accessInfo', id),
+    // Signage 3.0: Ordnung, Alarme, Vorschau, eingebettete Verwaltung.
+    setOrdnung: (ids, aenderung) => ipcRenderer.invoke('ordnung:setzen', ids, aenderung),
+    setStumm: (id, stumm) => ipcRenderer.invoke('station:setStumm', id, stumm),
+    alarme: () => ipcRenderer.invoke('alarme:list'),
+    alarmeLeeren: () => ipcRenderer.invoke('alarme:clear'),
+    onAlarme: (cb) => ipcRenderer.on('alarme:update', (_e, list) => cb(list)),
+    screenshot: (id, anfordern) => ipcRenderer.invoke('station:screenshot', id, anfordern),
+    adminUrl: (id) => ipcRenderer.invoke('station:adminUrl', id),
 });

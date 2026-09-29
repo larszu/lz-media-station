@@ -44,3 +44,7 @@ jobs:
         run: python scripts/actions_node_runtime.py
       - name: Tests (Config-Heilung, Sensor-Filter)
         run: python -m unittest discover -s tests -v
+      # Die reine Logik des Station Managers (Alarm-Uebergaenge) — Node liegt
+      # auf dem Runner ohnehin bereit, dafuer braucht es keine weitere Action.
+      - name: Station Manager (node --test)
+        run: node --test station-manager/test/*.test.js
