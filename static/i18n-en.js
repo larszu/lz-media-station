@@ -191,6 +191,7 @@ window.LZ_I18N_EN = /*JSON*/{
   "Adresse:": "Address:",
   "Keine Medien konfiguriert — bitte erst Konfiguration öffnen": "No media configured — open the configuration first",
   "Starte Sensor-Steuerung...": "Starting sensor control...",
+  "Steuerung ist aus": "Control is off",
   "Warte auf Sensor": "Waiting for sensor",
   "Bewege etwas vor den Sensor um eine Zone auszuwählen.": "Move something in front of the sensor to select a zone.",
   "Konfiguriere Medien im Admin-Panel:": "Configure media in the admin panel:",

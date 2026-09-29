@@ -60,6 +60,14 @@
     }
 
     function uebernimm() {
+        // Waehrend eines Zugs oder einer Eingabe im Panel wird NICHTS
+        // uebernommen — weder Zeichnung noch Zustand. `config`-Ereignisse
+        // kommen bei jedem Schreibzugriff irgendeines Admins; stand/entwurf
+        // unter einem laufenden Zug oder einem halb getippten Feld zu tauschen,
+        // liesse die Eingabe ins neue Modell laufen (oder ins Leere). Der
+        // Tausch wird nachgeholt, sobald Zug oder Eingabe enden.
+        if (zugHaengt()) zugEnde();
+        if (zug || eingabeLaeuft()) { nachholen = true; return; }
         stand = window.layoutsStand || stand;
         vorlagen = window.layoutVorlagen || vorlagen;
         var ids = Object.keys(stand.layouts || {});
@@ -74,23 +82,35 @@
             entwurf = kopie(stand.layouts[aktuell]);
             if (gewaehlt && !region(gewaehlt)) gewaehlt = null;
         }
-        // Waehrend eines Zugs oder einer Eingabe im Panel wird NICHT neu
-        // gezeichnet: `config`-Ereignisse kommen bei jedem Schreibzugriff
-        // irgendeines Admins — die Leinwand unter dem Finger wegzureissen
-        // oder ein halb getipptes Feld zu ueberschreiben waere ein Datenverlust.
-        // Nachgeholt wird, sobald der Zug endet.
-        if (zug) { nachholen = true; return; }
-        if (eingabeLaeuft()) { renderWahl(); return; }
         renderAlles();
     }
 
     var nachholen = false;
+    // Eingabe laeuft: ein Feld im Region-Panel oder die offene Layout-Auswahl
+    // hat den Fokus.
     function eingabeLaeuft() {
         var a = document.activeElement;
         if (!a || a === document.body) return false;
+        if (a.id === 'le-wahl') return true;
         var panel = el('le-region-panel');
         return !!(panel && panel.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
     }
+    // Ein Zug, dessen Element nicht mehr im Dokument haengt, kann kein
+    // pointerup mehr bekommen — er darf Aktualisierungen nicht ewig sperren.
+    function zugHaengt() { return !!(zug && zug.el && !zug.el.isConnected); }
+
+    // Nachholen, sobald der Fokus das Panel bzw. die Auswahl verlaesst. Der
+    // Fokus wechselt erst NACH focusout — deshalb ein Takt spaeter pruefen.
+    document.addEventListener('focusout', function (e) {
+        var t = e.target;
+        var panel = el('le-region-panel');
+        if (!t || !(t.id === 'le-wahl' || (panel && panel.contains(t)))) return;
+        setTimeout(function () { if (nachholen && !zug && !eingabeLaeuft()) { nachholen = false; uebernimm(); } }, 0);
+    });
+    // Rueckfall fuer Browser ohne Pointer-Capture: das Loslassen ausserhalb
+    // der Region kommt nur am Dokument an.
+    document.addEventListener('pointerup', function () { if (zug) zugEnde(); });
+    document.addEventListener('pointercancel', function () { if (zug) zugEnde(); });
 
     function kopie(o) { return JSON.parse(JSON.stringify(o)); }
     function region(id) {
@@ -138,7 +158,7 @@
 
     function nutzerVon(id) {
         var n = [];
-        ZONEN.forEach(function (z) { if (stand.zonen[z] === id) n.push((window.ZONEN_NAMEN || {})[z] || z); });
+        ZONEN.forEach(function (z) { if (stand.zonen[z] === id) n.push(tr((window.ZONEN_NAMEN || {})[z] || z)); });
         return n;
     }
 
@@ -226,6 +246,7 @@
         d.addEventListener('pointermove', zugBewegung);
         d.addEventListener('pointerup', zugEnde);
         d.addEventListener('pointercancel', zugEnde);
+        d.addEventListener('lostpointercapture', zugEnde);
         e.preventDefault();
     }
 
@@ -268,6 +289,7 @@
         d.removeEventListener('pointermove', zugBewegung);
         d.removeEventListener('pointerup', zugEnde);
         d.removeEventListener('pointercancel', zugEnde);
+        d.removeEventListener('lostpointercapture', zugEnde);
         if (zug.bewegt) markiere();
         zug = null;
         if (nachholen) { nachholen = false; uebernimm(); return; }
