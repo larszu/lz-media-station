@@ -327,7 +327,7 @@ curl -sSL https://raw.githubusercontent.com/larszu/lz-media-station/main/install
 The installer does the following:
 
 1. System packages (`python3-flask`, `python3-gpiozero`, `chromium-browser`, `avahi-daemon`, `git`)
-2. Clones the repo to `~/pi_media_station`
+2. Clones the repo to `~/lz-media-station`
 3. Creates media folders (`videos/`, `images/`, `audio/`, `subtitles/`)
 4. Writes `~/.config/autostart/LZ_Media_Station.desktop`
 5. Chromium policy: disables the translate banner
@@ -338,7 +338,7 @@ The installer does the following:
 After installation:
 
 ```bash
-~/pi_media_station/start.sh    # start now
+~/lz-media-station/start.sh    # start now
 # OR
 sudo reboot                    # uses autostart
 ```
@@ -352,16 +352,18 @@ The web UI is then at `http://<pi-ip>:5000/admin`.
 ### First clone
 
 ```bash
-git clone https://github.com/larszu/lz-media-station.git ~/pi_media_station
-cd ~/pi_media_station
+git clone https://github.com/larszu/lz-media-station.git ~/lz-media-station
+cd ~/lz-media-station
 chmod +x start.sh install_pi.sh
 bash install_pi.sh   # idempotent, detects an existing repo
 ```
 
 ### Update to the latest version
 
+On a Pi still installed under `~/pi_media_station`, `bash install_pi.sh` moves it — media and configuration included — to `~/lz-media-station` and rewrites the autostart entry.
+
 ```bash
-cd ~/pi_media_station
+cd ~/lz-media-station
 git pull
 pkill -f 'python3 main.py' || true
 nohup python3 main.py >/tmp/main.log 2>&1 &
@@ -377,13 +379,13 @@ sudo reboot
 
 ```powershell
 # Windows PowerShell
-cd "c:\Users\<user>\Documents\LZ Media Station\pi_media_station"
+cd "c:\Users\<user>\Documents\LZ Media Station\lz-media-station"
 scp web_ui.py templates/admin.html static/app.js pi@<pi-ip>:/tmp/
-ssh pi@<pi-ip> "cp /tmp/web_ui.py ~/pi_media_station/web_ui.py && \
-                cp /tmp/admin.html ~/pi_media_station/templates/ && \
-                cp /tmp/app.js ~/pi_media_station/static/ && \
+ssh pi@<pi-ip> "cp /tmp/web_ui.py ~/lz-media-station/web_ui.py && \
+                cp /tmp/admin.html ~/lz-media-station/templates/ && \
+                cp /tmp/app.js ~/lz-media-station/static/ && \
                 pkill -f 'python3 main.py' || true; \
-                sleep 2; cd ~/pi_media_station; \
+                sleep 2; cd ~/lz-media-station; \
                 setsid nohup python3 main.py >/tmp/main.log 2>&1 < /dev/null &"
 ```
 
@@ -706,7 +708,7 @@ behaves exactly as before until someone switches something on.
 ssh pi@<pi-ip>
 cat /tmp/main.log              # latest errors
 ps -ef | grep main.py          # is the process running?
-~/pi_media_station/start.sh    # start manually
+~/lz-media-station/start.sh    # start manually
 ```
 
 ### Manager does not find the Pi
