@@ -26,7 +26,7 @@
   },
   "build": {
     "appId": "de.zumpelars.station-manager",
-    "productName": "LZ Station Manager",
+    "productName": "LZ Media Station Manager",
     "files": [
       "main.js",
       "preload.js",

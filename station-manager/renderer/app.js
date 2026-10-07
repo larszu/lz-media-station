@@ -118,11 +118,11 @@ function kachel(s) {
         <div class="station-actions">
             <button data-act="start" title="Start">▶</button>
             <button data-act="stop" title="Stop">■</button>
-            <button data-act="open" title="${esc(tr('Verwaltung öffnen'))}">⚙ ${esc(tr('Verwaltung'))}</button>
-            <button data-act="pin" title="${esc(tr('PIN der Station'))}">🔑</button>
-            <button data-act="stumm" title="${esc(tr(s.stumm ? 'Alarme wieder einschalten' : 'Alarme stummschalten'))}">${s.stumm ? '🔕' : '🔔'}</button>
+            <button data-act="open" title="${esc(tr('Verwaltung öffnen'))}">${esc(tr('Verwaltung'))}</button>
+            <button data-act="pin" title="${esc(tr('PIN der Station'))}">PIN</button>
+            <button data-act="stumm" title="${esc(tr(s.stumm ? 'Alarme wieder einschalten' : 'Alarme stummschalten'))}">${esc(tr(s.stumm ? 'Ton an' : 'Stumm'))}</button>
             <button data-act="reboot" class="danger" title="${esc(tr('Station neu starten'))}">⟲</button>
-            <button data-act="remove" class="rechts" title="${esc(tr('Aus der Liste entfernen'))}">🗑</button>
+            <button data-act="remove" class="rechts" title="${esc(tr('Aus der Liste entfernen'))}">${esc(tr('Entfernen'))}</button>
         </div>`;
     card.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
@@ -331,7 +331,7 @@ el('add-ok').onclick = async () => {
     el('add-feedback').className = '';
     const ok = await window.station.addStation(host, port);
     if (ok) {
-        el('add-feedback').textContent = '✓ ' + tr('Hinzugefügt');
+        el('add-feedback').textContent = tr('Hinzugefügt');
         el('add-feedback').className = 'success';
         setTimeout(() => {
             el('add-dialog').classList.add('hidden');
@@ -339,7 +339,7 @@ el('add-ok').onclick = async () => {
             el('add-host').value = '';
         }, 800);
     } else {
-        el('add-feedback').textContent = '✗ ' + tr('Nicht erreichbar');
+        el('add-feedback').textContent = tr('Nicht erreichbar');
         el('add-feedback').className = 'error';
     }
 };
@@ -528,7 +528,7 @@ el('meldung-aus').onclick = () => jeStation('Sofortmeldung beenden', async (s) =
 async function ordnung(aenderung) {
     if (!brauchtAuswahl()) return;
     await window.station.setOrdnung(Array.from(selected), aenderung);
-    setFeedback(`✓ ${selected.size}`, 'success');
+    setFeedback(tr(`${selected.size} geändert`), 'success');
 }
 el('ordnung-gruppe-setzen').onclick = () => ordnung({ gruppe: el('ordnung-gruppe').value });
 el('ordnung-tag-dazu').onclick = () => {

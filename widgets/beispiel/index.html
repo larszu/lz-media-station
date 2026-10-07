@@ -9,8 +9,11 @@
   2. Im Layout eine Region vom Typ „Widget" mit Typ „Eigenes Widget (HTML)"
      anlegen und den Ordnernamen eintragen.
   3. Einstellungen stehen im Editor als „schluessel=wert" je Zeile. Sie
-     kommen hier zweimal an — als Query-String (?schluessel=wert&…) und, sobald
-     die Seite geladen ist, als window.LZ_WIDGET_EINSTELLUNGEN. Dazu immer:
+     kommen hier zweimal an — als Query-String (?schluessel=wert&…), der beim
+     Laden sofort da ist, und als Nachricht (postMessage) mit
+     { typ: 'lz-einstellungen', einstellungen: {…}, sprache, station, zeit },
+     sobald die Seite geladen ist. Wer sie neu braucht, schickt
+     parent.postMessage('lz-einstellungen?', '*'). Dazu immer:
        sprache=de|en        Sprache der Anzeige
        station=<Name>       Name der Station
        zeit=<ISO>           nur in der Vorschau: der gewählte Zeitpunkt
@@ -43,17 +46,31 @@
   <p id="text">Dieses Widget kommt aus <code>widgets/beispiel/index.html</code>.</p>
   <small id="meta"></small>
 <script>
-  // Einstellungen: erst der Query-String, dann (falls schon da) das Fenster-Objekt.
-  var q = new URLSearchParams(location.search), e = {};
-  q.forEach(function (v, k) { e[k] = v; });
-  Object.assign(e, window.LZ_WIDGET_EINSTELLUNGEN || {});
-  var en = e.sprache === 'en';
-  document.getElementById('gruss').textContent = e.gruss || (en ? 'Hello' : 'Hallo');
-  if (e.text) document.getElementById('text').textContent = e.text;
-  var meta = [];
-  if (e.station) meta.push((en ? 'Station: ' : 'Station: ') + e.station);
-  if (e.zeit) meta.push((en ? 'Preview time: ' : 'Vorschau-Zeit: ') + new Date(e.zeit).toLocaleString(en ? 'en-GB' : 'de-DE'));
-  document.getElementById('meta').textContent = meta.join(' · ');
+  // Einstellungen: der Query-String ist beim Laden da; die Nachricht der
+  // Anzeige kommt kurz danach und bringt dieselben Werte (plus Sprache,
+  // Station, Vorschau-Zeit) — zeichnen bei beiden.
+  var e = {};
+  new URLSearchParams(location.search).forEach(function (v, k) { e[k] = v; });
+  function zeichne() {
+    var en = e.sprache === 'en';
+    document.getElementById('gruss').textContent = e.gruss || (en ? 'Hello' : 'Hallo');
+    if (e.text) document.getElementById('text').textContent = e.text;
+    var meta = [];
+    if (e.station) meta.push('Station: ' + e.station);
+    if (e.zeit) meta.push((en ? 'Preview time: ' : 'Vorschau-Zeit: ') + new Date(e.zeit).toLocaleString(en ? 'en-GB' : 'de-DE'));
+    document.getElementById('meta').textContent = meta.join(' · ');
+  }
+  window.addEventListener('message', function (ev) {
+    var d = ev.data;
+    if (!d || d.typ !== 'lz-einstellungen') return;
+    Object.assign(e, d.einstellungen || {});
+    if (d.sprache) e.sprache = d.sprache;
+    if (d.station) e.station = d.station;
+    if (d.zeit) e.zeit = d.zeit;
+    zeichne();
+  });
+  zeichne();
+  if (window.parent !== window) window.parent.postMessage('lz-einstellungen?', '*');
 </script>
 </body>
 </html>

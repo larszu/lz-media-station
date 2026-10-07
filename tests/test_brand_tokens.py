@@ -115,5 +115,18 @@ class Marke(unittest.TestCase):
         self.assertTrue((WURZEL / "README.md").read_text(encoding="utf-8").startswith("# LZ Media Station"))
 
 
+    def test_keine_emoji_in_der_oberflaeche(self):
+        # Symbole sind Text oder eigene Inline-SVGs, kein fremdes Icon-Set.
+        muster = re.compile(r"[\u2190-\u21FF\u2300-\u23FF\u2600-\u27BF\U0001F000-\U0001FAFF]"
+                            r"|&#(?:x(?:2[1-7]|1F)[0-9a-fA-F]{2,3}|(?:8[4-9]|9[0-9]|10[0-2])[0-9]{2}|1[2-3][0-9]{4});")
+        for datei in ("templates/admin.html", "templates/launch.html", "templates/display.html",
+                      "static/app.js", "static/display.js",
+                      "station-manager/renderer/index.html", "station-manager/renderer/app.js"):
+            for nr, zeile in enumerate((WURZEL / datei).read_text(encoding="utf-8").splitlines(), 1):
+                if zeile.strip().startswith(("//", "*", "/*", "<!--")):
+                    continue
+                self.assertIsNone(muster.search(zeile), f"{datei}:{nr}: {zeile.strip()[:80]}")
+
+
 if __name__ == "__main__":
     unittest.main()

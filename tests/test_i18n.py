@@ -31,7 +31,7 @@ GLEICH = {
     # Monitor und Zugang (3.0)
     "Monitor", "System", "Topic", "Webhook (JSON)", "ntfy", "https://ntfy.sh", "PIN", "Zone",
     # Station Manager (3.0)
-    "Text", "Tag",
+    "Text", "Tag", "Videos", "Audio",
 }
 
 

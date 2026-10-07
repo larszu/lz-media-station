@@ -81,7 +81,7 @@ subtitles/*.vtt
 !audio/.gitkeep
 
 # Embedded repo artifact
-pi-media-station/
+lz-media-station/
 
 # lokale venv
 .venv/

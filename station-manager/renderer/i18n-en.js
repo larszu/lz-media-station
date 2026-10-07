@@ -2,11 +2,14 @@
    Aufbau wie static/i18n-en.js der Web-Oberflaeche. */
 window.LZ_I18N_EN = /*JSON*/{
  "texte": {
-  "↻ Neu scannen": "↻ Rescan",
+  "Neu scannen": "Rescan",
+  "Stumm": "Mute",
+  "Ton an": "Unmute",
+  "Entfernen": "Remove",
   "+ Station hinzufügen": "+ Add station",
   "Bulk-Aktionen": "Bulk actions",
   "Medien hochladen": "Upload media",
-  "🖼 Bilder": "🖼 Images",
+  "Bilder": "Images",
   "Stationsname": "Station name",
   "(leer = behalten)": "(empty = keep)",
   "Schwelle (m)": "Threshold (m)",
@@ -39,9 +42,8 @@ window.LZ_I18N_EN = /*JSON*/{
   "Die Station verlangt eine PIN": "The station requires a PIN",
   "PIN gespeichert": "PIN stored",
   "Diese Station hat keine PIN": "This station has no PIN",
-  "Eine Station verlangt eine PIN — 🔑 an der Karte": "A station requires a PIN — 🔑 on its card",
+  "Eine Station verlangt eine PIN — PIN an der Karte": "A station requires a PIN — PIN on its card",
   "Alarme": "Alerts",
-  "🔔 Alarme": "🔔 Alerts",
   "Alle Gruppen": "All groups",
   "Alle sichtbaren": "All visible",
   "Angeboten werden Layouts, die es auf allen ausgewählten Stationen gibt.": "Only layouts that exist on every selected station are offered.",
@@ -63,7 +65,6 @@ window.LZ_I18N_EN = /*JSON*/{
   "Layout kopieren": "Copy layout",
   "Layout zuweisen": "Assign layout",
   "Liste": "List",
-  "☰ Liste": "☰ List",
   "Liste leeren": "Clear list",
   "Schließen": "Close",
   "Sofortmeldung": "Instant message",
@@ -140,6 +141,10 @@ window.LZ_I18N_EN = /*JSON*/{
   [
    "^Station \"(.*)\" aus der Liste entfernen\\?$",
    "Remove station \"{1}\" from the list?"
+  ],
+  [
+   "^(\\d+) geändert$",
+   "{1} changed"
   ],
   [
    "^(\\d+) gestartet$",

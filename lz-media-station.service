@@ -1,0 +1,22 @@
+[Unit]
+Description=LZ Media Station
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/lz-media-station
+ExecStart=/usr/bin/python3 /home/pi/lz-media-station/main.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+
+# Installation:
+# sudo cp lz-media-station.service /etc/systemd/system/
+# sudo systemctl daemon-reload
+# sudo systemctl enable lz-media-station.service
+# sudo systemctl start lz-media-station.service

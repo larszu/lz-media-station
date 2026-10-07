@@ -340,7 +340,7 @@ curl -sSL https://raw.githubusercontent.com/larszu/lz-media-station/main/install
 Der Installer erledigt automatisch:
 
 1. Systempakete (`python3-flask`, `python3-gpiozero`, `chromium-browser`, `avahi-daemon`, `git`)
-2. Klont das Repo nach `~/pi_media_station`
+2. Klont das Repo nach `~/lz-media-station`
 3. Erstellt Medien-Ordner (`videos/`, `images/`, `audio/`, `subtitles/`)
 4. Schreibt `~/.config/autostart/LZ_Media_Station.desktop`
 5. Chromium-Policy: deaktiviert Translate-Banner
@@ -351,7 +351,7 @@ Der Installer erledigt automatisch:
 Nach Installation:
 
 ```bash
-~/pi_media_station/start.sh    # sofort starten
+~/lz-media-station/start.sh    # sofort starten
 # ODER
 sudo reboot                    # nutzt Autostart
 ```
@@ -365,16 +365,18 @@ Web-UI dann unter `http://<pi-ip>:5000/admin`.
 ### Erstmaliges Klonen
 
 ```bash
-git clone https://github.com/larszu/lz-media-station.git ~/pi_media_station
-cd ~/pi_media_station
+git clone https://github.com/larszu/lz-media-station.git ~/lz-media-station
+cd ~/lz-media-station
 chmod +x start.sh install_pi.sh
 bash install_pi.sh   # idempotent, erkennt vorhandenes Repo
 ```
 
 ### Update auf neueste Version
 
+Ein Pi, der noch unter `~/pi_media_station` installiert ist, zieht `bash install_pi.sh` samt Medien und Konfiguration nach `~/lz-media-station` um und schreibt den Autostart neu.
+
 ```bash
-cd ~/pi_media_station
+cd ~/lz-media-station
 git pull
 pkill -f 'python3 main.py' || true
 nohup python3 main.py >/tmp/main.log 2>&1 &
@@ -390,13 +392,13 @@ sudo reboot
 
 ```powershell
 # Windows PowerShell
-cd "c:\Users\<user>\Documents\LZ Media Station\pi_media_station"
+cd "c:\Users\<user>\Documents\LZ Media Station\lz-media-station"
 scp web_ui.py templates/admin.html static/app.js pi@<pi-ip>:/tmp/
-ssh pi@<pi-ip> "cp /tmp/web_ui.py ~/pi_media_station/web_ui.py && \
-                cp /tmp/admin.html ~/pi_media_station/templates/ && \
-                cp /tmp/app.js ~/pi_media_station/static/ && \
+ssh pi@<pi-ip> "cp /tmp/web_ui.py ~/lz-media-station/web_ui.py && \
+                cp /tmp/admin.html ~/lz-media-station/templates/ && \
+                cp /tmp/app.js ~/lz-media-station/static/ && \
                 pkill -f 'python3 main.py' || true; \
-                sleep 2; cd ~/pi_media_station; \
+                sleep 2; cd ~/lz-media-station; \
                 setsid nohup python3 main.py >/tmp/main.log 2>&1 < /dev/null &"
 ```
 
@@ -498,7 +500,7 @@ Artefakte in `station-manager/dist/`.
 6. **Beobachten**: rote Kacheln und der Alarmzähler zeigen, was Aufmerksamkeit braucht; die Glocke an einer Kachel schaltet die Station stumm
 7. **Verwaltung**: „Verwaltung" an einer Kachel öffnet `/admin` im Manager
 
-Persistente Daten der App (`stations.json`, `pins.json`, `gruppen.json`): `%APPDATA%\station-manager\` (Win) bzw. `~/Library/Application Support/station-manager/` (Mac).
+Die installierte App speichert ihre Daten (`stations.json`, `pins.json`, `gruppen.json`) in `%APPDATA%\LZ Station Manager\` (Win) bzw. `~/Library/Application Support/LZ Station Manager/` (Mac); beim Start aus dem Quellcode (`npm start`) heißt der Ordner `station-manager`.
 
 ---
 
@@ -506,8 +508,8 @@ Persistente Daten der App (`stations.json`, `pins.json`, `gruppen.json`): `%APPD
 
 ```
                 ┌─────────────────────────────┐
-                │ LZ Station Manager (Electron)│
-                │   Win / macOS / Linux       │
+                │  LZ Media Station Manager   │
+                │  Electron · Win/macOS/Linux │
                 └──────────────┬──────────────┘
                                │ HTTP/JSON (LAN oder Tailscale)
         ┌──────────────────────┼──────────────────────┐
@@ -720,7 +722,7 @@ Installation exakt wie vorher, bis jemand etwas einschaltet.
 ssh pi@<pi-ip>
 cat /tmp/main.log              # letzte Fehler
 ps -ef | grep main.py          # läuft Prozess?
-~/pi_media_station/start.sh    # manuell starten
+~/lz-media-station/start.sh    # manuell starten
 ```
 
 ### Manager findet Pi nicht

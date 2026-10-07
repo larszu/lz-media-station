@@ -230,6 +230,126 @@ class Zwischenspeicher(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
+# Review-Funde (PR #24) — jeder hier steht, weil er im Foyer still gewesen waere
+# --------------------------------------------------------------------------
+
+class ReviewFunde(unittest.TestCase):
+    def setUp(self):
+        from zoneinfo import ZoneInfo
+        self._zone = W.ANZEIGE_ZONE
+        W.ANZEIGE_ZONE = ZoneInfo("Europe/Berlin")
+        self._privat = W.PRIVATE_ZIELE_ERLAUBT
+
+    def tearDown(self):
+        W.ANZEIGE_ZONE = self._zone
+        W.PRIVATE_ZIELE_ERLAUBT = self._privat
+
+    @staticmethod
+    def kalender(*zeilen):
+        return "\r\n".join(("BEGIN:VCALENDAR", "VERSION:2.0") + zeilen + ("END:VCALENDAR", ""))
+
+    def test_utc_start_einer_reihe_bleibt_am_richtigen_tag(self):
+        # 22:30Z ist 00:30 Berlin am NAECHSTEN Tag; die Reihe darf davon
+        # nicht noch einen weiteren Tag abrutschen (Outlook exportiert mit Z).
+        k = W.parse_ics(self.kalender("BEGIN:VEVENT", "UID:u", "SUMMARY:Nacht",
+                                      "DTSTART:20260601T223000Z", "DTEND:20260601T233000Z",
+                                      "RRULE:FREQ=DAILY;COUNT=3", "END:VEVENT"),
+                        datetime(2026, 6, 1), datetime(2026, 6, 10))
+        self.assertEqual([t["start"] for t in k["termine"]],
+                         ["2026-06-02T00:30", "2026-06-03T00:30", "2026-06-04T00:30"])
+
+    def test_valarm_im_vevent_ueberschreibt_nichts(self):
+        k = W.parse_ics(self.kalender("BEGIN:VEVENT", "UID:a", "SUMMARY:Alarm-Test",
+                                      "DTSTART:20260601T100000", "DURATION:PT1H",
+                                      "BEGIN:VALARM", "ACTION:EMAIL", "SUMMARY:Erinnerung",
+                                      "DURATION:PT15M", "END:VALARM", "END:VEVENT"),
+                        datetime(2026, 6, 1), datetime(2026, 6, 2))
+        self.assertEqual(len(k["termine"]), 1)
+        self.assertEqual(k["termine"][0]["titel"], "Alarm-Test")
+        self.assertEqual(k["termine"][0]["ende"], "2026-06-01T11:00")
+
+    def test_exdate_recurrence_id_und_cancelled(self):
+        k = W.parse_ics(self.kalender(
+            "BEGIN:VEVENT", "UID:f", "SUMMARY:Fuehrung", "DTSTART:20260601T140000", "DURATION:PT1H",
+            "RRULE:FREQ=DAILY;COUNT=5", "EXDATE:20260602T140000,20260603T140000", "END:VEVENT",
+            # 04.06. wurde auf 16 Uhr verschoben: eigener VEVENT mit RECURRENCE-ID
+            "BEGIN:VEVENT", "UID:f", "RECURRENCE-ID:20260604T140000", "SUMMARY:Fuehrung (verschoben)",
+            "DTSTART:20260604T160000", "DURATION:PT1H", "END:VEVENT",
+            "BEGIN:VEVENT", "UID:x", "SUMMARY:Abgesagt", "STATUS:CANCELLED",
+            "DTSTART:20260601T090000", "DURATION:PT1H", "END:VEVENT"),
+            datetime(2026, 6, 1), datetime(2026, 6, 10))
+        starts = [(t["start"], t["titel"]) for t in k["termine"]]
+        self.assertEqual(starts, [
+            ("2026-06-01T14:00", "Fuehrung"),
+            ("2026-06-04T16:00", "Fuehrung (verschoben)"),
+            ("2026-06-05T14:00", "Fuehrung"),
+        ])
+
+    def test_kaputte_url_ist_ein_abruffehler_kein_absturz(self):
+        W.PRIVATE_ZIELE_ERLAUBT = True
+        with self.assertRaises(W.Abrufsfehler):
+            W.hole_url("https://a.example/my feed.xml")
+        import http.client
+
+        def bricht(*a, **k):
+            raise http.client.IncompleteRead(b"x")
+        with unittest.mock.patch.object(W.urllib.request, "urlopen", bricht):
+            with self.assertRaises(W.Abrufsfehler):
+                W.hole_url("https://a.example/feed.xml")
+
+    def test_rss_1_0_items_neben_dem_channel(self):
+        rdf = ('<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/">'
+               '<channel><title>Alt</title></channel>'
+               '<item><title>Eins</title><link>https://r.example/1</link></item></rdf:RDF>')
+        k = W.parse_rss(rdf)
+        self.assertEqual([e["titel"] for e in k["eintraege"]], ["Eins"])
+        self.assertEqual(k["titel"], "Alt")
+
+    def test_frame_ancestors_wildcard_host_ist_nicht_offen(self):
+        self.assertFalse(W._frame_ancestors_offen("'self' https://*.partner.com"))
+        self.assertTrue(W._frame_ancestors_offen("*"))
+        self.assertTrue(W._frame_ancestors_offen("'self' https:"))
+        with unittest.mock.patch.object(W, "hole_url", lambda *a, **k: (b"", {"content-security-policy": "frame-ancestors 'self' https://*.p.com"})):
+            W.CACHE.leeren()
+            self.assertFalse(W.einbettbar("https://a.example/")["einbettbar"])
+
+    def test_rss_sortiert_nach_zeitpunkt_nicht_nach_text(self):
+        rss = ('<rss version="2.0"><channel><title>Q</title>'
+               '<item><title>Frueher</title><pubDate>Mon, 01 Jun 2026 10:00:00 +0200</pubDate></item>'
+               '<item><title>Spaeter</title><pubDate>Mon, 01 Jun 2026 09:30:00 +0000</pubDate></item>'
+               '</channel></rss>')
+        self.assertEqual([e["titel"] for e in W.parse_rss(rss)["eintraege"]], ["Spaeter", "Frueher"])
+
+    def test_cache_hat_einen_deckel(self):
+        c = W.Cache(uhr=lambda: 0.0)
+        for i in range(W.CACHE_MAX_EINTRAEGE + 50):
+            c.hole(("k", i), lambda i=i: {"n": i}, ttl=10)
+        self.assertLessEqual(len(c), W.CACHE_MAX_EINTRAEGE)
+
+    def test_private_ziele_werden_abgewiesen(self):
+        W.PRIVATE_ZIELE_ERLAUBT = False
+        for url in ("http://127.0.0.1:5000/api/status", "http://192.168.1.1/", "http://10.0.0.5/x",
+                    "http://[fe80::1]/", "http://localhost/"):
+            with self.subTest(url=url):
+                with self.assertRaises(W.Abrufsfehler):
+                    W.pruefe_ziel(url)
+        W.pruefe_ziel("https://a.example.invalid/")   # nicht aufloesbar: der Abruf entscheidet
+        W.PRIVATE_ZIELE_ERLAUBT = True
+        W.pruefe_ziel("http://192.168.1.1/")           # ausdruecklich erlaubt
+
+    def test_hintergrund_hat_einen_schalter_und_kein_fensterobjekt_mehr(self):
+        # Ein Farbfeld laesst sich im Editor nicht leeren — der Schalter macht
+        # den durchsichtigen Grund wieder erreichbar.
+        self.assertIn("key: 'hintergrund_an'", WIDGETS_JS)
+        self.assertRegex(WIDGETS_JS, r"hintergrund_an === undefined")
+        self.assertNotIn("contentWindow.LZ_WIDGET_EINSTELLUNGEN", WIDGETS_JS)
+        self.assertIn("postMessage(nachricht", WIDGETS_JS)
+        beispiel = (WURZEL / "widgets/beispiel/index.html").read_text(encoding="utf-8")
+        self.assertNotIn("LZ_WIDGET_EINSTELLUNGEN", beispiel)
+        self.assertIn("lz-einstellungen", beispiel)
+
+
+# --------------------------------------------------------------------------
 # Die Schnittstelle
 # --------------------------------------------------------------------------
 
@@ -280,7 +400,7 @@ class UeberDieApi(unittest.TestCase):
             self.assertIn("beispiel", namen)
             r = c.get("/widgets/beispiel/index.html")
             self.assertEqual(r.status_code, 200)
-            self.assertIn(b"LZ_WIDGET_EINSTELLUNGEN", r.data)
+            self.assertIn(b"lz-einstellungen", r.data)
             self.assertEqual(c.get("/widgets/beispiel/").status_code, 200)
 
     def test_kein_weg_aus_dem_widget_ordner(self):

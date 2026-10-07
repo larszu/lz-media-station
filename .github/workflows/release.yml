@@ -1,6 +1,6 @@
 name: Release
 
-# Baut den Desktop-Teil dieses Repos -- den "LZ Station Manager"
+# Baut den Desktop-Teil dieses Repos -- den "LZ Media Station Manager"
 # (Electron, unter station-manager/) -- bei jedem `v*`-Tag als
 # Windows- und macOS-Installer und haengt sie ans GitHub-Release.
 # Spiegelbild von cable-planner/.github/workflows/release.yml, angepasst
@@ -89,7 +89,7 @@ jobs:
 
       - name: Sync package.json version to tag
         # Der Installer-Dateiname kommt aus station-manager/package.json.version
-        # ("LZ Station Manager-X.Y.Z.exe"). Ohne diesen Schritt traegt jedes
+        # ("LZ Media Station Manager Setup X.Y.Z.exe"). Ohne diesen Schritt traegt jedes
         # Release stur die 1.0.0 aus dem Repo, egal welcher Tag gebaut wurde.
         # `npm version --no-git-tag-version` schreibt nur package.json (+ lock)
         # im Runner um, ohne Commit/Tag. workflow_dispatch (kein Tag) uebersprungen.
