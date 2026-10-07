@@ -380,7 +380,11 @@
         el.classList.add('wg');
         var box = document.createElement('div');
         box.className = 'wg-box ' + (klasse || '');
-        var hg = farbe(w.hintergrund, '');
+        // `hintergrund_an` ist der Schalter; ein Farbfeld laesst sich im
+        // Editor nicht leeren. Fehlt der Schalter (aeltere Layouts), gilt
+        // wie frueher: Farbe gesetzt = Hintergrund an.
+        var an = (w.hintergrund_an === undefined) ? !!farbe(w.hintergrund, '') : !!w.hintergrund_an;
+        var hg = an ? farbe(w.hintergrund, '#132040') : '';
         box.style.background = hg || 'transparent';
         box.style.color = farbe(w.farbe, '#E1ECEF');
         el.appendChild(box);
@@ -450,7 +454,8 @@
        ====================================================================== */
     var FARBFELDER = [
         { key: 'farbe', label: 'Textfarbe', typ: 'farbe', default: '#E1ECEF' },
-        { key: 'hintergrund', label: 'Hintergrund (leer = durchsichtig)', typ: 'farbe', default: '' },
+        { key: 'hintergrund_an', label: 'Hintergrund einfärben (sonst durchsichtig)', typ: 'bool', default: false },
+        { key: 'hintergrund', label: 'Hintergrundfarbe', typ: 'farbe', default: '#132040' },
         { key: 'schrift', label: 'Schriftgröße (%)', typ: 'zahl', default: 100, min: 25, max: 400 },
     ];
 
@@ -857,7 +862,8 @@
             { key: 'reload_s', label: 'Neu laden alle … Sekunden (0 = nie)', typ: 'zahl', default: 0, min: 0, max: 86400 },
             { key: 'zoom', label: 'Zoom (%)', typ: 'zahl', default: 100, min: 25, max: 300 },
             { key: 'interaktiv', label: 'Berührung durchlassen', typ: 'bool', default: false },
-            { key: 'hintergrund', label: 'Hintergrund', typ: 'farbe', default: '' },
+            { key: 'hintergrund_an', label: 'Hintergrund einfärben (sonst durchsichtig)', typ: 'bool', default: false },
+            { key: 'hintergrund', label: 'Hintergrundfarbe', typ: 'farbe', default: '#132040' },
         ],
         render: function (el, w) {
             var box = huelle(el, w, 'wg-web');
@@ -887,7 +893,7 @@
     /* ---- Eigenes HTML-Widget ---- */
     WIDGETS.html = {
         name: 'Eigenes Widget (HTML)',
-        beschreibung: 'Ein Ordner unter widgets/ mit index.html — die Einstellungen kommen als Query und window.LZ_WIDGET_EINSTELLUNGEN an.',
+        beschreibung: 'Ein Ordner unter widgets/ mit index.html — die Einstellungen kommen als Query-String und als Nachricht (postMessage) an.',
         felder: [
             { key: 'name', label: 'Ordnername unter widgets/', typ: 'text', default: 'beispiel' },
             { key: 'einstellungen', label: 'Einstellungen (eine Zeile je schluessel=wert)', typ: 'textarea', default: '' },
@@ -910,14 +916,22 @@
             var rahmen = document.createElement('iframe');
             rahmen.className = 'wg-web-rahmen';
             rahmen.style.pointerEvents = 'none';
-            rahmen.onload = function () {
-                try { rahmen.contentWindow.LZ_WIDGET_EINSTELLUNGEN = einst; } catch (e) { /* fremd */ }
-            };
+            // Ein Wert am Fenster-Objekt des Kindes kaeme erst NACH dessen
+            // Skripten an. Stattdessen eine Nachricht: das Kind hoert auf
+            // 'message' und bekommt sie, sobald es geladen ist — und kann
+            // sie mit 'lz-einstellungen?' jederzeit selbst anfordern.
+            var nachricht = { typ: 'lz-einstellungen', einstellungen: einst,
+                              sprache: (ctx && ctx.sprache) || 'de', station: (ctx && ctx.stationsname) || '',
+                              zeit: (ctx && ctx.zeit instanceof Date && !isNaN(ctx.zeit)) ? ctx.zeit.toISOString() : null };
+            function sende() { try { rahmen.contentWindow.postMessage(nachricht, window.location.origin); } catch (e) { /* weg */ } }
+            function anfrage(e) { if (e.source === rahmen.contentWindow && e.data === 'lz-einstellungen?') sende(); }
+            window.addEventListener('message', anfrage);
+            rahmen.onload = sende;
             rahmen.src = src;
             box.appendChild(rahmen);
             var timer = null, reload = zahl(w.reload_s, 0, 0, 86400);
             if (reload > 0) timer = setInterval(function () { rahmen.src = src; }, reload * 1000);
-            return { stop: function () { if (timer) clearInterval(timer); rahmen.src = 'about:blank'; } };
+            return { stop: function () { if (timer) clearInterval(timer); window.removeEventListener('message', anfrage); rahmen.src = 'about:blank'; } };
         }
     };
 

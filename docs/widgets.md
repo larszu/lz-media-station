@@ -146,9 +146,12 @@ Ein Ordner `widgets/<name>/` mit `index.html` — fertig. Die Anzeige bettet
 die Seite als Rahmen in die Region ein; sie ist so groß wie die Region.
 `widgets/beispiel/index.html` ist die Vorlage mit allen Hinweisen im Kopf.
 
-- **Einstellungen** kommen als Query-String (`?schluessel=wert&…`) und, sobald
-  die Seite geladen ist, als `window.LZ_WIDGET_EINSTELLUNGEN`. Immer dabei:
-  `sprache`, `station`, in der Vorschau `zeit`.
+- **Einstellungen** kommen als Query-String (`?schluessel=wert&…`) — beim
+  Laden sofort da — und als Nachricht der Anzeige (`postMessage`) mit
+  `{ typ: 'lz-einstellungen', einstellungen, sprache, station, zeit }`, sobald
+  die Seite geladen ist. Ein Widget kann sie mit
+  `parent.postMessage('lz-einstellungen?', '*')` jederzeit neu anfordern.
+  Immer dabei: `sprache`, `station`, in der Vorschau `zeit`.
 - **Dateien** daneben (CSS, Bilder, Skripte) kommen unter
   `/widgets/<name>/<datei>` heraus — nur aus diesem Ordner; `..` und absolute
   Pfade enden in 404.
@@ -164,6 +167,12 @@ die Feed-Adressen, die ICS-Adresse, Open-Meteo mit den Koordinaten. Es gehen
 keine Cookies, keine Kennungen und nichts über Besucher hinaus. Wer die
 Station ganz offline betreibt, nutzt Uhr, Text-Folie, Laufschrift mit eigenem
 Text, QR-Code, Zähler und eigene Widgets — die brauchen kein Netz.
+
+Der Proxy holt **keine Ziele im eigenen Netz** (`127.0.0.1`, `192.168.…`,
+`10.…`, `fe80::…`): sonst könnte jeder im WLAN über die Station den Router
+oder ein NAS abfragen. Wer einen Kalender von einem Gerät im selben Netz
+zeigen will, startet die Station mit `LZ_WIDGET_PRIVATE_ZIELE=1`. Der
+Zwischenspeicher hält höchstens 200 Adressen; die ältesten fallen heraus.
 
 ## Schnittstelle für Entwickler
 
