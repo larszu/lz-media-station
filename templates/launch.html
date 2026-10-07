@@ -21,7 +21,7 @@
         a.card, div.card { display: block; margin: 0; padding: 24px 16px; text-decoration: none; color: inherit; transition: border-color 0.35s cubic-bezier(.2,.8,.2,1); }
         a.card { cursor: pointer; }
         a.card:hover { border-color: var(--accent); }
-        .card .icon { font-size: 2rem; margin-bottom: 10px; color: var(--accent); }
+        .card .icon { display: block; width: 32px; height: 32px; margin-bottom: 12px; fill: var(--accent); }
         .card h2 { font-size: 1rem; font-weight: 800; letter-spacing: 0; text-transform: none; color: var(--accent); border: 0; padding: 0; margin-bottom: 6px; }
         .card p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.4; }
         .card code { display: block; margin-top: 8px; padding: 6px; background: var(--accent-dim); font-size: 0.8rem; color: var(--accent); word-break: break-all; user-select: all; }
@@ -57,13 +57,13 @@
         </div>
         <div class="cards">
             <a href="/display" class="card card-present" id="card-present">
-                <div class="icon">&#9654;</div>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3 L20 12 L6 21 Z"/></svg>
                 <h2>Pr&auml;sentation</h2>
                 <p>Vollbild-Anzeige starten</p>
                 <div class="countdown" id="countdown">Auto-Start in <span id="timer">15</span>s</div>
             </a>
             <a href="/admin" class="card card-config">
-                <div class="icon">&#9881;</div>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5 H21 V7 H3 Z M3 11 H21 V13 H3 Z M3 17 H21 V19 H3 Z M7 3 H10 V9 H7 Z M14 9 H17 V15 H14 Z M9 15 H12 V21 H9 Z"/></svg>
                 <h2>Konfiguration</h2>
                 <p>Medien, Sensor &amp; Zonen einrichten</p>
             </a>
@@ -75,7 +75,7 @@
                  keiner von ihnen kann sie erraten, wenn sie hier nicht
                  steht. -->
             <div class="card card-remote">
-                <div class="icon">&#128225;</div>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4 H16 V14 H2 Z M4 6 V12 H14 V6 Z M7 16 H11 V18 H7 Z M18 8 H22 V20 H18 Z M19 10 V17 H21 V10 Z"/></svg>
                 <h2>Andere Ger&auml;te</h2>
                 <p>Im selben Netz, Anzeige:</p>
                 <code id="remote-display"></code>

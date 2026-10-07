@@ -487,7 +487,7 @@ Artifacts end up in `station-manager/dist/`.
 6. **Watch**: red tiles and the alert counter show what needs attention; the bell on a tile mutes that station
 7. **Admin**: "Admin" on a tile opens `/admin` inside the Manager
 
-The app's persistent data (`stations.json`, `pins.json`, `gruppen.json`): `%APPDATA%\station-manager\` (Windows) or `~/Library/Application Support/station-manager/` (Mac).
+The installed app keeps its data (`stations.json`, `pins.json`, `gruppen.json`) in `%APPDATA%\LZ Station Manager\` (Windows) or `~/Library/Application Support/LZ Station Manager/` (Mac); started from source (`npm start`) the folder is `station-manager`.
 
 ---
 
@@ -495,8 +495,8 @@ The app's persistent data (`stations.json`, `pins.json`, `gruppen.json`): `%APPD
 
 ```
                 ┌─────────────────────────────┐
-                │ LZ Station Manager (Electron)│
-                │   Win / macOS / Linux       │
+                │  LZ Media Station Manager   │
+                │  Electron · Win/macOS/Linux │
                 └──────────────┬──────────────┘
                                │ HTTP/JSON (LAN or Tailscale)
         ┌──────────────────────┼──────────────────────┐

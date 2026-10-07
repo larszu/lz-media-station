@@ -1,4 +1,4 @@
-// LZ Station Manager – Electron main process
+// LZ Media Station Manager – Electron main process
 // Handles: window, mDNS discovery (_lzstation._tcp), HTTP calls to stations, multi-upload.
 
 const { app, BrowserWindow, ipcMain, dialog, shell, Notification } = require('electron');
@@ -7,6 +7,12 @@ const fs = require('fs');
 const http = require('http');
 const { Bonjour } = require('bonjour-service');
 const alarme = require('./alarme');
+
+// Bis v2.0.4 hiess die App "LZ Station Manager"; Electron leitet userData
+// vom Produktnamen ab. Ohne den Pin faende eine installierte App ihre
+// gespeicherten Stationen nicht mehr. Im Entwicklungsstart gilt der npm-Name.
+const USERDATA_ORDNER = 'LZ Station Manager';
+if (app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), USERDATA_ORDNER));
 
 let mainWindow;
 let bonjour;
@@ -224,7 +230,7 @@ function startDiscovery() {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1280, height: 800,
-        title: 'LZ Station Manager',
+        title: 'LZ Media Station Manager',
         backgroundColor: '#132040',
         icon: path.join(__dirname, 'renderer', 'brand', 'icon-512.png'),
         webPreferences: {

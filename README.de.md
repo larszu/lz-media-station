@@ -500,7 +500,7 @@ Artefakte in `station-manager/dist/`.
 6. **Beobachten**: rote Kacheln und der Alarmzähler zeigen, was Aufmerksamkeit braucht; die Glocke an einer Kachel schaltet die Station stumm
 7. **Verwaltung**: „Verwaltung" an einer Kachel öffnet `/admin` im Manager
 
-Persistente Daten der App (`stations.json`, `pins.json`, `gruppen.json`): `%APPDATA%\station-manager\` (Win) bzw. `~/Library/Application Support/station-manager/` (Mac).
+Die installierte App speichert ihre Daten (`stations.json`, `pins.json`, `gruppen.json`) in `%APPDATA%\LZ Station Manager\` (Win) bzw. `~/Library/Application Support/LZ Station Manager/` (Mac); beim Start aus dem Quellcode (`npm start`) heißt der Ordner `station-manager`.
 
 ---
 
@@ -508,8 +508,8 @@ Persistente Daten der App (`stations.json`, `pins.json`, `gruppen.json`): `%APPD
 
 ```
                 ┌─────────────────────────────┐
-                │ LZ Station Manager (Electron)│
-                │   Win / macOS / Linux       │
+                │  LZ Media Station Manager   │
+                │  Electron · Win/macOS/Linux │
                 └──────────────┬──────────────┘
                                │ HTTP/JSON (LAN oder Tailscale)
         ┌──────────────────────┼──────────────────────┐
