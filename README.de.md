@@ -780,7 +780,9 @@ Auf dem Manager-Rechner ebenfalls Tailscale installieren und im selben Tailnet a
 
 ## Erscheinungsbild
 
-Alle Oberflächen folgen dem Brand Guide 2.0 der Lars Zumpe Medienproduktion: Deep Navy als Grund, Off-White als Aktionsfläche, Tally-Rot nur für Fokusring und den Punkt im Signet, keine Rundungen, Schatten oder Verläufe. `tests/test_brand_tokens.py` prüft das.
+Zielbild: die UI-Regeln der Lars Zumpe Medienproduktion (Oktober 2026) — neutrale Flächen in Hell und Dunkel mit Umschalter Auto · Hell · Dunkel, Markenblau nur als Akzent, Tally-Rot nur für Fokusring, Live-Zustände und den Punkt im Signet, weiche Rundungen und ruhige Schatten nur über Design-Tokens.
+
+Stand: Die Oberflächen zeigen noch die bisherige Optik — Deep Navy als Grund, Off-White als Aktionsfläche, keine Rundungen, Schatten oder Verläufe; `tests/test_brand_tokens.py` prüft diese Optik. Die Umstellung auf das Zielbild ist offen.
 
 | Datei | Wofür |
 |---|---|

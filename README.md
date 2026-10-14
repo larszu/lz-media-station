@@ -766,7 +766,9 @@ Install Tailscale on the manager computer as well and sign in to the same tailne
 
 ## Appearance
 
-All interfaces follow Brand Guide 2.0 of Lars Zumpe Medienproduktion: Deep Navy as the background, Off-White for action surfaces, Tally Red only for the focus ring and the dot in the signet, no rounded corners, shadows or gradients. `tests/test_brand_tokens.py` checks this.
+Target design: the UI rules of Lars Zumpe Medienproduktion (October 2026) — neutral surfaces in light and dark mode with an Auto · Light · Dark switch, brand blue only as an accent, Tally Red only for the focus ring, live states and the dot in the signet, soft rounded corners and calm shadows only via design tokens.
+
+Current state: the interfaces still use the previous look — Deep Navy background, Off-White action surfaces, no rounded corners, shadows or gradients; `tests/test_brand_tokens.py` checks that look. The switch to the target design is open.
 
 | File | Purpose |
 |---|---|

@@ -31,8 +31,11 @@ Anzeige (`static/anzeige/widgets.js`); was aus dem Netz kommt, holt der Kern
   (`static/i18n/widgets.en.js`) übersetzt; Datum und Uhrzeit folgen der
   Sprache der Anzeige (`?lang=en`).
 - **Farben.** Jedes Widget hat *Textfarbe* und *Hintergrund*; leer heißt
-  durchsichtig, also der Grund des Layouts. Keine Rundungen, keine Schatten —
-  die Marke gilt auch auf dem Schirm.
+  durchsichtig, also der Grund des Layouts. Zielbild sind die UI-Regeln der
+  Marke (Oktober 2026): neutrale Flächen, Markenblau nur als Akzent, weiche
+  Rundungen und ruhige Schatten ausschließlich über Design-Tokens. Die Widgets
+  (`static/anzeige/widgets.css`) zeigen noch die bisherige Optik — eckig, ohne
+  Schatten, Akzent Off-White; die Umstellung ist offen.
 
 ## Die Widgets
 
