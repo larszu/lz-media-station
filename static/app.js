@@ -1367,3 +1367,89 @@ fetch('/api/identity').then(function (r) { return r.json(); }).then(function (d)
     var v = document.getElementById('about-version');
     if (v && d.version) v.textContent = d.version;
 }).catch(function () {});
+
+/* ─── Ansichten & Darstellung (lzm-web, 2026-10-25) ─────────────────────────
+   Fuenf Ansichten statt Endlos-Scroll: eine zur Zeit, Wahl bleibt erhalten.
+   Darstellung Auto/Hell/Dunkel: Auto folgt dem System, sonst `data-theme` auf
+   <html>. Beides per localStorage gemerkt (in try/catch — im privaten Fenster
+   kann der Zugriff werfen).
+   ───────────────────────────────────────────────────────────────────────── */
+(function () {
+    function sicherLesen(schluessel) {
+        try { return localStorage.getItem(schluessel); } catch (e) { return null; }
+    }
+    function sicherSchreiben(schluessel, wert) {
+        try { localStorage.setItem(schluessel, wert); } catch (e) { /* egal */ }
+    }
+
+    // --- Darstellung ---
+    function setzeTheme(wahl) {
+        var wurzel = document.documentElement;
+        if (wahl === 'light' || wahl === 'dark') {
+            wurzel.setAttribute('data-theme', wahl);
+        } else {
+            wurzel.removeAttribute('data-theme');   // auto = System
+            wahl = 'auto';
+        }
+        var schalter = document.getElementById('theme-switch');
+        if (schalter) {
+            schalter.querySelectorAll('button').forEach(function (b) {
+                b.setAttribute('aria-pressed', b.dataset.themeChoice === wahl ? 'true' : 'false');
+            });
+        }
+        sicherSchreiben('lzms-theme', wahl);
+    }
+
+    // --- Ansichten ---
+    function zeigeAnsicht(name) {
+        var views = document.querySelectorAll('.view');
+        if (!views.length) { return; }
+        var gefunden = false;
+        views.forEach(function (v) {
+            var an = v.dataset.view === name;
+            v.classList.toggle('active', an);
+            if (an) { gefunden = true; }
+        });
+        if (!gefunden) { name = views[0].dataset.view; views[0].classList.add('active'); }
+        document.querySelectorAll('.view-tab').forEach(function (t) {
+            t.setAttribute('aria-selected', t.dataset.view === name ? 'true' : 'false');
+        });
+        sicherSchreiben('lzms-view', name);
+        window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        setzeTheme(sicherLesen('lzms-theme') || 'auto');
+        var schalter = document.getElementById('theme-switch');
+        if (schalter) {
+            schalter.addEventListener('click', function (e) {
+                var b = e.target.closest('button[data-theme-choice]');
+                if (b) { setzeTheme(b.dataset.themeChoice); }
+            });
+        }
+        var nav = document.getElementById('views-nav');
+        if (nav) {
+            nav.addEventListener('click', function (e) {
+                var t = e.target.closest('.view-tab');
+                if (t) { zeigeAnsicht(t.dataset.view); }
+            });
+        }
+        // Seiteninterne Spruenge (#card-…) koennen in eine andere Ansicht
+        // zeigen — z. B. die Onboarding-Schritte „Zur Medienbibliothek". Erst
+        // die passende Ansicht aktivieren, dann zur Karte scrollen, sonst
+        // springt der Anker ins Verborgene.
+        document.addEventListener('click', function (e) {
+            var a = e.target.closest('a[href^="#"]');
+            if (!a) { return; }
+            var id = a.getAttribute('href').slice(1);
+            if (!id) { return; }
+            var ziel = document.getElementById(id);
+            var view = ziel && ziel.closest('.view');
+            if (!view) { return; }
+            e.preventDefault();
+            if (!view.classList.contains('active')) { zeigeAnsicht(view.dataset.view); }
+            ziel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        zeigeAnsicht(sicherLesen('lzms-view') || 'abspielen');
+    });
+})();

@@ -29,15 +29,28 @@ def token(css: str, name: str) -> str:
 
 
 class WebOberflaeche(unittest.TestCase):
-    def test_palette(self):
-        self.assertEqual(token(WEB, "--bg"), "#132040", "Grund ist Deep Navy")
-        self.assertEqual(token(WEB, "--surface"), "#1D324F", "Flaeche ist Zumpe Navy")
-        self.assertEqual(token(WEB, "--text"), "#E1ECEF", "Fliesstext ist Eisblau")
-        self.assertEqual(token(WEB, "--text-dim"), "#8C9CB3", "Gedaempft ist Stahlblau")
+    """Seit Oktober 2026 folgt die WEB-Oberflaeche dem lzm-web-Skill: NEUTRAL
+    traegt, BLAU akzentuiert, hell UND dunkel. Die alten Print-Werte (Navy als
+    Flaeche) gelten hier nicht mehr — der Skill hebt sie fuer Oberflaechen
+    ausdruecklich auf. Was BLEIBT, ist die Marke: Navy als Akzent (hell),
+    Off-White darauf, Tally-Rot als Signal, und das Signet-Lockup in Navy."""
 
-    def test_akzent_ist_die_aktionsflaeche(self):
-        self.assertEqual(token(WEB, "--accent"), "#F6F5F0")
-        self.assertEqual(token(WEB, "--accent-text"), "#132040", "darauf steht Navy")
+    def test_neutrale_flaeche_kein_navy_grund(self):
+        # Grund und Karten sind neutral (Fast-Weiss / Weiss), nicht Navy.
+        self.assertEqual(token(WEB, "--bg"), "#F2F1EC")
+        self.assertEqual(token(WEB, "--surface"), "#FFFFFF")
+        self.assertEqual(token(WEB, "--text"), "#202329", "Anthrazit, nicht Eisblau")
+
+    def test_akzent_ist_markenblau(self):
+        # Hell: Akzent = Zumpe Navy, darauf Off-White.
+        self.assertEqual(token(WEB, "--accent"), "#1D324F")
+        self.assertEqual(token(WEB, "--accent-text"), "#F6F5F0")
+
+    def test_signet_lockup_bleibt_navy(self):
+        # Das Signet steht weiter Off-White auf Navy — eigenes Token, nie an
+        # --accent gekoppelt.
+        self.assertEqual(token(WEB, "--logo"), "#1D324F")
+        self.assertEqual(token(WEB, "--logo-ink"), "#F6F5F0")
 
     def test_status_ist_nicht_signal(self):
         self.assertEqual(token(WEB, "--danger"), "#B04A3F")
@@ -46,10 +59,14 @@ class WebOberflaeche(unittest.TestCase):
         self.assertNotEqual(token(WEB, "--danger"), token(WEB, "--signal"))
 
     def test_naeherung_folgt_den_status_toenen(self):
-        # --near/--far sind ein Zustand, keine Schmuckfarben: jemand steht
-        # davor oder nicht.
         self.assertEqual(token(WEB, "--near"), "#2F7D5C")
         self.assertEqual(token(WEB, "--far"), "#8C9CB3")
+
+    def test_hat_hell_und_dunkel(self):
+        # Beide Modi und ein Dunkel-Grund in Anthrazit (nicht Schwarz/Navy).
+        self.assertIn('prefers-color-scheme: dark', WEB)
+        self.assertIn('[data-theme="dark"]', WEB)
+        self.assertIn('[data-theme="light"]', WEB)
 
     def test_fokusring_ist_das_signal(self):
         self.assertIn("outline: 2px solid var(--signal)", WEB)
@@ -65,20 +82,23 @@ class StationManager(unittest.TestCase):
 
 
 class Form(unittest.TestCase):
-    def test_keine_rundungen(self):
-        for name, css in (("web", WEB), ("manager", MANAGER)):
-            rest = re.findall(r"border-radius:\s*(50%|[1-9][^;]*)", css)
-            self.assertEqual(rest, [], f"{name}: harte Radien {rest}")
+    """Die Print-Form-Regeln (keine Rundungen/Schatten/Verlaeufe) gelten noch
+    fuer den Electron-MANAGER — der ist nicht auf lzm-web umgestellt. Die
+    WEB-Oberflaeche darf seit der Umstellung weiche Rundungen, ruhige Schatten
+    und sehr dezente Verlaeufe tragen (lzm-web)."""
 
-    def test_keine_schatten(self):
-        for name, css in (("web", WEB), ("manager", MANAGER)):
-            rest = re.findall(r"box-shadow:(?!\s*none\s*;)[^;]+;", css)
-            self.assertEqual(rest, [], f"{name}: Schatten {rest}")
+    def test_manager_bleibt_ohne_rundungen(self):
+        rest = re.findall(r"border-radius:\s*(50%|[1-9][^;]*)", MANAGER)
+        self.assertEqual(rest, [], f"manager: harte Radien {rest}")
 
-    def test_keine_verlaeufe(self):
-        for name, css in (("web", WEB), ("manager", MANAGER)):
-            self.assertNotIn("linear-gradient", css, name)
-            self.assertNotIn("radial-gradient", css, name)
+    def test_manager_bleibt_ohne_schatten(self):
+        rest = re.findall(r"box-shadow:(?!\s*none\s*;)[^;]+;", MANAGER)
+        self.assertEqual(rest, [], f"manager: Schatten {rest}")
+
+    def test_web_nutzt_rundungs_tokens(self):
+        # Weiche Rundungen kommen aus Tokens, nicht als Streuwerte.
+        self.assertIn("--radius-l:", WEB)
+        self.assertIn("--radius-m:", WEB)
 
     def test_keine_schwarze_schrift_auf_der_aktionsflaeche(self):
         # Reines Schwarz gehoert nicht in die Palette; auf Off-White steht

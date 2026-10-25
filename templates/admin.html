@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>LZ Media Station – Admin</title>
     <link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
@@ -12,90 +12,122 @@
 <body>
     <nav>
         <div class="nav-brand">
-            <a href="/" class="logo-link"><img class="signet" src="/static/brand/lzm_signet_offwhite_tally.svg" alt="Startseite" height="32"></a>
+            <a href="/" class="logo-link"><img class="signet" src="/static/brand/lzm_signet_offwhite_tally.svg" alt="Startseite" height="24"></a>
             <h1>LZ Media Station – Admin</h1>
         </div>
         <div class="nav-right">
             <span id="system-name">Station</span>
+            <div class="theme-switch" id="theme-switch" role="group" aria-label="Darstellung">
+                <button type="button" data-theme-choice="auto" aria-pressed="true">Auto</button>
+                <button type="button" data-theme-choice="light" aria-pressed="false">Hell</button>
+                <button type="button" data-theme-choice="dark" aria-pressed="false">Dunkel</button>
+            </div>
             <button type="button" class="lang-switch" id="lang-switch">EN</button>
             <span class="status-dot" id="status-dot"></span>
         </div>
     </nav>
 
-    <main>
-        {% include "admin/_status.html" %}
-        {% include "admin/_zonen.html" %}
-        {% include "admin/_layouts.html" %}
-        {% include "admin/_bildschirme.html" %}
-        {% include "admin/_cast.html" %}
-        {% include "admin/_medien.html" %}
-        <!-- Einstellungen: bleibt in dieser Datei — die Regler-Tests
-             (tests/test_lautstaerke.py, test_schieberegler.py) lesen
-             admin.html direkt. -->
-        <section class="card">
-            <h2>Einstellungen</h2>
-            <div class="settings-grid">
-                <div class="form-group span-2">
-                    <label for="cfg-name">Stationsname</label>
-                    <input type="text" id="cfg-name" placeholder="LZ Station 1">
-                </div>
-                <div class="form-group span-2">
-                    <label for="cfg-zonen-stufen">Zonen</label>
-                    <select id="cfg-zonen-stufen">
-                        <option value="2">Zwei Stufen (Nah / Fern)</option>
-                        <option value="3">Drei Stufen (Nah / Mitte / Fern)</option>
-                    </select>
-                </div>
-                <div class="form-group span-2">
-                    <label>Schwelle Nah: <strong id="threshold-display">1.00</strong> m</label>
-                    <input type="range" id="cfg-threshold" min="0.1" max="4.0" step="0.05" value="1.0">
-                </div>
-                <div class="form-group span-2 nur-drei-stufen">
-                    <label>Schwelle Mitte: <strong id="threshold-mid-display">2.50</strong> m</label>
-                    <input type="range" id="cfg-threshold-mid" min="0.1" max="8.0" step="0.05" value="2.5">
-                </div>
-                <div class="form-group">
-                    <label>Verz&ouml;gerung: <strong id="delay-display">1.5</strong> s</label>
-                    <input type="range" id="cfg-delay" min="0.5" max="10" step="0.5" value="1.5">
-                </div>
-                <div class="form-group">
-                    <label>Bildwechsel: <strong id="imgint-display">5</strong> s</label>
-                    <input type="range" id="cfg-imginterval" min="1" max="30" step="1" value="5">
-                </div>
-                <div class="form-group">
-                    <label>Gesamt: <strong id="mastervol-display">100</strong>%</label>
-                    <input type="range" id="cfg-mastervol" min="0" max="100" step="5" value="100">
-                </div>
-                <div class="form-group">
-                    <label>Video: <strong id="vidvol-display">100</strong>%</label>
-                    <input type="range" id="cfg-vidvol" min="0" max="100" step="5" value="100">
-                </div>
-                <div class="form-group">
-                    <label>Audio: <strong id="audvol-display">80</strong>%</label>
-                    <input type="range" id="cfg-audvol" min="0" max="100" step="5" value="80">
-                </div>
-                <div class="form-group span-2">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="cfg-video-resume">
-                        <span>Video bei Zonenwechsel an gleicher Stelle fortsetzen (statt von vorne)</span>
-                    </label>
-                </div>
-            </div>
-            <button class="btn btn-save" onclick="saveConfig()">Einstellungen speichern</button>
-            <div id="save-feedback" class="feedback"></div>
-        </section>
+    <!-- Fuenf Ansichten statt Endlos-Scroll (Signage-Logik). Jede Karte und
+         jede Element-ID bleibt; nur gruppiert und eine Ansicht zur Zeit. -->
+    <div class="views-nav" id="views-nav" role="tablist" aria-label="Bereiche">
+        <button class="view-tab" role="tab" data-view="abspielen" aria-selected="true">Abspielen</button>
+        <button class="view-tab" role="tab" data-view="medien" aria-selected="false">Medien</button>
+        <button class="view-tab" role="tab" data-view="zonen" aria-selected="false">Zonen</button>
+        <button class="view-tab" role="tab" data-view="zeitplan" aria-selected="false">Zeitplan</button>
+        <button class="view-tab" role="tab" data-view="system" aria-selected="false">System</button>
+    </div>
 
-        
-        {% include "admin/_untertitel.html" %}
-        {% include "admin/_sicherung.html" %}
-        {% include "admin/_zustand.html" %}
-        {% include "admin/_statistik.html" %}
-        {% include "admin/_zeitsteuerung.html" %}
-        {% include "admin/_system.html" %}
-        {# Erweiterungen: jede Datei in templates/admin/zusatz/ ist eine Karte. #}
-        {% for teil in zusatz_templates %}{% include teil %}
-        {% endfor %}
-        {% include "admin/_ueber.html" %}
+    <main>
+        <!-- 1 · Abspielen: Was laeuft, und Medien direkt abfeuern. -->
+        <div class="view active" data-view="abspielen">
+            {% include "admin/_status.html" %}
+            {% include "admin/_cast.html" %}
+            {% include "admin/_bildschirme.html" %}
+        </div>
+
+        <!-- 2 · Medien: Mediathek und Untertitel. -->
+        <div class="view" data-view="medien">
+            {% include "admin/_medien.html" %}
+            {% include "admin/_untertitel.html" %}
+        </div>
+
+        <!-- 3 · Zonen: Layouts, Zonen und ihre Einstellungen. -->
+        <div class="view" data-view="zonen">
+            {% include "admin/_zonen.html" %}
+            {% include "admin/_layouts.html" %}
+            <!-- Einstellungen: bleibt in dieser Datei — die Regler-Tests
+                 (tests/test_lautstaerke.py, test_schieberegler.py) lesen
+                 admin.html direkt. -->
+            <section class="card">
+                <h2>Einstellungen</h2>
+                <div class="settings-grid">
+                    <div class="form-group span-2">
+                        <label for="cfg-name">Stationsname</label>
+                        <input type="text" id="cfg-name" placeholder="LZ Station 1">
+                    </div>
+                    <div class="form-group span-2">
+                        <label for="cfg-zonen-stufen">Zonen</label>
+                        <select id="cfg-zonen-stufen">
+                            <option value="2">Zwei Stufen (Nah / Fern)</option>
+                            <option value="3">Drei Stufen (Nah / Mitte / Fern)</option>
+                        </select>
+                    </div>
+                    <div class="form-group span-2">
+                        <label>Schwelle Nah: <strong id="threshold-display">1.00</strong> m</label>
+                        <input type="range" id="cfg-threshold" min="0.1" max="4.0" step="0.05" value="1.0">
+                    </div>
+                    <div class="form-group span-2 nur-drei-stufen">
+                        <label>Schwelle Mitte: <strong id="threshold-mid-display">2.50</strong> m</label>
+                        <input type="range" id="cfg-threshold-mid" min="0.1" max="8.0" step="0.05" value="2.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Verz&ouml;gerung: <strong id="delay-display">1.5</strong> s</label>
+                        <input type="range" id="cfg-delay" min="0.5" max="10" step="0.5" value="1.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Bildwechsel: <strong id="imgint-display">5</strong> s</label>
+                        <input type="range" id="cfg-imginterval" min="1" max="30" step="1" value="5">
+                    </div>
+                    <div class="form-group">
+                        <label>Gesamt: <strong id="mastervol-display">100</strong>%</label>
+                        <input type="range" id="cfg-mastervol" min="0" max="100" step="5" value="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Video: <strong id="vidvol-display">100</strong>%</label>
+                        <input type="range" id="cfg-vidvol" min="0" max="100" step="5" value="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Audio: <strong id="audvol-display">80</strong>%</label>
+                        <input type="range" id="cfg-audvol" min="0" max="100" step="5" value="80">
+                    </div>
+                    <div class="form-group span-2">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="cfg-video-resume">
+                            <span>Video bei Zonenwechsel an gleicher Stelle fortsetzen (statt von vorne)</span>
+                        </label>
+                    </div>
+                </div>
+                <button class="btn btn-save" onclick="saveConfig()">Einstellungen speichern</button>
+                <div id="save-feedback" class="feedback"></div>
+            </section>
+        </div>
+
+        <!-- 4 · Zeitplan: Oeffnungszeiten. -->
+        <div class="view" data-view="zeitplan">
+            {% include "admin/_zeitsteuerung.html" %}
+        </div>
+
+        <!-- 5 · System: Sicherung, Zustand, Statistik, Netzwerk, Erweiterungen, Ueber. -->
+        <div class="view" data-view="system">
+            {% include "admin/_sicherung.html" %}
+            {% include "admin/_zustand.html" %}
+            {% include "admin/_statistik.html" %}
+            {% include "admin/_system.html" %}
+            {# Erweiterungen: jede Datei in templates/admin/zusatz/ ist eine Karte. #}
+            {% for teil in zusatz_templates %}{% include teil %}
+            {% endfor %}
+            {% include "admin/_ueber.html" %}
+        </div>
     </main>
 
     <script src="/static/i18n-en.js"></script>

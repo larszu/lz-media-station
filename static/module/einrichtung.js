@@ -7,8 +7,12 @@
     'use strict';
     var karte = document.getElementById('card-einrichtung');
     if (!karte) return;
-    var main = karte.closest('main');
-    if (main && main.firstElementChild !== karte) main.insertBefore(karte, main.firstElementChild);
+    // Oben in der Lande-Ansicht „Abspielen" platzieren (nicht in `main`
+    // selbst — sonst stuende die Karte ausserhalb der Ansichten und waere in
+    // jeder sichtbar). Faellt auf `main` zurueck, falls es keine Ansichten
+    // gibt (aeltere Oberflaeche).
+    var ziel = document.querySelector('.view[data-view="abspielen"]') || karte.closest('main');
+    if (ziel && ziel.firstElementChild !== karte) ziel.insertBefore(karte, ziel.firstElementChild);
 
     function hatInhalt(cfg) {
         if (!cfg) return true;  // ohne Daten nichts behaupten
