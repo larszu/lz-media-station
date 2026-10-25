@@ -1,0 +1,21 @@
+<!-- Chromecast als Ausgabeziel (Nutzer, 2026-10-25) -->
+<section class="card" id="card-cast">
+    <h2>Chromecast</h2>
+    <p class="hint">
+        Statt (oder neben) einem Schirm an diesem Rechner l&auml;sst sich ein
+        Chromecast im Netz bespielen. &bdquo;Jetzt casten&ldquo; wirft das
+        gerade laufende Medium auf das Ger&auml;t; &bdquo;Anzeige casten&ldquo;
+        die ganze Display-Seite &mdash; das braucht einen eigenen Web-Receiver
+        (App-ID in der Konfiguration).
+    </p>
+    <div id="cast-list" class="media-list"></div>
+    <div class="row" style="gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="cast-ip" class="input" placeholder="IP, z. B. 192.168.2.2"
+               style="max-width:220px;" />
+        <button class="btn" id="btn-cast-play">Jetzt casten</button>
+        <button class="btn btn-secondary" id="btn-cast-display">Anzeige casten</button>
+        <button class="btn btn-secondary" id="btn-cast-stop">Stopp</button>
+        <button class="btn btn-small" id="btn-cast-suche">Suchen</button>
+    </div>
+    <div id="cast-feedback" class="feedback"></div>
+</section>

@@ -1211,6 +1211,79 @@ document.addEventListener('DOMContentLoaded', function () {
     ladeSchirme();
 });
 
+/* ─── Chromecast (Nutzer, 2026-10-25) ───────────────────────────────────────
+   Dieselbe Form wie die Schirm-Karte, nur fuers Netz: suchen, ein Geraet
+   waehlen (oder die IP tippen — auf dem Mac liefert die Suche keine IP), und
+   casten. Die Karte bleibt sichtbar: Cast geht auch per Hand-IP, ohne dass
+   eine Suche etwas findet.
+   ───────────────────────────────────────────────────────────────────────── */
+
+async function ladeCastGeraete() {
+    var liste = el('cast-list');
+    if (!liste) { return; }
+    liste.innerHTML = '<div class="empty">Suche l&auml;uft &hellip;</div>';
+    try {
+        var r = await fetch('/api/cast/geraete');
+        var d = await r.json();
+        var g = d.geraete || [];
+        if (!g.length) {
+            liste.innerHTML = '<div class="empty">' +
+                esc(d.meldung || 'Kein Chromecast gefunden') +
+                ' &mdash; IP unten eintragen.</div>';
+            return;
+        }
+        liste.innerHTML = g.map(function (x) {
+            var ziel = x.ip || x.name;
+            var modell = x.modell ? ' &middot; ' + esc(x.modell) : '';
+            var adresse = x.ip ? (' &mdash; ' + esc(x.ip)) : '';
+            return '<div class="media-item">' +
+                '<span>' + esc(x.name) + adresse + modell + '</span>' +
+                '<button class="btn btn-small" data-cast-ip="' + esc(ziel) + '">' +
+                'W&auml;hlen</button></div>';
+        }).join('');
+        liste.querySelectorAll('button[data-cast-ip]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var feld = el('cast-ip');
+                if (feld) { feld.value = b.dataset.castIp; }
+            });
+        });
+    } catch (e) {
+        liste.innerHTML = '<div class="empty">Suche fehlgeschlagen.</div>';
+    }
+}
+
+async function castBefehl(was, zusatz) {
+    var fb = el('cast-feedback');
+    var ip = (el('cast-ip') || {}).value;
+    var body = Object.assign({ ip: (ip || '').trim() }, zusatz || {});
+    try {
+        var r = await fetch('/api/cast/' + was, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        var d = await r.json();
+        var txt = d.meldung || d.error || (d.ok ? 'OK' : 'Fehler');
+        fb.textContent = txt;
+        fb.className = 'feedback' + (d.ok ? '' : ' error');
+    } catch (e) {
+        fb.textContent = 'Fehler: ' + e.message;
+        fb.className = 'feedback error';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    var play = el('btn-cast-play');
+    var disp = el('btn-cast-display');
+    var stop = el('btn-cast-stop');
+    var such = el('btn-cast-suche');
+    if (play) { play.addEventListener('click', function () { castBefehl('play', {}); }); }
+    if (disp) { disp.addEventListener('click', function () { castBefehl('play', { modus: 'anzeige' }); }); }
+    if (stop) { stop.addEventListener('click', function () { castBefehl('stop', {}); }); }
+    if (such) { such.addEventListener('click', ladeCastGeraete); }
+    ladeCastGeraete();
+});
+
 fetch('/api/identity').then(function (r) { return r.json(); }).then(function (d) {
     var v = document.getElementById('about-version');
     if (v && d.version) v.textContent = d.version;
