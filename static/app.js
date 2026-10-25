@@ -1211,12 +1211,104 @@ document.addEventListener('DOMContentLoaded', function () {
     ladeSchirme();
 });
 
-/* ─── Chromecast (Nutzer, 2026-10-25) ───────────────────────────────────────
-   Dieselbe Form wie die Schirm-Karte, nur fuers Netz: suchen, ein Geraet
-   waehlen (oder die IP tippen — auf dem Mac liefert die Suche keine IP), und
-   casten. Die Karte bleibt sichtbar: Cast geht auch per Hand-IP, ohne dass
-   eine Suche etwas findet.
+/* ─── Medien abfeuern (Nutzer, 2026-10-25) ──────────────────────────────────
+   Eine einzelne Datei sofort zeigen — ohne Zone, ohne Entfernungsgrenze.
+   Ziel ist der Schirm am Aufbau (/display, per Befehl) ODER ein Chromecast
+   (per /api/cast/play mit konkreter Datei). Die Medienliste kommt aus
+   /api/media; die Chromecast-Suche fuellt die IP (auf dem Mac aufgeloest).
    ───────────────────────────────────────────────────────────────────────── */
+
+var castDateien = [];   // [{media_type, name}]
+
+async function ladeAbfeuerMedien() {
+    var sel = el('cast-datei');
+    if (!sel) { return; }
+    castDateien = [];
+    try {
+        var arten = ['videos', 'images'];
+        for (var i = 0; i < arten.length; i++) {
+            var r = await fetch('/api/media/' + arten[i]);
+            var files = await r.json();
+            (files || []).forEach(function (f) {
+                castDateien.push({ media_type: arten[i], name: f.name });
+            });
+        }
+    } catch (e) { /* unten als leer behandelt */ }
+    if (!castDateien.length) {
+        sel.innerHTML = '<option value="">Keine Medien — erst hochladen</option>';
+        return;
+    }
+    sel.innerHTML = castDateien.map(function (d, i) {
+        var tag = d.media_type === 'images' ? 'Bild: ' : 'Video: ';
+        return '<option value="' + i + '">' + tag + esc(d.name) + '</option>';
+    }).join('');
+}
+
+function gewaehlteDatei() {
+    var sel = el('cast-datei');
+    var i = sel ? Number(sel.value) : -1;
+    return (i >= 0 && castDateien[i]) ? castDateien[i] : null;
+}
+
+function castMeldung(txt, fehler) {
+    var fb = el('cast-feedback');
+    if (!fb) { return; }
+    fb.textContent = txt;
+    fb.className = 'feedback' + (fehler ? ' error' : '');
+}
+
+async function feuerAufSchirm() {
+    var d = gewaehlteDatei();
+    if (!d) { castMeldung('Erst eine Datei waehlen (oder hochladen).', true); return; }
+    try {
+        var r = await fetch('/api/befehl', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ typ: 'zeige_medien', media_type: d.media_type, name: d.name }),
+        });
+        var j = await r.json();
+        if (!r.ok) { castMeldung(j.error || 'Fehler', true); return; }
+        castMeldung(j.empfaenger
+            ? ('Läuft auf dem Schirm (' + j.empfaenger + ' Anzeige(n)).')
+            : 'Gesendet — aber keine Anzeige offen. /display in einem Browser öffnen.',
+            !j.empfaenger);
+    } catch (e) { castMeldung('Fehler: ' + e.message, true); }
+}
+
+async function feuerAufCast() {
+    var d = gewaehlteDatei();
+    if (!d) { castMeldung('Erst eine Datei waehlen (oder hochladen).', true); return; }
+    var ip = ((el('cast-ip') || {}).value || '').trim();
+    if (!ip) { castMeldung('Keine Chromecast-IP — suchen oder eintragen.', true); return; }
+    castMeldung('Sende an den Chromecast …');
+    try {
+        var r = await fetch('/api/cast/play', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip: ip, media_type: d.media_type, datei: d.name }),
+        });
+        var j = await r.json();
+        castMeldung(j.meldung || j.error || (j.ok ? 'OK' : 'Fehler'), !j.ok);
+    } catch (e) { castMeldung('Fehler: ' + e.message, true); }
+}
+
+async function feuerStop() {
+    // Beides zuruecknehmen: Schirm zur Zonensteuerung, Chromecast beenden.
+    try {
+        await fetch('/api/befehl', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ typ: 'direkt_stop' }),
+        });
+    } catch (e) { /* egal */ }
+    var ip = ((el('cast-ip') || {}).value || '').trim();
+    if (ip) {
+        try {
+            await fetch('/api/cast/stop', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip: ip }),
+            });
+        } catch (e) { /* egal */ }
+    }
+    castMeldung('Gestoppt.');
+}
 
 async function ladeCastGeraete() {
     var liste = el('cast-list');
@@ -1233,18 +1325,19 @@ async function ladeCastGeraete() {
             return;
         }
         liste.innerHTML = g.map(function (x) {
-            var ziel = x.ip || x.name;
             var modell = x.modell ? ' &middot; ' + esc(x.modell) : '';
-            var adresse = x.ip ? (' &mdash; ' + esc(x.ip)) : '';
-            return '<div class="media-item">' +
-                '<span>' + esc(x.name) + adresse + modell + '</span>' +
-                '<button class="btn btn-small" data-cast-ip="' + esc(ziel) + '">' +
-                'W&auml;hlen</button></div>';
+            var adresse = x.ip ? (' &mdash; ' + esc(x.ip)) : ' &mdash; (keine IP, bitte eintragen)';
+            var btn = x.ip
+                ? '<button class="btn btn-small" data-cast-ip="' + esc(x.ip) + '">W&auml;hlen</button>'
+                : '';
+            return '<div class="media-item"><span>' + esc(x.name) + adresse + modell +
+                '</span>' + btn + '</div>';
         }).join('');
         liste.querySelectorAll('button[data-cast-ip]').forEach(function (b) {
             b.addEventListener('click', function () {
                 var feld = el('cast-ip');
                 if (feld) { feld.value = b.dataset.castIp; }
+                castMeldung('Chromecast ' + b.dataset.castIp + ' gewählt.');
             });
         });
     } catch (e) {
@@ -1252,35 +1345,21 @@ async function ladeCastGeraete() {
     }
 }
 
-async function castBefehl(was, zusatz) {
-    var fb = el('cast-feedback');
-    var ip = (el('cast-ip') || {}).value;
-    var body = Object.assign({ ip: (ip || '').trim() }, zusatz || {});
-    try {
-        var r = await fetch('/api/cast/' + was, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-        var d = await r.json();
-        var txt = d.meldung || d.error || (d.ok ? 'OK' : 'Fehler');
-        fb.textContent = txt;
-        fb.className = 'feedback' + (d.ok ? '' : ' error');
-    } catch (e) {
-        fb.textContent = 'Fehler: ' + e.message;
-        fb.className = 'feedback error';
-    }
-}
-
 document.addEventListener('DOMContentLoaded', function () {
-    var play = el('btn-cast-play');
-    var disp = el('btn-cast-display');
-    var stop = el('btn-cast-stop');
-    var such = el('btn-cast-suche');
-    if (play) { play.addEventListener('click', function () { castBefehl('play', {}); }); }
-    if (disp) { disp.addEventListener('click', function () { castBefehl('play', { modus: 'anzeige' }); }); }
-    if (stop) { stop.addEventListener('click', function () { castBefehl('stop', {}); }); }
-    if (such) { such.addEventListener('click', ladeCastGeraete); }
+    if (!el('card-cast')) { return; }
+    var b;
+    if ((b = el('btn-fire-screen'))) { b.addEventListener('click', feuerAufSchirm); }
+    if ((b = el('btn-fire-cast'))) { b.addEventListener('click', feuerAufCast); }
+    if ((b = el('btn-fire-stop'))) { b.addEventListener('click', feuerStop); }
+    if ((b = el('btn-cast-reload-medien'))) { b.addEventListener('click', ladeAbfeuerMedien); }
+    if ((b = el('btn-cast-suche'))) { b.addEventListener('click', ladeCastGeraete); }
+    // IP aus der Konfiguration vorbelegen, falls gesetzt.
+    fetch('/api/status').then(function (r) { return r.json(); }).then(function (d) {
+        var ipFeld = el('cast-ip');
+        var cfg = (d.config && d.config.cast) || {};
+        if (ipFeld && cfg.geraet_ip) { ipFeld.value = cfg.geraet_ip; }
+    }).catch(function () {});
+    ladeAbfeuerMedien();
     ladeCastGeraete();
 });
 
