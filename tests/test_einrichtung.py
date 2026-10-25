@@ -88,7 +88,11 @@ class DieErsteinrichtungSagtWasZuTunIst(unittest.TestCase):
         # Verborgen, bis der Status sagt, dass nichts da ist — sonst blitzt
         # sie bei einer eingerichteten Station beim Laden auf.
         self.assertIn('id="card-einrichtung" hidden', KARTE)
-        self.assertIn("main.insertBefore(karte, main.firstElementChild)", MODUL)
+        # Steht oben in der Lande-Ansicht „Abspielen" (seit der lzm-web-
+        # Umstellung sind die Karten in Ansichten gruppiert; `main` als Ziel
+        # stuende ausserhalb und waere in jeder Ansicht sichtbar).
+        self.assertIn('.view[data-view="abspielen"]', MODUL)
+        self.assertIn("ziel.insertBefore(karte, ziel.firstElementChild)", MODUL)
 
     def test_inhalt_wird_gemessen_wie_beim_autostart(self):
         # Dieselbe Regel wie templates/launch.html: Ton, Playlist, Widget.

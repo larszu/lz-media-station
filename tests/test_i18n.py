@@ -29,7 +29,7 @@ GLEICH = {
     # Layouts (3.0): Fachwoerter, die im Englischen genauso heissen.
     "Layout", "Layouts", "Ticker", "Region",
     # Cast (3.x): Markenwort, gleich in beiden Sprachen.
-    "Chromecast",
+    "Chromecast", "Auto",
     # Monitor und Zugang (3.0)
     "Monitor", "System", "Topic", "Webhook (JSON)", "ntfy", "https://ntfy.sh", "PIN", "Zone",
     # Station Manager (3.0)
