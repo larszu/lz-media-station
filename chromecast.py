@@ -405,10 +405,11 @@ def _aus_avahi(text):
 
 
 def _finde_dnssd(frist_s):
-    # macOS: Browsen und Aufloesen laufen getrennt. Fuer die Station (Pi) ist
-    # das der Nebenweg; hier reicht, die Namen zu liefern — die IP holt der
-    # Resolve-Schritt, den der Aufrufer bei Bedarf fuehrt. Wir halten es
-    # bewusst klein und tolerant.
+    # macOS: Browsen und Aufloesen laufen getrennt. `-B` nennt die
+    # Instanznamen, `-L` loest einen Namen zu Host und Port auf, und den Host
+    # (`<uuid>.local`) bringt `getaddrinfo` ueber den mDNSResponder zur IP.
+    # Das ist der Nebenweg (die Station laeuft am Pi mit avahi), aber ohne IP
+    # kann die Oberflaeche nichts anfangen — also hier gleich aufloesen.
     try:
         roh = subprocess.run(
             ["dns-sd", "-t", str(frist_s), "-B", "_googlecast._tcp"],
@@ -424,9 +425,44 @@ def _finde_dnssd(frist_s):
             name = zeile.split("_googlecast._tcp.")[-1].strip()
             if name and name not in namen:   # dns-sd meldet je Interface einmal
                 namen.append(name)
-    liste = [{"name": n, "ip": "", "port": CAST_PORT, "modell": ""} for n in namen]
+    geraete = {}
+    for name in namen:
+        ip, port = _dnssd_aufloesen(name, frist_s)
+        schluessel = ip or name   # eine IP, einmal — egal ueber wie viele Interfaces
+        geraete[schluessel] = {"name": name, "ip": ip,
+                               "port": port or CAST_PORT, "modell": ""}
+    liste = list(geraete.values())
     hinweis = "" if liste else "Keine Chromecasts gefunden"
     return liste, hinweis
+
+
+def _dnssd_aufloesen(instanz, frist_s):
+    """Einen macOS-Instanznamen zu (ip, port) aufloesen. ('' , None) bei
+    Misserfolg — der Aufrufer traegt die IP dann von Hand ein."""
+    try:
+        roh = subprocess.run(
+            ["dns-sd", "-t", str(max(1, frist_s // 2)), "-L", instanz, "_googlecast._tcp"],
+            capture_output=True, text=True, timeout=frist_s + 2,
+        ).stdout
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        return "", None
+    # Zeile der Form: "... can be reached at <uuid>.local.:8009 (...)"
+    host, port = "", None
+    for zeile in roh.splitlines():
+        if "can be reached at" in zeile:
+            ziel = zeile.split("can be reached at", 1)[1].strip().split()[0]
+            ziel = ziel.rstrip(".")
+            if ":" in ziel:
+                host, _, p = ziel.rpartition(":")
+                port = int(p) if p.isdigit() else None
+            break
+    if not host:
+        return "", None
+    try:
+        infos = socket.getaddrinfo(host, port or CAST_PORT, socket.AF_INET)
+        return infos[0][4][0], port
+    except (OSError, IndexError):
+        return "", port
 
 
 def _txt_felder(txt):

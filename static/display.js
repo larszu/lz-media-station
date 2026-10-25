@@ -73,6 +73,7 @@
     // Ein per `/api/befehl` eingeblendetes Layout: {layout_id} oder null.
     var ueberblendung = null;
     var ueberblendungTimer = null;
+    var direktScene = null;   // einzelne, direkt abgefeuerte Datei (ohne Zone)
 
     // ESC -> zur Admin-Seite (bewusst der einzige Weg dorthin). Nicht in
     // einem iframe: dort ist die Seite die Vorschau IM Admin, und ESC (etwa
@@ -93,6 +94,9 @@
         var quelle = new EventSource('/api/events');
         quelle.addEventListener('scene', function (e) {
             letzterKontakt = Date.now();
+            // Ein direkt abgefeuertes Medium haelt den Schirm, bis es gestoppt
+            // wird — ein Zonenwechsel darf es nicht wegdruecken.
+            if (direktScene) return;
             // In der Vorschau und waehrend einer Ueberblendung zaehlt nicht
             // die Zone, sondern das gewaehlte Layout — also neu holen.
             if (vorschau || ueberblendung) { hole(); return; }
@@ -173,6 +177,39 @@
         if (!b || !b.typ) return;
         melde('befehl', b);
         if (b.typ === 'reload') { window.location.reload(); return; }
+        if (b.typ === 'zeige_medien') {
+            // Eine einzelne Datei sofort im Vollbild — ohne Zone, ohne
+            // Entfernungsgrenze. Ein Ad-hoc-Layout aus genau diesem Item geht
+            // durch denselben Renderpfad wie eine echte Szene.
+            if (ueberblendungTimer) { clearTimeout(ueberblendungTimer); ueberblendungTimer = null; }
+            ueberblendung = null;
+            var istVideo = b.media_type !== 'images';
+            direktScene = {
+                active: true, geschlossen: false, zone: 'direkt',
+                stationsname: stationsname,
+                master_volume: 100, video_volume: 100, audio_volume: 100,
+                image_interval_s: 5,
+                layout: {
+                    name: 'Direkt', hintergrund: '#000000',
+                    regionen: [{
+                        id: 'haupt', name: 'Direkt', x: 0, y: 0, w: 100, h: 100, z: 0,
+                        typ: 'medien', ton: true, uebergang: 'blende',
+                        shuffle: false, einmal: false,
+                        playlist: [{ typ: istVideo ? 'video' : 'image',
+                                     name: b.name, dauer_s: null }],
+                    }],
+                },
+            };
+            currentHash = '';       // Renderpfad soll neu aufbauen
+            verarbeite(direktScene);
+            return;
+        }
+        if (b.typ === 'direkt_stop') {
+            direktScene = null;
+            currentHash = '';
+            hole();                 // zurueck zur Zonen-/Wochenplan-Steuerung
+            return;
+        }
         if (b.typ === 'zeige_layout') {
             if (ueberblendungTimer) { clearTimeout(ueberblendungTimer); ueberblendungTimer = null; }
             ueberblendung = b.layout_id ? { layout_id: b.layout_id } : null;

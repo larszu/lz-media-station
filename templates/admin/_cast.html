@@ -1,21 +1,26 @@
-<!-- Chromecast als Ausgabeziel (Nutzer, 2026-10-25) -->
+<!-- Medien abfeuern: eine Datei sofort zeigen/casten, ohne Zone (Nutzer, 2026-10-25) -->
 <section class="card" id="card-cast">
-    <h2>Chromecast</h2>
+    <h2>Medien abfeuern</h2>
     <p class="hint">
-        Statt (oder neben) einem Schirm an diesem Rechner l&auml;sst sich ein
-        Chromecast im Netz bespielen. &bdquo;Jetzt casten&ldquo; wirft das
-        gerade laufende Medium auf das Ger&auml;t; &bdquo;Anzeige casten&ldquo;
-        die ganze Display-Seite &mdash; das braucht einen eigenen Web-Receiver
-        (App-ID in der Konfiguration).
+        Eine Datei sofort abspielen &mdash; ohne Zone, ohne Entfernungsgrenze.
+        Auf dem Schirm am Aufbau oder auf einem Chromecast im Netz. Zum
+        laufenden Betrieb mit Sensor zur&uuml;ck geht es mit &bdquo;Stopp&ldquo;.
     </p>
-    <div id="cast-list" class="media-list"></div>
+    <div class="row" style="gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap;">
+        <select id="cast-datei" class="input" style="min-width:220px;max-width:320px;"></select>
+        <button class="btn btn-small" id="btn-cast-reload-medien">Medienliste aktualisieren</button>
+    </div>
     <div class="row" style="gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn" id="btn-fire-screen">Auf dem Schirm abfeuern</button>
+        <button class="btn" id="btn-fire-cast">Auf dem Chromecast abfeuern</button>
+        <button class="btn btn-secondary" id="btn-fire-stop">Stopp</button>
+    </div>
+    <h3 style="margin-top:16px;">Chromecast</h3>
+    <div id="cast-list" class="media-list"></div>
+    <div class="row" style="gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap;">
         <input type="text" id="cast-ip" class="input" placeholder="IP, z. B. 192.168.2.2"
                style="max-width:220px;" />
-        <button class="btn" id="btn-cast-play">Jetzt casten</button>
-        <button class="btn btn-secondary" id="btn-cast-display">Anzeige casten</button>
-        <button class="btn btn-secondary" id="btn-cast-stop">Stopp</button>
-        <button class="btn btn-small" id="btn-cast-suche">Suchen</button>
+        <button class="btn btn-small" id="btn-cast-suche">Chromecasts suchen</button>
     </div>
     <div id="cast-feedback" class="feedback"></div>
 </section>

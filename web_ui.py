@@ -313,9 +313,25 @@ def create_app(controller, anzeigen=None):
         """
         daten = request.get_json(silent=True) or {}
         typ = daten.get("typ")
-        if typ not in ("reload", "zeige_layout", "screenshot"):
-            return jsonify({"error": "typ: reload|zeige_layout|screenshot"}), 400
+        if typ not in ("reload", "zeige_layout", "zeige_medien", "direkt_stop", "screenshot"):
+            return jsonify({"error": "typ: reload|zeige_layout|zeige_medien|direkt_stop|screenshot"}), 400
         befehl = {"typ": typ}
+        if typ == "zeige_medien":
+            # Eine EINZELNE Datei sofort im Vollbild zeigen — ohne Zone, ohne
+            # Entfernungsgrenze, ohne Sensor. Das ist der „einfach abfeuern"-
+            # Weg: die Anzeige baut daraus ein Ad-hoc-Layout und spielt es,
+            # bis `direkt_stop` kommt oder die Seite neu laedt.
+            media_type = daten.get("media_type", "videos")
+            name = daten.get("name")
+            if media_type not in ("videos", "images"):
+                return jsonify({"error": "media_type: videos|images"}), 400
+            if not name:
+                return jsonify({"error": "name: Dateiname fehlt"}), 400
+            sicher = secure_filename(name)
+            if not os.path.isfile(os.path.join(MEDIA_DIRS[media_type], sicher)):
+                return jsonify({"error": f"{sicher!r} gibt es nicht in {media_type}/"}), 404
+            befehl["media_type"] = media_type
+            befehl["name"] = sicher
         if typ == "zeige_layout":
             lid = daten.get("layout_id")
             if lid is not None and lid not in (controller.config.get("layouts") or {}):
