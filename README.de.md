@@ -557,6 +557,8 @@ keinen Player-Prozess.)
 | `medien_check.py` | Beurteilt hochgeladene Videos (ffprobe optional) |
 | `tv_cec.py` | Fernseher per HDMI-CEC schalten (wirft nie) |
 | `displays.py` | Bildschirme dieses Rechners finden und bespielen |
+| `chromecast.py` | Einen Google Chromecast als Ausgabeziel ansprechen — CASTV2 über TLS, nur Standardbibliothek (wirft nie) |
+| `api_cast.py` | Blueprint für die Chromecast-Routen (`/api/cast/*`) |
 | `static/`, `templates/` | Frontend (Admin, Anzeige, Startseite); die Admin-Karten sind Includes in `templates/admin/` |
 | `static/module/`, `static/anzeige/`, `static/i18n/`, `templates/admin/zusatz/` | Erweiterungspunkte — Dateien dort werden automatisch eingebunden |
 | `static/anzeige/widgets.js`, `widgets/` | Die Widgets der Anzeige (`window.LZ_WIDGETS`, samt QR-Encoder) und der Ordner für eigene HTML-Widgets |
@@ -675,6 +677,8 @@ Abruf, kommt der letzte Stand als `veraltet: true`, Fehler als `{fehler}` mit
 |---|---|---|
 | GET | `/api/displays` | Angeschlossene Bildschirme dieses Rechners |
 | POST | `/api/displays/play` · `/api/displays/stop` | Anzeige-Fenster öffnen / schließen |
+| GET | `/api/cast/geraete` | Chromecasts im Netz |
+| POST | `/api/cast/play` · `/api/cast/stop` | Laufende/gewählte Medien (oder die `/display`-Seite) auf einen Chromecast werfen oder stoppen |
 | GET/POST | `/api/system/network` | nmcli IP-Konfiguration |
 | GET/POST | `/api/system/wifi` | WLAN ein/aus, Scan, Verbinden |
 | POST | `/api/system/reboot` | `sudo reboot` |

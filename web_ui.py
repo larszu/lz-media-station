@@ -13,8 +13,9 @@ import layouts as layouts_modul
 import medien_check
 from config_schema import (
     DEFAULT_CONFIG, MEDIENARTEN, ZONEN, ZONEN_NAMEN, aktive_zonen,
-    heile_config, heile_zone, pruefe_patch, pruefe_pins, pruefe_schwellen,
-    pruefe_sprachen, pruefe_untertitel, pruefe_zone, standard_zone,
+    heile_config, heile_zone, pruefe_cast, pruefe_patch, pruefe_pins,
+    pruefe_schwellen, pruefe_sprachen, pruefe_untertitel, pruefe_zone,
+    standard_zone,
 )
 from zeitplan import pruefe_zeitplan
 
@@ -505,6 +506,10 @@ def create_app(controller, anzeigen=None):
                 geprueft["zeitplan"] = pruefe_zeitplan(data["zeitplan"])
             if "sprachen" in data:
                 geprueft["sprachen"] = pruefe_sprachen(data["sprachen"])
+            # Chromecast-Abschnitt: verschachtelt, deshalb hier und nicht in
+            # GRENZEN. Gleiche Politik: ABLEHNEN statt heilen.
+            if "cast" in data:
+                geprueft["cast"] = pruefe_cast(data["cast"])
             if "untertitel" in data:
                 geprueft["untertitel"] = {
                     secure_filename(video): {

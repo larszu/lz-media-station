@@ -175,6 +175,13 @@ DEFAULT_CONFIG = {
     # nichts ausser einer Zeile im Log.
     "cec_aktiv": False,
     "display_ip": "",
+    # Chromecast als Ausgabeziel (api_cast). Verschachtelt wie zeitplan &
+    # Co., deshalb NICHT in GRENZEN, sondern eigene Heilung (`heile_cast`).
+    #   aktiv      — schaltet die Cast-Knoepfe in der Oberflaeche frei
+    #   geraet_ip  — Vorgabe-Chromecast; leer = im Body/Request angeben
+    #   modus      — „medien" (einzelne Datei) oder „anzeige" (ganze Seite)
+    #   app_id     — eigener Web-Receiver; leer = Googles Standard-Empfaenger
+    "cast": {"aktiv": False, "geraet_ip": "", "modus": "medien", "app_id": ""},
     # Untertitel. `sprachen` sind die am Display anwaehlbaren Codes (leer =
     # keine Umschaltung), `untertitel` ordnet je Video und Sprache eine
     # .vtt-Datei zu: {"film.mp4": {"de": "film-de.vtt"}}.
@@ -415,6 +422,7 @@ def heile_config(cfg):
     cfg["zeitplan"] = heile_zeitplan(cfg.get("zeitplan"))
     cfg["sprachen"] = heile_sprachen(cfg.get("sprachen"))
     cfg["untertitel"] = heile_untertitel(cfg.get("untertitel"))
+    cfg["cast"] = heile_cast(cfg.get("cast"))
     cfg["benachrichtigung"] = _bn.heile(cfg.get("benachrichtigung"))
     # Und die Kreuzbedingung der Schwellen: liegt die Mitte nicht weiter weg
     # als die Nah-Schwelle, gibt es sie rechnerisch nicht. Beim Laden wird das
@@ -465,6 +473,61 @@ def heile_sprachen(roh):
         if isinstance(code, str) and SPRACHCODE.match(code) and code not in heraus:
             heraus.append(code)
     return heraus
+
+
+#: Nur diese Werte sind als Cast-Modus sinnvoll.
+_CAST_MODI = ("medien", "anzeige")
+
+
+def _ist_host(v):
+    """Hostname oder IP: dieselbe schlanke Form wie bei `display_ip`."""
+    return isinstance(v, str) and len(v) <= 64 and all(
+        c.isalnum() or c in ".-" for c in v)
+
+
+def pruefe_cast(roh):
+    """Schreibweg fuer den `cast`-Abschnitt. Gibt das gepruefte Objekt zurueck
+    oder wirft ValueError mit dem Feldnamen.
+
+    `app_id` ist absichtlich frei (eine in der Cast-Konsole registrierte Kennung
+    ist herstellerseitig vergeben); geprueft wird nur, dass sie kurz und
+    druckbar ist — nicht, ob Google sie kennt. Das sagt erst das Geraet.
+    """
+    if not isinstance(roh, dict):
+        raise ValueError("cast: muss ein Objekt sein")
+    heraus = dict(DEFAULT_CONFIG["cast"])
+    if "aktiv" in roh:
+        if not isinstance(roh["aktiv"], bool):
+            raise ValueError("cast.aktiv: true/false")
+        heraus["aktiv"] = roh["aktiv"]
+    if roh.get("geraet_ip", ""):
+        if not _ist_host(roh["geraet_ip"]):
+            raise ValueError("cast.geraet_ip: Hostname oder IP, max. 64 Zeichen")
+        heraus["geraet_ip"] = roh["geraet_ip"]
+    else:
+        heraus["geraet_ip"] = ""
+    if "modus" in roh:
+        if roh["modus"] not in _CAST_MODI:
+            raise ValueError(f"cast.modus: {'|'.join(_CAST_MODI)}")
+        heraus["modus"] = roh["modus"]
+    if "app_id" in roh:
+        aid = roh["app_id"]
+        if not isinstance(aid, str) or len(aid) > 64 or not aid.isprintable():
+            raise ValueError("cast.app_id: druckbarer Text, max. 64 Zeichen")
+        heraus["app_id"] = aid.strip()
+    return heraus
+
+
+def heile_cast(roh):
+    """Ladeweg: reparieren statt abbrechen. Ein verhunzter Cast-Abschnitt darf
+    die Station nicht am Hochkommen hindern — im Zweifel die Vorgabe."""
+    if not isinstance(roh, dict):
+        return dict(DEFAULT_CONFIG["cast"])
+    try:
+        return pruefe_cast(roh)
+    except ValueError as e:
+        print(f"[Config] {e} — nehme die Vorgabe fuer cast")
+        return dict(DEFAULT_CONFIG["cast"])
 
 
 def pruefe_untertitel(roh):
