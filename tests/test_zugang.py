@@ -212,13 +212,13 @@ class UeberDieApi(unittest.TestCase):
 
     def test_die_pin_steht_nirgends_in_der_konfiguration(self):
         c, env = self.client()
-        c.post("/api/zugang", json={"pin": "1234"}, environ_base=env)
+        c.post("/api/zugang", json={"pin": "7391"}, environ_base=env)
         status = json.dumps(c.get("/api/status", environ_base=env).get_json())
         backup = c.get("/api/backup", environ_base=env).get_data(as_text=True)
         for text in (status, backup):
             self.assertNotIn("pin_hash", text)
             self.assertNotIn(self.controller.zugang.pin_hash, text)
-            self.assertNotIn("1234", text)
+            self.assertNotIn("7391", text)
 
     def test_vergessene_pin_laesst_sich_vom_pi_selbst_neu_setzen(self):
         c, env = self.client()

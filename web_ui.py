@@ -13,7 +13,7 @@ import layouts as layouts_modul
 import medien_check
 from config_schema import (
     DEFAULT_CONFIG, MEDIENARTEN, ZONEN, ZONEN_NAMEN, aktive_zonen,
-    heile_config, heile_zone, pruefe_cast, pruefe_patch, pruefe_pins,
+    heile_config, heile_zone, pruefe_cast, pruefe_multicast, pruefe_patch, pruefe_pins,
     pruefe_schwellen, pruefe_sprachen, pruefe_untertitel, pruefe_zone,
     standard_zone,
 )
@@ -529,6 +529,8 @@ def create_app(controller, anzeigen=None):
             # GRENZEN. Gleiche Politik: ABLEHNEN statt heilen.
             if "cast" in data:
                 geprueft["cast"] = pruefe_cast(data["cast"])
+            if "multicast" in data:
+                geprueft["multicast"] = pruefe_multicast(data["multicast"])
             if "untertitel" in data:
                 geprueft["untertitel"] = {
                     secure_filename(video): {

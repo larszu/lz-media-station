@@ -103,10 +103,15 @@ On a Raspberry Pi, `install_pi.sh` sets up the service and the kiosk — see
 - **Widgets** in any region: clock (digital/analogue), text slide with
   templates (welcome, signpost, menu, notice, opening hours from the
   schedule), ticker, weather (Open-Meteo, no key), news (RSS/Atom), calendar
-  (ICS, also as room occupancy), QR code (built in, offline), web page with
+  (ICS, also as room occupancy), **menu from Excel, CSV or text** (today or
+  the week), QR code (built in, offline), web page with
   embed check, countdown, and **your own HTML widgets** from `widgets/<name>/`.
   Feeds and weather go through the core (`/api/widgets/*`, cached); without
   network the last state stays on screen — see [`docs/widgets.md`](docs/widgets.md)
+- **IPTV channel**: the whole display including the weekly schedule as a TV
+  channel on the network (RTP/MPEG-TS over multicast, H.264/AAC, SAP
+  announcement) — for hotel and in-house TV systems; card “IPTV channel”
+  under System, optional autostart (Linux)
 - **Instant publish**: `GET /api/events` (Server-Sent Events) pushes a new
   scene the moment it changes; polling is only the fallback
 - **Unattended display**: a screen in a foyer never jumps to the admin; if

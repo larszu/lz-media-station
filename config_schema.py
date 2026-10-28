@@ -182,6 +182,11 @@ DEFAULT_CONFIG = {
     #   modus      — „medien" (einzelne Datei) oder „anzeige" (ganze Seite)
     #   app_id     — eigener Web-Receiver; leer = Googles Standard-Empfaenger
     "cast": {"aktiv": False, "geraet_ip": "", "modus": "medien", "app_id": ""},
+    # IPTV-Kanal (multicast.py). `aktiv` = beim Start der Station senden.
+    "multicast": {"aktiv": False, "modus": "anzeige", "gruppe": "239.10.10.211",
+                  "port": 1000, "name": "LZ Media Station", "sap": True, "ttl": 16,
+                  "breite": 1920, "hoehe": 1080, "fps": 25, "bitrate_k": 8000,
+                  "sprache": "de", "tsid": 1234, "pid_video": 168, "pid_audio": 170},
     # Untertitel. `sprachen` sind die am Display anwaehlbaren Codes (leer =
     # keine Umschaltung), `untertitel` ordnet je Video und Sprache eine
     # .vtt-Datei zu: {"film.mp4": {"de": "film-de.vtt"}}.
@@ -423,6 +428,7 @@ def heile_config(cfg):
     cfg["sprachen"] = heile_sprachen(cfg.get("sprachen"))
     cfg["untertitel"] = heile_untertitel(cfg.get("untertitel"))
     cfg["cast"] = heile_cast(cfg.get("cast"))
+    cfg["multicast"] = heile_multicast(cfg.get("multicast"))
     cfg["benachrichtigung"] = _bn.heile(cfg.get("benachrichtigung"))
     # Und die Kreuzbedingung der Schwellen: liegt die Mitte nicht weiter weg
     # als die Nah-Schwelle, gibt es sie rechnerisch nicht. Beim Laden wird das
@@ -528,6 +534,66 @@ def heile_cast(roh):
     except ValueError as e:
         print(f"[Config] {e} — nehme die Vorgabe fuer cast")
         return dict(DEFAULT_CONFIG["cast"])
+
+
+#: Feld -> (kleinster, groesster Wert) fuer die Zahlen des Multicast-Kanals.
+_MC_ZAHLEN = {"port": (1, 65535), "ttl": (1, 255), "breite": (320, 3840),
+              "hoehe": (240, 2160), "fps": (5, 60), "bitrate_k": (500, 50000),
+              "tsid": (0, 65535), "pid_video": (16, 8190), "pid_audio": (16, 8190)}
+
+
+def pruefe_multicast(roh):
+    """Schreibweg fuer `multicast`: ablehnen und das Feld nennen."""
+    import ipaddress
+    if not isinstance(roh, dict):
+        raise ValueError("multicast: muss ein Objekt sein")
+    heraus = dict(DEFAULT_CONFIG["multicast"])
+    for k in ("aktiv", "sap"):
+        if k in roh:
+            if not isinstance(roh[k], bool):
+                raise ValueError(f"multicast.{k}: true/false")
+            heraus[k] = roh[k]
+    if "modus" in roh:
+        if roh["modus"] not in ("anzeige", "datei"):
+            raise ValueError("multicast.modus: anzeige|datei")
+        heraus["modus"] = roh["modus"]
+    if "sprache" in roh:
+        if roh["sprache"] not in ("de", "en"):
+            raise ValueError("multicast.sprache: de|en")
+        heraus["sprache"] = roh["sprache"]
+    if "gruppe" in roh:
+        try:
+            ok = ipaddress.ip_address(str(roh["gruppe"])).is_multicast
+        except ValueError:
+            ok = False
+        if not ok:
+            raise ValueError("multicast.gruppe: Multicast-Adresse (224.0.0.0 bis 239.255.255.255)")
+        heraus["gruppe"] = str(roh["gruppe"])
+    if "name" in roh:
+        n = roh["name"]
+        if not isinstance(n, str) or not n.strip() or len(n) > 64 or not n.isprintable():
+            raise ValueError("multicast.name: druckbarer Text, 1 bis 64 Zeichen")
+        heraus["name"] = n.strip()
+    for k, (lo, hi) in _MC_ZAHLEN.items():
+        if k in roh:
+            v = roh[k]
+            if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+                raise ValueError(f"multicast.{k}: ganze Zahl {lo} bis {hi}")
+            heraus[k] = v
+    if heraus["pid_video"] == heraus["pid_audio"]:
+        raise ValueError("multicast.pid_audio: muss sich von pid_video unterscheiden")
+    return heraus
+
+
+def heile_multicast(roh):
+    """Ladeweg: im Zweifel die Vorgabe, nie die Station am Start hindern."""
+    if not isinstance(roh, dict):
+        return dict(DEFAULT_CONFIG["multicast"])
+    try:
+        return pruefe_multicast(roh)
+    except ValueError as e:
+        print(f"[Config] {e} — nehme die Vorgabe fuer multicast")
+        return dict(DEFAULT_CONFIG["multicast"])
 
 
 def pruefe_untertitel(roh):

@@ -11,75 +11,84 @@ optionalen Config-Abschnitt `multicast` (modus, gruppe, port, name, ttl,
 sap, tsid, pid_video, pid_audio, breite, hoehe, fps, bitrate_k, sprache);
 der Body von `/start` schlaegt sie.
 """
-import ipaddress
 import os
+import threading
+import time
 
 from flask import Blueprint, jsonify, request
 from werkzeug.utils import secure_filename
 
 import multicast
+from config_schema import DEFAULT_CONFIG, pruefe_multicast
 from api_cast import _aktuelle_datei
 from web_ui import MEDIA_DIRS
 
-VORGABE = {"modus": "anzeige", "breite": 1920, "hoehe": 1080, "fps": 25,
-           "bitrate_k": 8000, "sprache": "de", "gruppe": "239.10.10.211", "port": 1000, "name": "LZ Media Station",
-           "ttl": 16, "sap": True, "tsid": 1234, "pid_video": 168, "pid_audio": 170}
+VORGABE = DEFAULT_CONFIG["multicast"]
+
+#: So lange wartet der Autostart, bis der Webserver die Anzeige ausliefert.
+AUTOSTART_S = 8
 
 
 def erzeuge_blueprint(controller):
     bp = Blueprint("multicast", __name__)
     zustand = {"kanal": None}
+    sperre = threading.Lock()
 
-    @bp.route("/api/multicast/start", methods=["POST"])
-    def mc_start():
-        daten = request.get_json(silent=True) or {}
-        cfg = {**VORGABE, **(controller.config.get("multicast") or {}), **daten}
+    def starte(daten):
+        """Kanal (neu) starten -> (Antwort, HTTP-Code)."""
+        datei = daten.pop("datei", None)
         try:
-            if not ipaddress.ip_address(cfg["gruppe"]).is_multicast:
-                raise ValueError
-        except ValueError:
-            return jsonify({"error": "gruppe: Multicast-Adresse (224.0.0.0/4)"}), 400
+            cfg = pruefe_multicast({**VORGABE, **(controller.config.get("multicast") or {}), **daten})
+        except ValueError as e:
+            return {"error": str(e)}, 400
 
-        gemeinsam = dict(ttl=int(cfg["ttl"]), sap=bool(cfg["sap"]), tsid=int(cfg["tsid"]),
-                         pid_video=int(cfg["pid_video"]), pid_audio=int(cfg["pid_audio"]))
+        gemeinsam = dict(ttl=cfg["ttl"], sap=cfg["sap"], tsid=cfg["tsid"],
+                         pid_video=cfg["pid_video"], pid_audio=cfg["pid_audio"])
         if cfg["modus"] == "anzeige":
             port_web = controller.config.get("web_port", 5000)
-            sprache = "en" if cfg.get("sprache") == "en" else "de"
-            url = f"http://127.0.0.1:{port_web}/display?lang={sprache}"
-            erzeuge = lambda: multicast.AnzeigeKanal(
-                url, cfg["gruppe"], int(cfg["port"]), str(cfg["name"]),
-                breite=int(cfg["breite"]), hoehe=int(cfg["hoehe"]), fps=int(cfg["fps"]),
-                bitrate_k=int(cfg["bitrate_k"]), **gemeinsam)
-        elif cfg["modus"] == "datei":
-            datei = daten.get("datei")
-            media_type = "videos"
+            url = f"http://127.0.0.1:{port_web}/display?lang={cfg['sprache']}"
+            kanal = multicast.AnzeigeKanal(
+                url, cfg["gruppe"], cfg["port"], cfg["name"], breite=cfg["breite"],
+                hoehe=cfg["hoehe"], fps=cfg["fps"], bitrate_k=cfg["bitrate_k"], **gemeinsam)
+        else:
             if not datei:
                 media_type, datei = _aktuelle_datei(controller.get_scene())
                 if media_type != "videos" or not datei:
-                    return jsonify({"error": "Es laeuft kein Video und keine datei angegeben"}), 409
+                    return {"error": "Es laeuft kein Video und keine Datei gewaehlt"}, 409
             pfad = os.path.join(MEDIA_DIRS["videos"], secure_filename(datei))
-            erzeuge = lambda: multicast.Kanal(
-                pfad, cfg["gruppe"], int(cfg["port"]), str(cfg["name"]), **gemeinsam)
-        else:
-            return jsonify({"error": "modus: anzeige|datei"}), 400
+            kanal = multicast.Kanal(pfad, cfg["gruppe"], cfg["port"], cfg["name"], **gemeinsam)
 
-        if zustand["kanal"]:
-            zustand["kanal"].stop()
-            zustand["kanal"] = None
-        kanal = erzeuge()
-        try:
-            kanal.start()
-        except (RuntimeError, FileNotFoundError) as e:
-            kanal.stop()
-            return jsonify({"error": str(e)}), 502
-        zustand["kanal"] = kanal
-        return jsonify(kanal.status())
+        with sperre:
+            if zustand["kanal"]:
+                zustand["kanal"].stop()
+                zustand["kanal"] = None
+            try:
+                kanal.start()
+            except (RuntimeError, FileNotFoundError) as e:
+                kanal.stop()
+                return {"error": str(e)}, 502
+            zustand["kanal"] = kanal
+        return kanal.status(), 200
+
+    def autostart():
+        time.sleep(AUTOSTART_S)
+        antwort, code = starte({})
+        print(f"[Multicast] Autostart: {antwort.get('error') or antwort.get('url')}")
+
+    if (controller.config.get("multicast") or {}).get("aktiv"):
+        threading.Thread(target=autostart, daemon=True).start()
+
+    @bp.route("/api/multicast/start", methods=["POST"])
+    def mc_start():
+        antwort, code = starte(dict(request.get_json(silent=True) or {}))
+        return jsonify(antwort), code
 
     @bp.route("/api/multicast/stop", methods=["POST"])
     def mc_stop():
-        if zustand["kanal"]:
-            zustand["kanal"].stop()
-            zustand["kanal"] = None
+        with sperre:
+            if zustand["kanal"]:
+                zustand["kanal"].stop()
+                zustand["kanal"] = None
         return jsonify({"ok": True})
 
     @bp.route("/api/multicast/status")

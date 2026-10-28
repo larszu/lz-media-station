@@ -173,7 +173,7 @@ class JedesFeldDerVorgabeHatEineGrenze(unittest.TestCase):
     #   ausloeser -> `ausloeser.pruefe_ausloeser` (api_ausloeser.py) / `heile_ausloeser`
     #   benachrichtigung -> `benachrichtigung.pruefe` (api_anzeige.py) / `heile`
     OHNE_GRENZE = {"near", "mid", "far", "zeitplan", "sprachen", "untertitel", "layouts",
-                   "programm", "meldung", "ausloeser", "benachrichtigung", "cast"}
+                   "programm", "meldung", "ausloeser", "benachrichtigung", "cast", "multicast"}
 
     def test_kein_feld_ohne_grenze(self):
         fehlen = sorted(set(cs.DEFAULT_CONFIG) - set(cs.GRENZEN) - self.OHNE_GRENZE)

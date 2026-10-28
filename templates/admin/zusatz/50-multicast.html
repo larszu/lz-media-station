@@ -1,0 +1,95 @@
+<!-- IPTV-Kanal: die Anzeige per Multicast ins Netz. Skript: static/module/multicast.js,
+     englische Texte: static/i18n/multicast.en.js. -->
+<section class="card" id="card-multicast">
+    <h2>IPTV-Kanal</h2>
+    <p class="hint" data-i18n="mc-hinweis">
+        Sendet die Anzeige als Fernsehkanal ins Netz (RTP/MPEG-TS per Multicast),
+        mit allen Layouts, dem Wochenprogramm und den Widgets. Fernseher und
+        VLC finden den Kanal unter seinem Namen.
+    </p>
+    <div id="mc-status" class="zone-empty">Lade Status …</div>
+    <div class="row" style="gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn" id="mc-start">Senden</button>
+        <button class="btn btn-secondary" id="mc-stop">Stopp</button>
+    </div>
+    <div class="settings-grid" style="margin-top:14px">
+        <div class="form-group span-2">
+            <label for="mc-modus">Inhalt</label>
+            <select id="mc-modus">
+                <option value="anzeige">Die ganze Anzeige</option>
+                <option value="datei">Ein Video in Endlosschleife</option>
+            </select>
+        </div>
+        <div class="form-group span-2" id="mc-datei-feld" hidden>
+            <label for="mc-datei">Video</label>
+            <select id="mc-datei"></select>
+        </div>
+        <div class="form-group">
+            <label for="mc-name">Kanalname</label>
+            <input type="text" id="mc-name" maxlength="64">
+        </div>
+        <div class="form-group">
+            <label for="mc-gruppe">Multicast-Adresse</label>
+            <input type="text" id="mc-gruppe" placeholder="239.10.10.211">
+        </div>
+        <div class="form-group">
+            <label for="mc-port">Port</label>
+            <input type="number" id="mc-port" min="1" max="65535">
+        </div>
+        <div class="form-group mc-nur-anzeige">
+            <label for="mc-aufloesung">Auflösung</label>
+            <select id="mc-aufloesung">
+                <option value="1920x1080">1920 × 1080</option>
+                <option value="1280x720">1280 × 720</option>
+            </select>
+        </div>
+        <div class="form-group mc-nur-anzeige">
+            <label for="mc-fps">Bilder pro Sekunde</label>
+            <select id="mc-fps">
+                <option value="25">25</option>
+                <option value="30">30</option>
+                <option value="50">50</option>
+            </select>
+        </div>
+        <div class="form-group mc-nur-anzeige">
+            <label for="mc-bitrate">Datenrate (Mbit/s)</label>
+            <input type="number" id="mc-bitrate" min="1" max="50" step="0.5">
+        </div>
+        <div class="form-group mc-nur-anzeige">
+            <label for="mc-sprache">Sprache</label>
+            <select id="mc-sprache">
+                <option value="de">Deutsch</option>
+                <option value="en">Englisch</option>
+            </select>
+        </div>
+        <div class="form-group span-2">
+            <label class="checkbox-label"><input type="checkbox" id="mc-sap"><span>Kanal im Netz ankündigen (SAP)</span></label>
+            <label class="checkbox-label"><input type="checkbox" id="mc-aktiv"><span>Beim Start der Station automatisch senden</span></label>
+        </div>
+    </div>
+    <details style="margin-top:8px">
+        <summary>Für die Kopfstelle</summary>
+        <div class="settings-grid" style="margin-top:8px">
+            <div class="form-group">
+                <label for="mc-ttl">TTL (Router-Sprünge)</label>
+                <input type="number" id="mc-ttl" min="1" max="255">
+            </div>
+            <div class="form-group">
+                <label for="mc-tsid">Transport-Stream-ID</label>
+                <input type="number" id="mc-tsid" min="0" max="65535">
+            </div>
+            <div class="form-group">
+                <label for="mc-pid-video">PID Video</label>
+                <input type="number" id="mc-pid-video" min="16" max="8190">
+            </div>
+            <div class="form-group">
+                <label for="mc-pid-audio">PID Ton</label>
+                <input type="number" id="mc-pid-audio" min="16" max="8190">
+            </div>
+        </div>
+    </details>
+    <div class="row" style="gap:8px;margin-top:12px;">
+        <button class="btn btn-small" id="mc-speichern">Einstellungen speichern</button>
+    </div>
+    <div id="mc-feedback" class="feedback"></div>
+</section>

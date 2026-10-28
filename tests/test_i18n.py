@@ -30,6 +30,8 @@ GLEICH = {
     "Layout", "Layouts", "Ticker", "Region",
     # Cast (3.x): Markenwort, gleich in beiden Sprachen.
     "Chromecast", "Auto",
+    # IPTV-Kanal: Fachwort und Beispieladresse.
+    "Video", "239.10.10.211",
     # Monitor und Zugang (3.0)
     "Monitor", "System", "Topic", "Webhook (JSON)", "ntfy", "https://ntfy.sh", "PIN", "Zone",
     # Station Manager (3.0)
