@@ -546,6 +546,8 @@ player process.)
 | `displays.py` | Find and drive this computer's screens |
 | `chromecast.py` | Drive a Google Chromecast as an output target — CASTV2 over TLS, stdlib only (never throws) |
 | `api_cast.py` | Blueprint for the Chromecast routes (`/api/cast/*`) |
+| `multicast.py` | Loop a file as an IPTV channel: RTP/MPEG-TS over multicast (ffmpeg, stream copy) with SAP announcement |
+| `api_multicast.py` | Blueprint for the multicast routes (`/api/multicast/*`) |
 | `static/`, `templates/` | Frontend (admin, display, start page); admin cards are includes in `templates/admin/` |
 | `static/module/`, `static/anzeige/`, `static/i18n/`, `templates/admin/zusatz/` | Extension points — files there are picked up automatically |
 | `static/anzeige/widgets.js`, `widgets/` | The widgets of the display (`window.LZ_WIDGETS`, incl. QR encoder) and the folder for custom HTML widgets |
@@ -665,6 +667,8 @@ returned as `veraltet: true`, errors come as `{fehler}` with 400/502.
 | POST | `/api/displays/play` · `/api/displays/stop` | Open / close display windows |
 | GET | `/api/cast/geraete` | Chromecasts found on the network |
 | POST | `/api/cast/play` · `/api/cast/stop` | Cast current/chosen media (or the `/display` page) to a Chromecast, or stop it |
+| POST | `/api/multicast/start` · `/api/multicast/stop` | Send current/chosen video as a multicast channel (default `rtp://239.10.10.211:1000`, SAP on) or stop it |
+| GET | `/api/multicast/status` | Multicast channel state |
 | GET/POST | `/api/system/network` | nmcli IP configuration |
 | GET/POST | `/api/system/wifi` | Wi-Fi on/off, scan, connect |
 | POST | `/api/system/reboot` | `sudo reboot` |
