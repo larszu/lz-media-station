@@ -102,11 +102,16 @@ Auf einem Raspberry Pi richtet `install_pi.sh` Dienst und Kiosk ein — siehe
 - **Widgets** in jeder Region: Uhr (digital/analog), Text-Folie mit Vorlagen
   (Willkommen, Wegweiser, Speisekarte, Hinweis, Öffnungszeiten aus der
   Zeitsteuerung), Laufschrift, Wetter (Open-Meteo, ohne Schlüssel),
-  Nachrichten (RSS/Atom), Kalender (ICS, auch als Raumbelegung), QR-Code
+  Nachrichten (RSS/Atom), Kalender (ICS, auch als Raumbelegung),
+  **Speiseplan aus Excel, CSV oder Text** (heute oder die Woche), QR-Code
   (eingebaut, offline), Webseite mit Einbettungsprüfung, Zähler und **eigene
   HTML-Widgets** aus `widgets/<name>/`. Feeds und Wetter laufen über den Kern
   (`/api/widgets/*`, zwischengespeichert); ohne Netz bleibt der letzte Stand
   stehen — siehe [`docs/widgets.md`](docs/widgets.md)
+- **IPTV-Kanal**: die ganze Anzeige samt Wochenprogramm als Fernsehkanal
+  ins Netz (RTP/MPEG-TS per Multicast, H.264/AAC, SAP-Ankündigung) — für
+  Hotel- und Haus-TV-Anlagen; Karte „IPTV-Kanal“ unter System, auf Wunsch
+  mit Autostart (Linux)
 - **Sofort veröffentlicht**: `GET /api/events` (Server-Sent Events) schickt
   eine neue Szene im Moment der Änderung; Abfragen sind nur der Rückfall
 - **Unbeaufsichtigte Anzeige**: ein Schirm im Foyer springt nie in die

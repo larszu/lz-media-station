@@ -4,6 +4,7 @@ import unittest
 import zlib
 
 import multicast
+from config_schema import DEFAULT_CONFIG, heile_multicast, pruefe_multicast
 
 
 class SapTest(unittest.TestCase):
@@ -46,6 +47,28 @@ class SapTest(unittest.TestCase):
     def test_anzeige_ohne_ton_sendet_stille(self):
         b = multicast.anzeige_befehl(":99", None, "239.1.1.1", 5000)
         self.assertIn("anullsrc=r=48000:cl=stereo", b)
+
+
+class EinstellungenTest(unittest.TestCase):
+    def test_vorgabe_ist_gueltig(self):
+        self.assertEqual(pruefe_multicast({}), DEFAULT_CONFIG["multicast"])
+
+    def test_keine_multicast_adresse(self):
+        with self.assertRaisesRegex(ValueError, "multicast.gruppe"):
+            pruefe_multicast({"gruppe": "192.168.1.5"})
+
+    def test_zahlengrenzen_und_typen(self):
+        for feld, wert in (("port", 0), ("fps", 120), ("bitrate_k", "8000"), ("ttl", True)):
+            with self.assertRaisesRegex(ValueError, f"multicast.{feld}"):
+                pruefe_multicast({feld: wert})
+
+    def test_gleiche_pids(self):
+        with self.assertRaisesRegex(ValueError, "pid_audio"):
+            pruefe_multicast({"pid_video": 200, "pid_audio": 200})
+
+    def test_heilen_faellt_auf_vorgabe(self):
+        self.assertEqual(heile_multicast({"modus": "quatsch"}), DEFAULT_CONFIG["multicast"])
+        self.assertEqual(heile_multicast(None), DEFAULT_CONFIG["multicast"])
 
 
 if __name__ == "__main__":
