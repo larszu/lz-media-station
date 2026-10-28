@@ -559,7 +559,8 @@ keinen Player-Prozess.)
 | `displays.py` | Bildschirme dieses Rechners finden und bespielen |
 | `chromecast.py` | Einen Google Chromecast als Ausgabeziel ansprechen — CASTV2 über TLS, nur Standardbibliothek (wirft nie) |
 | `api_cast.py` | Blueprint für die Chromecast-Routen (`/api/cast/*`) |
-| `multicast.py` | Datei endlos als IPTV-Kanal senden: RTP/MPEG-TS per Multicast (ffmpeg, Bild/Ton kopiert) mit SAP-Ankündigung |
+| `multicast.py` | IPTV-Kanal: die ganze Anzeige (Xvfb + Chromium + ffmpeg, H.264/AAC) oder eine Datei endlos als RTP/MPEG-TS per Multicast, mit SAP-Ankündigung |
+| `speiseplan.py` | Speiseplan aus `.xlsx`, `.csv` oder `.txt` lesen (nur Standardbibliothek) |
 | `api_multicast.py` | Blueprint für die Multicast-Routen (`/api/multicast/*`) |
 | `static/`, `templates/` | Frontend (Admin, Anzeige, Startseite); die Admin-Karten sind Includes in `templates/admin/` |
 | `static/module/`, `static/anzeige/`, `static/i18n/`, `templates/admin/zusatz/` | Erweiterungspunkte — Dateien dort werden automatisch eingebunden |
@@ -681,7 +682,8 @@ Abruf, kommt der letzte Stand als `veraltet: true`, Fehler als `{fehler}` mit
 | POST | `/api/displays/play` · `/api/displays/stop` | Anzeige-Fenster öffnen / schließen |
 | GET | `/api/cast/geraete` | Chromecasts im Netz |
 | POST | `/api/cast/play` · `/api/cast/stop` | Laufende/gewählte Medien (oder die `/display`-Seite) auf einen Chromecast werfen oder stoppen |
-| POST | `/api/multicast/start` · `/api/multicast/stop` | Laufendes/gewähltes Video als Multicast-Kanal senden (Vorgabe `rtp://239.10.10.211:1000`, SAP an) oder stoppen |
+| POST | `/api/multicast/start` · `/api/multicast/stop` | Die ganze Anzeige (`modus: anzeige`, Vorgabe, Linux) oder ein Video (`modus: datei`) als Multicast-Kanal senden (Vorgabe `rtp://239.10.10.211:1000`, SAP an) oder stoppen |
+| GET | `/api/widgets/speiseplan` | Speiseplan aus `daten/<datei>` oder `?text=` als Tage mit Gerichten |
 | GET | `/api/multicast/status` | Zustand des Multicast-Kanals |
 | GET/POST | `/api/system/network` | nmcli IP-Konfiguration |
 | GET/POST | `/api/system/wifi` | WLAN ein/aus, Scan, Verbinden |

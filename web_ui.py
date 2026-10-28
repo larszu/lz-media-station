@@ -28,6 +28,8 @@ MEDIA_DIRS = {
     # aufgelistet wie Videos, aber nie einer Zone zugewiesen — sie haengen an
     # einem Video, nicht an einer Entfernung.
     "subtitles": os.path.join(BASE_DIR, "subtitles"),
+    # Tabellen und Texte, aus denen Widgets lesen (Speiseplan).
+    "daten": os.path.join(BASE_DIR, "daten"),
 }
 TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -39,6 +41,7 @@ ALLOWED_EXT = {
     # abspielt. Eine .srt anzunehmen und stumm nicht anzuzeigen waere
     # schlimmer als sie abzulehnen.
     "subtitles": {".vtt"},
+    "daten": {".xlsx", ".csv", ".txt"},
 }
 
 

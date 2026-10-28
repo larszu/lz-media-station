@@ -30,7 +30,8 @@ log "Installiere Systempakete (Python, Chromium, git)..."
 sudo apt update -qq
 sudo apt install -y --no-install-recommends \
     python3 python3-pip python3-flask python3-gpiozero \
-    chromium-browser git curl avahi-daemon
+    chromium-browser git curl avahi-daemon \
+    ffmpeg xvfb pulseaudio-utils
 
 # 2) Quellcode
 if [ -d "$ALT_DIR/.git" ] && [ ! -e "$APP_DIR" ]; then
