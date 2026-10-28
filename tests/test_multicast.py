@@ -36,6 +36,17 @@ class SapTest(unittest.TestCase):
         self.assertIn("0:168", b)
         self.assertIn("1:170", b)
 
+    def test_anzeige_befehl(self):
+        b = multicast.anzeige_befehl(":99", "lz_multicast.monitor", "239.1.1.1", 5000, fps=25)
+        self.assertEqual(b[b.index("x11grab") - 1:b.index("x11grab") + 1], ["-f", "x11grab"])
+        self.assertIn("lz_multicast.monitor", b)
+        self.assertEqual(b[b.index("-g") + 1], "25")
+        self.assertTrue(b[-1].startswith("rtp://239.1.1.1:5000"))
+
+    def test_anzeige_ohne_ton_sendet_stille(self):
+        b = multicast.anzeige_befehl(":99", None, "239.1.1.1", 5000)
+        self.assertIn("anullsrc=r=48000:cl=stereo", b)
+
 
 if __name__ == "__main__":
     unittest.main()

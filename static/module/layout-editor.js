@@ -502,6 +502,10 @@
             case 'bool': return '<div class="form-group span-2"><label class="checkbox-label"><input type="checkbox" id="' + id + '"' + (v ? ' checked' : '') + on + '><span>' + esc(f.label || f.key) + '</span></label></div>';
             case 'url': eingabe = '<input type="url" id="' + id + '" value="' + escAttr(String(v)) + '"' + on + '>'; break;
             case 'textarea': eingabe = '<textarea id="' + id + '" rows="3"' + on + '>' + esc(String(v)) + '</textarea>'; break;
+            case 'datei':
+                eingabe = '<input type="text" id="' + id + '" value="' + escAttr(String(v)) + '" placeholder="' + escAttr(tr('Datei hochladen')) + '"' + on + '>' +
+                    '<input type="file" accept="' + escAttr(f.accept || '') + '" onchange="LZ_EDITOR.dateiHoch(\'' + escAttr(f.key) + '\',\'' + escAttr(f.ziel || 'daten') + '\',this)">';
+                break;
             case 'auswahl':
                 eingabe = '<select id="' + id + '"' + on + '>' + (f.optionen || []).map(function (o) {
                     var w = (o && typeof o === 'object') ? o.wert : o;
@@ -511,7 +515,7 @@
                 break;
             default: eingabe = '<input type="text" id="' + id + '" value="' + escAttr(String(v)) + '"' + on + '>';
         }
-        var breit = f.typ === 'textarea' || f.typ === 'url' ? ' span-2' : '';
+        var breit = f.typ === 'textarea' || f.typ === 'url' || f.typ === 'datei' ? ' span-2' : '';
         return '<div class="form-group' + breit + '"><label for="' + id + '">' + esc(f.label || f.key) + '</label>' + eingabe + '</div>';
     }
 
@@ -778,6 +782,20 @@
         else if (typ === 'zahl') { var v = Number(feld.value); r.widget[key] = isFinite(v) && feld.value !== '' ? v : null; }
         else r.widget[key] = feld.value;
         markiere();
+    };
+
+    API.dateiHoch = async function (key, ziel, feld) {
+        if (!feld.files || !feld.files[0]) return;
+        var fd = new FormData();
+        fd.append('file', feld.files[0]);
+        try {
+            var r = await fetch('/api/upload/' + encodeURIComponent(ziel), { method: 'POST', body: fd });
+            var d = await r.json();
+            var text = el('le-wf-' + key);
+            if (!r.ok) { text.value = ''; text.placeholder = d.error || tr('Hochladen fehlgeschlagen'); return; }
+            text.value = d.name;
+            API.widgetWert(key, 'text', text);
+        } catch (e) { el('le-wf-' + key).placeholder = tr('Hochladen fehlgeschlagen'); }
     };
 
     API.widgetJson = function (text) {

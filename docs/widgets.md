@@ -104,6 +104,22 @@ Wiederholungen (`RRULE`) werden für `FREQ=DAILY` und `FREQ=WEEKLY` (mit
 Einzeltermin — lieber ein fehlender Termin als ein erfundener. Ein Termin
 über Mitternacht steht an beiden Tagen.
 
+### `speiseplan` — Gerichte aus Excel, CSV oder Text
+| Feld | Bedeutung |
+|---|---|
+| `datei` | `.xlsx`, `.csv` oder `.txt` aus `daten/` (im Editor direkt hochladen) |
+| `text` | Statt Datei: Plan als Text einfügen |
+| `ansicht` | `heute` oder `woche` (heutiger Tag hervorgehoben) |
+| `preise`, `titel` | Preise zeigen; Überschrift |
+
+Tabelle: erste Spalte der Tag (`Montag`, `Mo`, `Mo 03.11.`, `03.11.2026`),
+weitere Spalten die Gerichte; eine Zelle wie `4,50` oder `4.50 €` ist der
+Preis des Gerichts links davon; Zeilen ohne Tag gehören zum Tag darüber.
+Text: eine Zeile mit Wochentag beginnt den Tag, jede folgende ist ein
+Gericht, ein Preis am Zeilenende wird abgetrennt. Steht ein Datum dabei,
+gilt der Eintrag nur an diesem Datum, sonst jede Woche an diesem Wochentag.
+Die Datei wird alle 5 Minuten neu gelesen — neu hochladen genügt.
+
 ### `qr` — QR-Code
 | Feld | Bedeutung |
 |---|---|

@@ -18,6 +18,7 @@ import os
 from flask import Blueprint, jsonify, request, send_from_directory
 
 import widgets as W
+from werkzeug.utils import secure_filename
 
 
 def erzeuge_blueprint(controller):
@@ -44,6 +45,25 @@ def erzeuge_blueprint(controller):
             return jsonify(W.rss_laden(url, anzahl=ganzzahl("anzahl", 6, 1, 50)))
         except W.Abrufsfehler as e:
             return fehler(e, 502)
+
+    @bp.route("/api/widgets/speiseplan")
+    def api_widgets_speiseplan():
+        """`?datei=` (aus `daten/`) oder `?text=` -> {tage:[{tag, name, datum, gerichte:[{name, preis}]}]}."""
+        import speiseplan
+        from web_ui import MEDIA_DIRS
+        text = request.args.get("text")
+        try:
+            if text:
+                return jsonify(speiseplan.lies(text.encode(), ".txt"))
+            name = secure_filename(request.args.get("datei") or "")
+            pfad = os.path.join(MEDIA_DIRS["daten"], name)
+            endung = os.path.splitext(name)[1].lower()
+            if not name or endung not in speiseplan.ENDUNGEN or not os.path.isfile(pfad):
+                return jsonify({"error": "Datei nicht gefunden"}), 404
+            with open(pfad, "rb") as f:
+                return jsonify(speiseplan.lies(f.read(), endung))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 422
 
     @bp.route("/api/widgets/ics")
     def api_widgets_ics():

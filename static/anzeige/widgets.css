@@ -107,3 +107,8 @@
 .wg-zaehler-block small { font-size: calc(var(--wg-basis) * 0.55); opacity: 0.7; margin-top: calc(var(--wg-basis) * 0.15); }
 .wg-zaehler-fertig { font-size: calc(var(--wg-basis) * 1.8); font-weight: 600; color: var(--wg-akzent); }
 .wg-zaehler-bis { font-size: calc(var(--wg-basis) * 0.6); }
+
+/* Speiseplan */
+.wg-speise-gericht { display: flex; justify-content: space-between; gap: 1em; padding: .25em 0; }
+.wg-speise-preis { white-space: nowrap; opacity: .8; font-variant-numeric: tabular-nums; }
+.wg-speise-tag { padding: .35em 0; border-bottom: 1px solid rgba(127,127,127,.25); }

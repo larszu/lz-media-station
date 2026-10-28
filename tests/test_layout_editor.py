@@ -66,9 +66,10 @@ class DerEditorSchreibtNurGanz(unittest.TestCase):
     def test_kein_schreibzugriff_ausser_ueber_die_layout_schnittstelle(self):
         # Kein POST /api/config aus dem Editor: die Zonenzuordnung macht die
         # Zonen-Uebersicht, der Editor kuemmert sich nur um das Layout.
+        # Einzige Ausnahme: eine Datei fuer ein Widget-Feld hochladen.
         self.assertNotIn("/api/config", MODUL)
         for pfad in re.findall(r"fetch\('(/api/[^']+)", MODUL):
-            self.assertTrue(pfad.startswith("/api/layouts"), pfad)
+            self.assertTrue(pfad.startswith(("/api/layouts", "/api/upload/")), pfad)
 
     def test_dialoge_werden_uebersetzt_und_es_gibt_keine_prompts(self):
         for treffer in re.finditer(r"\bconfirm\(", MODUL):

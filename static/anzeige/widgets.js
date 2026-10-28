@@ -824,6 +824,71 @@
         }
     };
 
+    /* ---- Speiseplan ---- */
+    WIDGETS.speiseplan = {
+        name: 'Speiseplan',
+        beschreibung: 'Gerichte aus einer Excel-, CSV- oder Textdatei: heute oder die ganze Woche.',
+        felder: [
+            { key: 'datei', label: 'Datei (.xlsx, .csv, .txt)', typ: 'datei', accept: '.xlsx,.csv,.txt', ziel: 'daten', default: '' },
+            { key: 'text', label: 'Oder Text einfügen (Montag: Gericht 4,50 …)', typ: 'textarea', default: '' },
+            { key: 'ansicht', label: 'Ansicht', typ: 'auswahl', default: 'heute', optionen: [
+                { wert: 'heute', label: 'Heute' }, { wert: 'woche', label: 'Ganze Woche' }] },
+            { key: 'preise', label: 'Preise zeigen', typ: 'bool', default: true },
+            { key: 'titel', label: 'Überschrift', typ: 'text', default: 'Speiseplan' },
+        ].concat(FARBFELDER),
+        render: function (el, w, ctx) {
+            var box = huelle(el, w, 'wg-speise');
+            var stopGroesse = passeAn(el, w);
+            if (!w.datei && !w.text) { box.innerHTML = '<div class="wg-dezent">Keine Datei und kein Text eingetragen</div>'; return { stop: stopGroesse }; }
+            var jetzt = zeitgeber(ctx), daten = null;
+            var KURZ = ['so', 'mo', 'di', 'mi', 'do', 'fr', 'sa'];
+            function heuteTag(tage) {
+                var now = jetzt(), iso = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2);
+                return tage.filter(function (t) { return t.datum === iso; })[0] ||
+                    tage.filter(function (t) { return !t.datum && t.tag === KURZ[now.getDay()]; })[0];
+            }
+            function gerichte(t) {
+                return t.gerichte.map(function (g) {
+                    return '<div class="wg-speise-gericht"><span>' + esc(g.name) + '</span>' +
+                        (w.preise !== false && g.preis ? '<span class="wg-speise-preis">' + esc(g.preis) + '</span>' : '') + '</div>';
+                }).join('');
+            }
+            function zeige() {
+                if (!daten) return;
+                var tage = daten.tage || [], html = '<div class="wg-kal-kopf">' + esc(w.titel || 'Speiseplan') + '</div>';
+                if ((w.ansicht || 'heute') === 'woche') {
+                    var heute = heuteTag(tage);
+                    html += tage.length ? tage.map(function (t) {
+                        return '<div class="wg-speise-tag' + (t === heute ? ' wg-kal-jetzt' : '') + '"><div class="wg-kal-zeit">' + esc(t.name) + '</div>' + gerichte(t) + '</div>';
+                    }).join('') : '<div class="wg-dezent">Kein Tag erkannt</div>';
+                } else {
+                    var t = heuteTag(tage);
+                    html += t && t.gerichte.length ? gerichte(t) : '<div class="wg-dezent">Heute kein Angebot</div>';
+                }
+                box.innerHTML = html;
+                einpassen();
+            }
+            // Eine ganze Woche passt bei der Grundschrift selten: verkleinern,
+            // bis alles sichtbar ist, statt unten abzuschneiden.
+            function einpassen() {
+                var basis = parseFloat(getComputedStyle(el).getPropertyValue('--wg-basis')) || 0;
+                for (var i = 0; i < 6 && basis > 8 && box.scrollHeight > el.clientHeight + 1; i++) {
+                    basis = basis * Math.max(0.5, el.clientHeight / box.scrollHeight) * 0.97;
+                    el.style.setProperty('--wg-basis', basis + 'px');
+                }
+            }
+            var url = '/api/widgets/speiseplan?' + (w.datei ? 'datei=' + encodeURIComponent(w.datei) : 'text=' + encodeURIComponent(w.text));
+            var stopPoll = pollend(url, 5 * 60 * 1000, function (d) { daten = d; zeige(); },
+                function (grund) { if (!daten) box.innerHTML = '<div class="wg-dezent">Speiseplan nicht lesbar: ' + esc(grund) + '</div>'; });
+            var timer = setInterval(zeige, 60000);
+            // Nach passeAn registriert: laeuft nach dessen Neuberechnung und
+            // passt die Woche wieder ein, wenn der Schirm die Groesse wechselt.
+            var ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(einpassen) : null;
+            if (ro) ro.observe(el);
+            return { stop: function () { stopPoll(); clearInterval(timer); if (ro) ro.disconnect(); stopGroesse(); } };
+        }
+    };
+
     /* ---- QR-Code ---- */
     WIDGETS.qr = {
         name: 'QR-Code',
