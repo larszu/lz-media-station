@@ -137,7 +137,9 @@ class Marke(unittest.TestCase):
 
     def test_keine_emoji_in_der_oberflaeche(self):
         # Symbole sind Text oder eigene Inline-SVGs, kein fremdes Icon-Set.
-        muster = re.compile(r"[\u2190-\u21FF\u2300-\u23FF\u2600-\u27BF\U0001F000-\U0001FAFF]"
+        # Seit #37 auch Geometric Shapes (U+25A0–25FF: ▶ ■ ▦) und
+        # Supplemental Arrows-A (U+27F0–27FF: ⟲).
+        muster = re.compile(r"[\u2190-\u21FF\u2300-\u23FF\u25A0-\u25FF\u2600-\u27BF\u27F0-\u27FF\U0001F000-\U0001FAFF]"
                             r"|&#(?:x(?:2[1-7]|1F)[0-9a-fA-F]{2,3}|(?:8[4-9]|9[0-9]|10[0-2])[0-9]{2}|1[2-3][0-9]{4});")
         for datei in ("templates/admin.html", "templates/launch.html", "templates/display.html",
                       "static/app.js", "static/display.js",

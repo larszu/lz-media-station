@@ -39,6 +39,13 @@ if [ -d "$ALT_DIR/.git" ] && [ ! -e "$APP_DIR" ]; then
     mv "$ALT_DIR" "$APP_DIR"
     git -C "$APP_DIR" remote set-url origin "$REPO_URL"
 fi
+# Eine von Hand angelegte pi-media-station.service zeigt nach dem Umzug ins
+# Leere und startet sonst bei jedem Boot erfolglos neu (#37).
+if systemctl --user list-unit-files pi-media-station.service >/dev/null 2>&1 \
+   && systemctl --user list-unit-files pi-media-station.service | grep -q pi-media-station; then
+    warn "Schalte alten Dienst pi-media-station.service ab ..."
+    systemctl --user disable --now pi-media-station.service || true
+fi
 if [ -d "$APP_DIR/.git" ]; then
     log "Update vorhandenes Repo in $APP_DIR ..."
     git -C "$APP_DIR" fetch --all

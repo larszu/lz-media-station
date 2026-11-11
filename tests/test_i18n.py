@@ -36,6 +36,8 @@ GLEICH = {
     "Monitor", "System", "Topic", "Webhook (JSON)", "ntfy", "https://ntfy.sh", "PIN", "Zone",
     # Station Manager (3.0)
     "Text", "Tag", "Videos", "Audio",
+    # Station Manager: Steuerknoepfe als Text statt Symbol (#37)
+    "Start", "Stop",
 }
 
 
