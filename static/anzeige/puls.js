@@ -18,13 +18,25 @@
 
    IN DER VORSCHAU (Editor) meldet die Seite ihren Puls mit `vorschau: true`
    und KEINE Starts — ein Layout, das jemand im Editor probiert, ist nicht
-   gespielt worden. */
+   gespielt worden.
+
+   IM MULTICAST-KANAL (`kanal=1`, unsichtbarer Browser aus multicast.py)
+   heisst die Anzeige fest `kanal` statt einer zufaelligen Tab-Kennung (#51).
+   Der Kanal ist ein eigener Ausgang und zaehlt im Proof-of-Play wie ein
+   eigener Schirm — aber erkennbar: in Liste und CSV steht „kanal", und ein
+   Neustart des Kanals legt keine neue Anzeige an. */
 (function () {
     'use strict';
 
     var PULS_S = 10, LOG_S = 30, FEHLER_MAX = 5;
 
+    var istKanal = (function () {
+        try { return new URLSearchParams(location.search).get('kanal') === '1'; }
+        catch (e) { return false; }
+    })();
+
     var kennung = (function () {
+        if (istKanal) return 'kanal';
         try {
             var k = sessionStorage.getItem('lz-anzeige-kennung');
             if (!k) {
@@ -92,6 +104,7 @@
             layout_id: szene ? szene.layout_id : null,
             zone: szene ? szene.zone : null,
             vorschau: inVorschau(),
+            kanal: istKanal,
             regionen: a ? a.regionen() : [],
             fehler: fehler
         }).catch(function () { /* Station nicht erreichbar — naechster Puls */ });
