@@ -46,7 +46,9 @@ def erzeuge_blueprint(controller):
                          pid_video=cfg["pid_video"], pid_audio=cfg["pid_audio"])
         if cfg["modus"] == "anzeige":
             port_web = controller.config.get("web_port", 5000)
-            url = f"http://127.0.0.1:{port_web}/display?lang={cfg['sprache']}"
+            # `kanal=1`: puls.js meldet diesen Browser fest als Anzeige
+            # `kanal` statt unter einer zufaelligen Tab-Kennung (#51).
+            url = f"http://127.0.0.1:{port_web}/display?lang={cfg['sprache']}&kanal=1"
             kanal = multicast.AnzeigeKanal(
                 url, cfg["gruppe"], cfg["port"], cfg["name"], breite=cfg["breite"],
                 hoehe=cfg["hoehe"], fps=cfg["fps"], bitrate_k=cfg["bitrate_k"], **gemeinsam)
