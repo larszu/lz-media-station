@@ -47,7 +47,11 @@
     position: absolute; overflow: hidden; cursor: move;
     border: 1px solid rgba(246, 245, 240, 0.55);
     background: rgba(246, 245, 240, 0.08);
-    color: var(--text); font-size: 0.7rem;
+    /* Die Leinwand steht fuer den Schirm und bleibt in beiden Schemata
+       dunkel — die Schrift darauf also fest hell, nicht `--text` (im hellen
+       Schema Navy auf Navy). */
+    color: #F6F5F0; font-size: 0.7rem;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .le-region.widget { background: rgba(200, 137, 43, 0.16); border-color: rgba(200, 137, 43, 0.7); }
 .le-region.gewaehlt { border: 2px solid var(--accent); background: rgba(246, 245, 240, 0.16); z-index: 100 !important; }
@@ -55,7 +59,7 @@
     position: absolute; left: 4px; top: 3px; right: 4px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
 }
-.le-region .le-region-info { position: absolute; left: 4px; bottom: 3px; color: var(--text-dim); pointer-events: none; }
+.le-region .le-region-info { position: absolute; left: 4px; bottom: 3px; color: rgba(246, 245, 240, 0.7); pointer-events: none; }
 /* Griffe an den Ecken: 18 px, damit sie sich mit dem Daumen treffen lassen. */
 .le-griff {
     position: absolute; width: 18px; height: 18px;

@@ -39,7 +39,12 @@
 <body>
     <div class="container">
         <button type="button" class="lang-switch lang-switch-ecke" id="lang-switch">EN</button>
-        <img class="launch-signet" src="/static/brand/lzm_signet_offwhite_tally.svg" alt="" height="64">
+        <!-- Navy auf hellem Grund, Off-White im dunklen Schema; nur Off-White
+             war auf der hellen Startseite unsichtbar. -->
+        <picture>
+            <source srcset="/static/brand/lzm_signet_offwhite_tally.svg" media="(prefers-color-scheme: dark)">
+            <img class="launch-signet" src="/static/brand/lzm_signet_navy_tally.svg" alt="" height="64">
+        </picture>
         <h1>LZ Media Station</h1>
         <p class="subtitle" id="sys-name"></p>
         <p class="ip">Adresse: <strong id="ip-addr"></strong></p>
