@@ -57,7 +57,7 @@ class Protobuf(unittest.TestCase):
 AVAHI = (
     '+;eth0;IPv4;Chromecast-Ultra;_googlecast._tcp;local\n'
     '=;eth0;IPv4;Chromecast-Ultra;_googlecast._tcp;local;cc.local;'
-    '192.168.2.2;8009;"id=abc123" "md=Chromecast Ultra" "fn=Buero"\n'
+    '192.0.2.2;8009;"id=abc123" "md=Chromecast Ultra" "fn=Buero"\n'
 )
 
 
@@ -66,7 +66,7 @@ class AvahiParsing(unittest.TestCase):
         geraete = chromecast._aus_avahi(AVAHI)
         self.assertEqual(len(geraete), 1)
         g = geraete[0]
-        self.assertEqual(g["ip"], "192.168.2.2")
+        self.assertEqual(g["ip"], "192.0.2.2")
         self.assertEqual(g["port"], 8009)
         self.assertEqual(g["name"], "Buero")
         self.assertEqual(g["modell"], "Chromecast Ultra")
@@ -134,7 +134,7 @@ class Spielen(unittest.TestCase):
         ])
         with patcher:
             ok, meldung = chromecast.spiele(
-                "192.168.2.2", "http://host/media/videos/a.mp4")
+                "192.0.2.2", "http://host/media/videos/a.mp4")
         self.assertTrue(ok, meldung)
 
         typen = [json.loads(last).get("type") for _, last in fake.gesendet]
@@ -152,7 +152,7 @@ class Spielen(unittest.TestCase):
         ])
         with patcher:
             ok, meldung = chromecast.spiele(
-                "192.168.2.2", "http://host/x.mp4", app_id="EIGEN123")
+                "192.0.2.2", "http://host/x.mp4", app_id="EIGEN123")
         self.assertFalse(ok)
         self.assertIn("EIGEN123", meldung)
         self.assertIn("registriert", meldung)
@@ -172,10 +172,10 @@ class CastConfig(unittest.TestCase):
 
     def test_pruefe_nimmt_gueltiges(self):
         out = config_schema.pruefe_cast(
-            {"aktiv": True, "geraet_ip": "192.168.2.2", "modus": "anzeige",
+            {"aktiv": True, "geraet_ip": "192.0.2.2", "modus": "anzeige",
              "app_id": "ABCD1234"})
         self.assertTrue(out["aktiv"])
-        self.assertEqual(out["geraet_ip"], "192.168.2.2")
+        self.assertEqual(out["geraet_ip"], "192.0.2.2")
         self.assertEqual(out["modus"], "anzeige")
         self.assertEqual(out["app_id"], "ABCD1234")
 

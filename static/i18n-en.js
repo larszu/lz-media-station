@@ -41,7 +41,7 @@ window.LZ_I18N_EN = /*JSON*/{
   "Auf dem Schirm abfeuern": "Fire on the screen",
   "Auf dem Chromecast abfeuern": "Fire on the Chromecast",
   "Chromecasts suchen": "Find Chromecasts",
-  "IP, z. B. 192.168.2.2": "IP, e.g. 192.168.2.2",
+  "IP, z. B. 192.0.2.2": "IP, e.g. 192.0.2.2",
   "Stopp": "Stop",
   "Bildschirme dieses Rechners": "Screens of this computer",
   "Die Anzeige läuft als Vollbild-Fenster auf jedem Schirm, der an diesem Rechner hängt — der eingebaute zählt mit.": "The display runs as a full-screen window on every screen connected to this computer — the built-in one included.",
